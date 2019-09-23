@@ -38,3 +38,6 @@ rsconnect/
 
 # Conection string for database
 connectionString.RDS
+
+# CSV files
+*.csv

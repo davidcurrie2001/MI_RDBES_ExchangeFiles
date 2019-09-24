@@ -42,3 +42,7 @@ connectionString.RDS
 # CSV files
 *.csv
 *.csv_debug
+
+# Excel files
+*.xls
+*.xlsx

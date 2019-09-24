@@ -1,7 +1,8 @@
 library(RODBC)
 library(dplyr)
 
-
+# Location for our output files
+outputFolder <- "./output/"
 
 #' loadRDBESData
 #' This function loads data that is already in the RDBES format from a relational database.
@@ -72,6 +73,7 @@ loadRDBESData <- function(connectionString){
 #' generateCEFile Generate a CE exchange format file for the RDBS
 #'
 #' @param yearToUse The year we want to generate the CE file for
+#' @param country The country to extract data for
 #' @param RDBESdata A named list containing our RDBES data
 #' @param outputFileName The name we wish to give the file we produce
 #'
@@ -79,12 +81,23 @@ loadRDBESData <- function(connectionString){
 #' @export
 #'
 #' @examples generateCEFile(yearToUse = 2016, RDBESdata = myRDBESData, outputFileName = paste(outputFolder,"UKN_CE.csv", sep = ""))
-generateCEFile <- function(yearToUse, RDBESdata, outputFileName){
+generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
+  
+  # For testing
+  #RDBESdata<-myRDBESData
+  #yearToUse <- 2016
+  #country <- 'IRL'
+  #outputFileName <- ""
+  
+  ## Step 0 - Generate a file name if we need to 
+  if (outputFileName == ""){
+    outputFileName <- paste(country,yearToUse,"CE.csv", sep ="_")
+  }
   
   CE <- RDBESdata[['CE']]
   
   # Filter the CE data by year
-  ceFile <- CE[CE$Year == yearToUse,]
+  ceFile <- CE[CE$Year == yearToUse & CE$VesselFlagCountry == country,]
   
   # Get all the values from CE and list them out
   ce <- do.call('paste',c(ceFile,sep=','))
@@ -93,14 +106,15 @@ generateCEFile <- function(yearToUse, RDBESdata, outputFileName){
   ce <- gsub('NA','',ce)
   
   # Write out the file
-  write.table(ce, outputFileName,row.names=F,col.names=F,quote=F)
+  write.table(ce, paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   
 }
 
 
 #' generateCLFile Generate a CL exchange format file for the RDBS
 #'
-#' @param YearToUse The year we want to generate the CL file for
+#' @param yearToUse The year we want to generate the CL file for
+#' @param country The country to extract data for
 #' @param RDBESdata A named list containing our RDBES data
 #' @param outputFileName The name we wish to give the file we produce
 #'
@@ -108,12 +122,23 @@ generateCEFile <- function(yearToUse, RDBESdata, outputFileName){
 #' @export
 #'
 #' @examples generateCLFile(yearToUse = 2016, RDBESdata = myRDBESData, outputFileName = paste(outputFolder,"UKN_CL.csv", sep = ""))
-generateCLFile <- function(yearToUse, RDBESdata, outputFileName){
+generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
+  
+  # For testing
+  #RDBESdata<-myRDBESData
+  #yearToUse <- 2016
+  #country <- 'IRL'
+  #outputFileName <- ""
+  
+  ## Step 0 - Generate a file name if we need to 
+  if (outputFileName == ""){
+    outputFileName <- paste(country,yearToUse,"CL.csv", sep ="_")
+  }
   
   CL <- RDBESdata[['CL']]
   
   # Filter the CE data by year
-  clFile <- CL[CL$Year == yearToUse,]
+  clFile <- CL[CL$Year == yearToUse & CL$VesselFlagCountry == country,]
   
   # Get all the values from CL and list them out
   cl <- do.call('paste',c(clFile,sep=','))
@@ -121,17 +146,24 @@ generateCLFile <- function(yearToUse, RDBESdata, outputFileName){
   # replace NA with blanks
   cl <- gsub('NA','',cl)
   
-  write.table(cl, outputFileName,row.names=F,col.names=F,quote=F)
+  write.table(cl, paste(outputFolder, outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
   
 }
 
 
 
-generateCSFile_H5 <- function(yearToUse, RDBESdata, outputFileName){
+generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   
+  # For testing
   #RDBESdata<-myRDBESData
-  #yearToUse = 2016
-  #outputFileName = paste("./output/","IRL_H5.csv", sep = "")
+  #yearToUse <- 2016
+  #country <- 'IE'
+  #outputFileName <- ""
+
+  ## Step 0 - Generate a file name if we need to 
+  if (outputFileName == ""){
+    outputFileName <- paste(country,yearToUse,"H5.csv", sep ="_")
+  }
   
   ## Step 1 - Filter the data
   
@@ -148,9 +180,9 @@ generateCSFile_H5 <- function(yearToUse, RDBESdata, outputFileName){
   FM <- RDBESdata[['FM']]
   BV <- RDBESdata[['BV']]
 
-  # Filter by year
+  # Filter by year and country
   DEfile <- DE[DE$DEyear == yearToUse & DE$DEhierarchy == 5,]
-  SDfile <- SD[SD$DEid %in% DEfile$DEid,]
+  SDfile <- SD[SD$DEid %in% DEfile$DEid & SD$SDcountry == country,]
   OSfile <- OS[OS$SDid %in% SDfile$SDid,]
   FTfile <- FT[FT$OSid %in% OSfile$OSid,]
   LEfile <- LE[LE$FTid %in% FTfile$FTid,]
@@ -207,17 +239,27 @@ generateCSFile_H5 <- function(yearToUse, RDBESdata, outputFileName){
   DEfile$SortOrder <- paste(DEfile$DEhierarchy,DEfile$DEyear,DEfile$DEstratum,sep="-")
   SDfile$SortOrder <- paste( inner_join(SDfile,DEfile, by ="DEid")[,c("SortOrder")], SDfile$SDid, sep = "-")
   OSfile$SortOrder <- paste( inner_join(OSfile,SDfile, by ="SDid")[,c("SortOrder")], OSfile$OSid, sep = "-")
-  FTfile$SortOrder <- paste( inner_join(FTfile,OSfile, by ="OSid")[,c("SortOrder")], FTfile$FTid, sep = "-")
+  FTfile$SortOrder <- paste( inner_join(FTfile,OSfile, by ="OSid")[,c("SortOrder")], FTfile$FTid, "b", sep = "-")
   LEfile$SortOrder <- paste( inner_join(LEfile,FTfile, by ="FTid")[,c("SortOrder")], LEfile$LEid, sep = "-")
   # Need to have VD appear before LE in the output file so I need to do something different with the SortOrder value
+  # Also can't use the VD frame directly becasue it will hve the wrong number of rows (not every FT/LE has a unique VD)
   VDfile2 <- inner_join(VDfile,LEfile, by ="VDid")
-  VDfile2$SortOrder <- paste(VDfile2$SortOrder,VDfile2$VDid, sep = "-")
+  # Assuming there are no other 'a's or 'b's in the string we'll change 'b' to 'a' for the VD sort order
+  # this will make it appear before the FT line in the sorted output
+  VDfile2$SortOrder <- gsub('b','a',VDfile2$SortOrder)
+  
+  #VDfile2$SortOrder <- paste(VDfile2$SortOrder,VDfile2$VDid, sep = "-")
   # Replace the value of FTid in the sort order with 0
-  VDfile2$SortOrder <- unlist(lapply(strsplit(VDfile2$SortOrder,"-"), function(x){ paste(x[[1]],x[[2]],x[[3]],x[[4]],x[[5]],"0",x[[7]],x[[8]], sep = "-") }))
-  SSfile$SortOrder <- paste( inner_join(SSfile,LEfile, by ="LEid")[,c("SortOrder")], SSfile$SSid, sep = "-")
+  #VDfile2$SortOrder <- unlist(lapply(strsplit(VDfile2$SortOrder,"-"), function(x){ paste(x[[1]],x[[2]],x[[3]],x[[4]],x[[5]],"0",x[[7]],x[[8]], sep = "-") }))
+  SSfile$SortOrder <- paste( inner_join(SSfile,LEfile, by ="LEid")[,c("SortOrder")], SSfile$SSid, "d", sep = "-")
   # I need SL to appear before SS so I need to do soemthing similar to VD here...
   SLfile2 <- inner_join(SLfile,SSfile, by = c("SLlistName" = "SSspeciesListName"))
-  SLfile2$SortOrder <- unlist(lapply(strsplit(SLfile2$SortOrder,"-"), function(x){ paste(x[[1]],x[[2]],x[[3]],x[[4]],x[[5]],x[[6]],x[[7]],'0', sep = "-") }))
+  
+  # Assuming there are no other 'c's or 'd's in the string we'll change 'd' to 'c' for the SL sort order
+  # this will make it appear before the SS line in the sorted output
+  SLfile2$SortOrder <- gsub('d','c',SLfile2$SortOrder)
+  
+  #SLfile2$SortOrder <- unlist(lapply(strsplit(SLfile2$SortOrder,"-"), function(x){ paste(x[[1]],x[[2]],x[[3]],x[[4]],x[[5]],x[[6]],x[[7]],'0', sep = "-") }))
   SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, sep = "-")
   FMfile$SortOrder <- paste( inner_join(FMfile,SAfile, by ="SAid")[,c("SortOrder")], FMfile$FMid, sep = "-")
   BVfile$SortOrder <- paste( inner_join(BVfile,FMfile, by ="FMid")[,c("SortOrder")], BVfile$BVid, sep = "-")
@@ -257,7 +299,7 @@ generateCSFile_H5 <- function(yearToUse, RDBESdata, outputFileName){
   # Sort the output into the correct order
   csForCheckingOrdered <- csForChecking[order(FileSortOrder)]
   
-  write.table(csForCheckingOrdered, paste(outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
+  write.table(csForCheckingOrdered, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
 
   ## STEP 4) Create the real version of the output data
   
@@ -288,7 +330,7 @@ generateCSFile_H5 <- function(yearToUse, RDBESdata, outputFileName){
   # replace ChangeMe with NA
   csOrdered <- gsub('ChangeMe','NA',csOrdered)
 
-  write.table(csOrdered, outputFileName ,row.names=F,col.names=F,quote=F)
+  write.table(csOrdered, paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   
 }
 

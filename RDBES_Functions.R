@@ -94,6 +94,11 @@ generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
     outputFileName <- paste(country,yearToUse,"CE.csv", sep ="_")
   }
   
+  # Create the output directory if we need do 
+  ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
+  
+  ## Step 1 - Filter the data and write it out
+  
   CE <- RDBESdata[['CE']]
   
   # Filter the CE data by year
@@ -135,6 +140,11 @@ generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
     outputFileName <- paste(country,yearToUse,"CL.csv", sep ="_")
   }
   
+  # Create the output directory if we need do 
+  ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
+  
+  ## Step 1 - Filter the data and write it out
+  
   CL <- RDBESdata[['CL']]
   
   # Filter the CE data by year
@@ -164,6 +174,9 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   if (outputFileName == ""){
     outputFileName <- paste(country,yearToUse,"H5.csv", sep ="_")
   }
+  
+  # Create the output directory if we need do 
+  ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
   
   ## Step 1 - Filter the data
   

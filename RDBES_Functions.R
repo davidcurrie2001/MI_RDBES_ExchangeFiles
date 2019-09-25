@@ -75,12 +75,12 @@ loadRDBESData <- function(connectionString){
 #' @param yearToUse The year we want to generate the CE file for
 #' @param country The country to extract data for
 #' @param RDBESdata A named list containing our RDBES data
-#' @param outputFileName The name we wish to give the file we produce
+#' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
 #'
 #' @return
 #' @export
 #'
-#' @examples generateCEFile(yearToUse = 2016, RDBESdata = myRDBESData, outputFileName = paste(outputFolder,"UKN_CE.csv", sep = ""))
+#' @examples generateCEFile(yearToUse = 2016, country = 'IRL', RDBESdata = myRDBESData)
 generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   
   # For testing
@@ -121,12 +121,12 @@ generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
 #' @param yearToUse The year we want to generate the CL file for
 #' @param country The country to extract data for
 #' @param RDBESdata A named list containing our RDBES data
-#' @param outputFileName The name we wish to give the file we produce
+#' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
 #'
 #' @return
 #' @export
 #'
-#' @examples generateCLFile(yearToUse = 2016, RDBESdata = myRDBESData, outputFileName = paste(outputFolder,"UKN_CL.csv", sep = ""))
+#' @examples generateCLFile(yearToUse = 2016, country = 'IRL',RDBESdata = myRDBESData)
 generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   
   # For testing
@@ -162,6 +162,17 @@ generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
 
 
 
+#' generateCSFile_H5 This function creates an RDBES exchange file for Hierarchy 5 CS data
+#'
+#' @param yearToUse The year we want to generate the CS H5 file for
+#' @param country The country to extract data for
+#' @param RDBESdata A named list containing our RDBES data
+#' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
+#'
+#' @return
+#' @export
+#'
+#' @examples generateCSFile_H5(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
 generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   
   # For testing
@@ -210,33 +221,37 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # TODO - for the sake of testing we'll just generate the exchange file for a small subset of samples first
   # these next few lines can be removed once we're happy with how the function works
   
-  #SAfile <- SA[SA$SAnationalCode %in% c(40748,38778),]
+  SAfile <- SA[SA$SAnationalCode %in% c(40748,38778),]
   #SAfile <- head(SAfile,100)
-  #FMfile <- FM[FM$SAid %in% SAfile$SAid,]
-  #BVfile <- BV[BV$FMid %in% FMfile$FMid,]
-  #SSfile <- SS[SS$SSid %in% SAfile$SSid,]
-  #LEfile <- LE[LE$LEid %in% SSfile$LEid,]
-  #FTfile <- FT[FT$FTid %in% LEfile$FTid,]
-  #OSfile <- OS[OS$OSid %in% FTfile$OSid,]
-  #SDfile <- SD[SD$SDid %in% OSfile$SDid,]
-  #DEfile <- DE[DE$DEid %in% SDfile$DEid,]
-  #VDfile <- VD[VD$VDid %in% LEfile$VDid,]
-  #SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
+  FMfile <- FM[FM$SAid %in% SAfile$SAid,]
+  BVfile <- BV[BV$FMid %in% FMfile$FMid,]
+  SSfile <- SS[SS$SSid %in% SAfile$SSid,]
+  LEfile <- LE[LE$LEid %in% SSfile$LEid,]
+  FTfile <- FT[FT$FTid %in% LEfile$FTid,]
+  OSfile <- OS[OS$OSid %in% FTfile$OSid,]
+  SDfile <- SD[SD$SDid %in% OSfile$SDid,]
+  DEfile <- DE[DE$DEid %in% SDfile$DEid,]
+  VDfile <- VD[VD$VDid %in% LEfile$VDid,]
+  SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
   
   
   ## TODO - hacks due to mistakes in the validator
+  
+  ## DE - this is hack because the validator isn't correctly checking for duplicates
+  # so I have had to alter the sampling scheme name
+  DEfile$DEsamplingScheme <- paste(DEfile$DEsamplingScheme, DEfile$DEstratum,sep="-")
   
   ## SL - this is a hack because the validator will only allow 1 SL line
   SLfile <- head(SLfile,1)
    
   ## LE currently requires stat rectangle
-  LEfile$LErectangle <- "35D7"
-  LEfile$LEsampledClusters <- "SYSS"
+  LEfile$LErectangle <- "-9"
   # Not allowed MIS or a blank target species
   LEfile[is.na(LEfile$LEtargetSpecies),"LEtargetSpecies"] <- "MPD"
   
   # The only currently allowed value of sub-polygon is "NA"
   LEfile$LEsubpolygon <- "ChangeMe"
+  LEfile$LEnationalCategory <- "ChangeMe"
    
   ## BV hacks for mistakes in the validator
   BVfile$BVstratification <- 1
@@ -344,6 +359,211 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   
 }
 
+#' generateCSFile_H1 This function creates an RDBES exchange file for Hierarchy 1 CS data
+#'
+#' @param yearToUse The year we want to generate the CS H5 file for
+#' @param country The country to extract data for
+#' @param RDBESdata A named list containing our RDBES data
+#' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
+#'
+#' @return
+#' @export
+#'
+#' @examples generateCSFile_H1(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
+generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
+  
+  # For testing
+  #RDBESdata<-myRDBESData
+  #yearToUse <- 2016
+  #country <- 'IE'
+  #outputFileName <- ""
+  
+  ## Step 0 - Generate a file name if we need to 
+  if (outputFileName == ""){
+    outputFileName <- paste(country,yearToUse,"H1.csv", sep ="_")
+  }
+  
+  # Create the output directory if we need do 
+  ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
+  
+  ## Step 1 - Filter the data
+  
+  # Get the data from our name list
+  DE <- RDBESdata[['DE']]
+  SD <- RDBESdata[['SD']]
+  VS <- RDBESdata[['VS']]
+  VD <- RDBESdata[['VD']]
+  FT <- RDBESdata[['FT']]
+  FO <- RDBESdata[['FO']]
+  SL <- RDBESdata[['SL']]
+  SS <- RDBESdata[['SS']]
+  SA <- RDBESdata[['SA']]
+  FM <- RDBESdata[['FM']]
+  BV <- RDBESdata[['BV']]
+  
+  # Filter by year and country
+  DEfile <- DE[DE$DEyear == yearToUse & DE$DEhierarchy == 1,]
+  SDfile <- SD[SD$DEid %in% DEfile$DEid & SD$SDcountry == country,]
+  VSfile <- VS[VS$SDid %in% SDfile$SDid,]
+  FTfile <- FT[FT$VSid %in% VSfile$VSid,]
+  FOfile <- FO[FO$FTid %in% FTfile$FTid,]
+  SSfile <- SS[SS$FOid %in% FOfile$FOid,]
+  SAfile <- SA[SA$SSid %in% SSfile$SSid,]
+  FMfile <- FM[FM$SAid %in% SAfile$SAid,]
+  BVfile <- BV[BV$FMid %in% FMfile$FMid | BV$SAid %in% SAfile$SAid,]
+  VDfile <- VD[VD$VDid %in% VSfile$VDid,]
+  SLfile <- SL[SL$SLlistName %in% SSfile$SSspeciesListName,]
+  
+  # TODO - for the sake of testing we'll just generate the exchange file for a small subset of samples first
+  # these next few lines can be removed once we're happy with how the function works
 
+  # SAfile <- SAfile[SAfile$SAid %in% c(3272,919, 3313,869 ),]
+  # #SAfile <- head(SAfile,100)
+  # FMfile <- FM[FM$SAid %in% SAfile$SAid,]
+  # #BVfile <- BV[BV$SAid %in% FMfile$FMid,]
+  # BVfile <- BV[BV$SAid %in% SAfile$SAid,]
+  # SSfile <- SS[SS$SSid %in% SAfile$SSid,]
+  # FOfile <- FO[FO$FOid %in% SSfile$FOid,]
+  # FTfile <- FT[FT$FTid %in% FOfile$FTid,]
+  # VSfile <- VS[VS$VSid %in% FTfile$VSid,]
+  # SDfile <- SD[SD$SDid %in% VSfile$SDid,]
+  # DEfile <- DE[DE$DEid %in% SDfile$DEid,]
+  # SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
+  
+  
+  ## TODO - hacks due to mistakes in the validator
+  
+  ## DE - this is hack because the validator isn't correctly checking for duplicates
+  # so I have had to alter the sampling scheme name
+  DEfile$DEsamplingScheme <- paste(DEfile$DEsamplingScheme, DEfile$DEstratum,sep="-")
+  
+  ## SL - this is a hack because the validator will only allow 1 SL line per SS line
+  # We'll just get the first row of each unique list name
+  #SLfile <- head(SLfile,1)
+  SLfile <- SLfile %>% group_by(SLlistName) %>% filter(row_number()==1)
+  
+  
+  ## VS - need to provide values for soem fields that shoudl be blank really
+  VSfile$VSsampProb  <- -1
+  VSfile$VSselectionMethodCluster <- "SYSS"
+  VSfile$VStotalClusters <- -1
+  VSfile$VSsampledClusters <- -1
+  VSfile$VSclustersProb <- -1
+  
+  ## FT
+  FTfile$FTsampProb <- -1
+  
+  ## FO
+  FOfile$FOobservationCode <- "None"
+  
+
+  ## BV hacks for mistakes in the validator
+  BVfile$BVstratification <- 1
+  BVfile[BVfile$BVunitValue %in% c("year","MaturityScale","Sex"),"BVunitValue"] <- "mm"
+  BVfile$BVmeasurementEquipment <- "Measured by hand with caliper"
+  BVfile$BVunitScaleList <- "A"
+  
+  ## Step 2 - I now add a SortOrder field to each of our fitlered data frames
+  ## this will allow me to generate the CS file in the correct row order without needing a slow for-loop
+  
+  # IMPORTANT - I'm using inner_join from dply so we can maintain the ordering of the first data frame in the join
+  # if the ordering isn't maintained then the exchange file will be output in the wrong order
+  DEfile$SortOrder <- paste(DEfile$DEhierarchy,DEfile$DEyear,DEfile$DEstratum,sep="-")
+  SDfile$SortOrder <- paste( inner_join(SDfile,DEfile, by ="DEid")[,c("SortOrder")], SDfile$SDid, sep = "-")
+  VSfile$SortOrder <- paste( inner_join(VSfile,SDfile, by ="SDid")[,c("SortOrder")], VSfile$VSid, sep = "-")
+  FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")], FTfile$FTid, "b",sep = "-")
+  FOfile$SortOrder <- paste( inner_join(FOfile,FTfile, by ="FTid")[,c("SortOrder")], FOfile$FOid, sep = "-")
+
+  # Need to have VD appear before LE in the output file so I need to do something different with the SortOrder value
+  # Also can't use the VD frame directly becasue it will hve the wrong number of rows (not every FT/LE has a unique VD)
+  VDfile2 <- inner_join(VDfile,FTfile, by ="VDid")
+  # Assuming there are no other 'a's or 'b's in the string we'll change 'b' to 'a' for the VD sort order
+  # this will make it appear before the FT line in the sorted output
+  VDfile2$SortOrder <- gsub('b','a',VDfile2$SortOrder)
+  
+  SSfile$SortOrder <- paste( inner_join(SSfile,FOfile, by ="FOid")[,c("SortOrder")], SSfile$SSid, "d", sep = "-")
+  
+  # I need SL to appear before SS so I need to do soemthing similar to VD here...
+  SLfile2 <- inner_join(SLfile,SSfile, by = c("SLlistName" = "SSspeciesListName"))
+  # Assuming there are no other 'c's or 'd's in the string we'll change 'd' to 'c' for the SL sort order
+  # this will make it appear before the SS line in the sorted output
+  SLfile2$SortOrder <- gsub('d','c',SLfile2$SortOrder)
+  
+  SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, sep = "-")
+  FMfile$SortOrder <- paste( inner_join(FMfile,SAfile, by ="SAid")[,c("SortOrder")], FMfile$FMid, sep = "-")
+
+  # TODO For our data BV only follows SA not FM - need to check that the sort order will work if there is a mix of lower hierarchies
+  BVfile$SortOrder <- paste( inner_join(BVfile,SAfile, by ="SAid")[,c("SortOrder")], BVfile$BVid, sep = "-")
+  
+  # Combine our SortOrder values
+  FileSortOrder <- c(
+    DEfile$SortOrder,
+    SDfile$SortOrder,
+    VSfile$SortOrder,
+    VDfile2$SortOrder,
+    FTfile$SortOrder,
+    FOfile$SortOrder,
+    SLfile2$SortOrder,
+    SSfile$SortOrder,
+    SAfile$SortOrder,
+    FMfile$SortOrder,
+    BVfile$SortOrder
+  )
+  
+  ## STEP 3) Create a version of the output data for debugging
+  
+  # Here we create a version of the output data with all the ids and sorting columns in so I can check things are correct
+  csForChecking <- c(
+    do.call('paste',c(DEfile,sep=','))
+    ,do.call('paste',c(SDfile,sep=','))
+    ,do.call('paste',c(VSfile,sep=','))
+    ,do.call('paste',c(VDfile2,sep=','))
+    ,do.call('paste',c(FTfile,sep=','))
+    ,do.call('paste',c(FOfile,sep=','))
+    ,do.call('paste',c(SLfile2,sep=','))
+    ,do.call('paste',c(SSfile,sep=','))
+    ,do.call('paste',c(SAfile,sep=','))
+    ,do.call('paste',c(FMfile,sep=','))
+    ,do.call('paste',c(BVfile,sep=','))
+  )
+  
+  # Sort the output into the correct order
+  csForCheckingOrdered <- csForChecking[order(FileSortOrder)]
+  
+  write.table(csForCheckingOrdered, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
+  
+  ## STEP 4) Create the real version of the output data
+  
+  
+  # Create the CS data with the sort columns and ids removed - this will then be used to generate the exchange file
+  cs <- c(
+    do.call('paste',c(select(DEfile,-c(DEid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(SDfile,-c(DEid,SDid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(VSfile,-c(SDid,VSid,VDid,TEid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(VDfile2,-c(VDid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(FTfile,-c(FTid, OSid, VSid, VDid, SDid,SortOrder)),sep=','))
+    #,do.call('paste',c(select(LEfile,-c(OSid,FTid,VSid,VDid,SAid,LEid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(FOfile,-c(FOid,FTid,SortOrder)),sep=','))
+    # Different patern for SL
+    ,do.call('paste',c(select(SLfile2,c(SLrecordType, SLlistName,SLyear, SLspeciesCode, SLcommercialSpecies, SLcatchFraction)),sep=','))
+    ,do.call('paste',c(select(SSfile,-c(LEid,FOid,SSid,SSspeciesListID,SortOrder)),sep=','))
+    ,do.call('paste',c(select(SAfile,-c(SAparentID,SSid,SAid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(FMfile,-c(SAid,FMid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(BVfile,-c(SAid,FMid,BVid,SortOrder)),sep=','))
+  )
+  
+  # Sort the output into the correct order
+  csOrdered <- cs[order(FileSortOrder)]
+  
+  # replace NA with blanks
+  csOrdered <- gsub('NA','',csOrdered)
+  
+  # TODO - one of the code lists only has an allowed value of NA - we don't want this replaced with blanks so we do this hack...
+  # replace ChangeMe with NA
+  csOrdered <- gsub('ChangeMe','NA',csOrdered)
+  
+  write.table(csOrdered, paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
+  
+}
 
 

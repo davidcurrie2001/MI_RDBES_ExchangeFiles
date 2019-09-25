@@ -16,3 +16,6 @@ generateCLFile(yearToUse = 2016, country = 'IRL',RDBESdata = myRDBESData)
 
 # Create an H5 CS file
 generateCSFile_H5(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
+
+# Create an H1 CS file
+generateCSFile_H1(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)

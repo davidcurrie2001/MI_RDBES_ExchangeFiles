@@ -1,5 +1,6 @@
 library(RODBC)
 library(dplyr)
+library(data.table)
 
 # Location for our output files
 outputFolder <- "./output/"
@@ -109,9 +110,11 @@ generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   
   # replace NA with blanks
   ce <- gsub('NA','',ce)
+  typeof(ce)
   
   # Write out the file
-  write.table(ce, paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
+  #write.table(ce, paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
+  fwrite(list(ce), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   
 }
 
@@ -156,7 +159,8 @@ generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   # replace NA with blanks
   cl <- gsub('NA','',cl)
   
-  write.table(cl, paste(outputFolder, outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
+  #write.table(cl, paste(outputFolder, outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
+  fwrite(list(cl), paste(outputFolder, outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
   
 }
 
@@ -324,7 +328,8 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # Sort the output into the correct order
   csForCheckingOrdered <- csForChecking[order(FileSortOrder)]
   
-  write.table(csForCheckingOrdered, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
+  #write.table(csForCheckingOrdered, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
+  fwrite(list(csForCheckingOrdered), paste(outputFolder,outputFileName,"_debug", sep = ""),row.names=F,col.names=F,quote=F)
 
   ## STEP 4) Create the real version of the output data
   
@@ -355,7 +360,8 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # replace ChangeMe with NA
   csOrdered <- gsub('ChangeMe','NA',csOrdered)
 
-  write.table(csOrdered, paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
+  #write.table(csOrdered, paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
+  fwrite(list(csOrdered), paste(outputFolder,outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
   
 }
 
@@ -530,7 +536,8 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # Sort the output into the correct order
   csForCheckingOrdered <- csForChecking[order(FileSortOrder)]
   
-  write.table(csForCheckingOrdered, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
+  #write.table(csForCheckingOrdered, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
+  fwrite(list(csForCheckingOrdered), paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
   
   ## STEP 4) Create the real version of the output data
   
@@ -562,7 +569,8 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # replace ChangeMe with NA
   csOrdered <- gsub('ChangeMe','NA',csOrdered)
   
-  write.table(csOrdered, paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
+  #write.table(csOrdered, paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
+  fwrite(list(csOrdered), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   
 }
 

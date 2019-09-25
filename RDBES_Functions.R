@@ -252,10 +252,13 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   LEfile$LErectangle <- "-9"
   # Not allowed MIS or a blank target species
   LEfile[is.na(LEfile$LEtargetSpecies),"LEtargetSpecies"] <- "MPD"
+  # Validation fails without a value for this
+  LEfile$LEreasonNotSampled <- "Other"
   
   # The only currently allowed value of sub-polygon is "NA"
   LEfile$LEsubpolygon <- "ChangeMe"
   LEfile$LEnationalCategory <- "ChangeMe"
+
    
   ## BV hacks for mistakes in the validator
   BVfile$BVstratification <- 1
@@ -424,17 +427,20 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # these next few lines can be removed once we're happy with how the function works
 
   # SAfile <- SAfile[SAfile$SAid %in% c(3272,919, 3313,869 ),]
-  # #SAfile <- head(SAfile,100)
-  # FMfile <- FM[FM$SAid %in% SAfile$SAid,]
+  SAfile1 <- head(SAfile[SAfile$SAlowerHierarchy=='B',],10)
+  SAfile2 <- head(SAfile[SAfile$SAlowerHierarchy=='C',],10)
+  SAfile <- rbind(SAfile1,SAfile2)
+  
+  FMfile <- FM[FM$SAid %in% SAfile$SAid,]
   # #BVfile <- BV[BV$SAid %in% FMfile$FMid,]
-  # BVfile <- BV[BV$SAid %in% SAfile$SAid,]
-  # SSfile <- SS[SS$SSid %in% SAfile$SSid,]
-  # FOfile <- FO[FO$FOid %in% SSfile$FOid,]
-  # FTfile <- FT[FT$FTid %in% FOfile$FTid,]
-  # VSfile <- VS[VS$VSid %in% FTfile$VSid,]
-  # SDfile <- SD[SD$SDid %in% VSfile$SDid,]
-  # DEfile <- DE[DE$DEid %in% SDfile$DEid,]
-  # SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
+  BVfile <- BV[BV$SAid %in% SAfile$SAid,]
+  SSfile <- SS[SS$SSid %in% SAfile$SSid,]
+  FOfile <- FO[FO$FOid %in% SSfile$FOid,]
+  FTfile <- FT[FT$FTid %in% FOfile$FTid,]
+  VSfile <- VS[VS$VSid %in% FTfile$VSid,]
+  SDfile <- SD[SD$SDid %in% VSfile$SDid,]
+  DEfile <- DE[DE$DEid %in% SDfile$DEid,]
+  SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
   
   
   ## TODO - hacks due to mistakes in the validator
@@ -461,8 +467,18 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   
   ## FO
   FOfile$FOobservationCode <- "None"
+  # Chaneg OTQ gears to OTB
+  FOfile[FOfile$FOgear=="OTQ","FOgear"] <- "OTB"
   
-
+  ## SL
+  SLfile[SLfile$SLspeciesCode == 125743,"SLspeciesCode"] <- 126458
+  SLfile[SLfile$SLspeciesCode == 10331,"SLspeciesCode"] <- 127126
+  
+  ## SA
+  SAfile$SAcommercialSpecies <- ''
+  SAfile[SAfile$SAspeciesCode == 125743,"SAspeciesCode"] <- 126458
+  SAfile[SAfile$SAspeciesCode == 10331,"SAspeciesCode"] <- 127126
+  
   ## BV hacks for mistakes in the validator
   BVfile$BVstratification <- 1
   BVfile[BVfile$BVunitValue %in% c("year","MaturityScale","Sex"),"BVunitValue"] <- "mm"

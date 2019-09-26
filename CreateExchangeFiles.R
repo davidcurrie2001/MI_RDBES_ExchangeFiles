@@ -1,9 +1,13 @@
 
 # Load our functions
 source("RDBES_Functions.R")
+source("ImportReferenceData.R")
 
 # IMPORTANT: Hack to stop write.csv changing numbers to scientific notation
 options(scipen=500) # big number of digits
+
+# Load the allowed values from the XSD files
+allowedValues <- loadReferenceDataFromXSD(directoryToSearch = "./referenceData/", recursive = TRUE)
 
 # Load the RDBES data from the database
 myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))

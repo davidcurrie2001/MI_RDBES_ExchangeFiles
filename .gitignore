@@ -46,3 +46,7 @@ connectionString.RDS
 # Excel files
 *.xls
 *.xlsx
+
+# xsd files
+*.xsd
+

@@ -113,7 +113,6 @@ generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   typeof(ce)
   
   # Write out the file
-  #write.table(ce, paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   fwrite(list(ce), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   
 }
@@ -159,7 +158,6 @@ generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   # replace NA with blanks
   cl <- gsub('NA','',cl)
   
-  #write.table(cl, paste(outputFolder, outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
   fwrite(list(cl), paste(outputFolder, outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
   
 }
@@ -225,18 +223,18 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # TODO - for the sake of testing we'll just generate the exchange file for a small subset of samples first
   # these next few lines can be removed once we're happy with how the function works
   
-  SAfile <- SA[SA$SAnationalCode %in% c(40748,38778),]
-  #SAfile <- head(SAfile,100)
-  FMfile <- FM[FM$SAid %in% SAfile$SAid,]
-  BVfile <- BV[BV$FMid %in% FMfile$FMid,]
-  SSfile <- SS[SS$SSid %in% SAfile$SSid,]
-  LEfile <- LE[LE$LEid %in% SSfile$LEid,]
-  FTfile <- FT[FT$FTid %in% LEfile$FTid,]
-  OSfile <- OS[OS$OSid %in% FTfile$OSid,]
-  SDfile <- SD[SD$SDid %in% OSfile$SDid,]
-  DEfile <- DE[DE$DEid %in% SDfile$DEid,]
-  VDfile <- VD[VD$VDid %in% LEfile$VDid,]
-  SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
+  # SAfile <- SA[SA$SAnationalCode %in% c(40748,38778),]
+  # #SAfile <- head(SAfile,100)
+  # FMfile <- FM[FM$SAid %in% SAfile$SAid,]
+  # BVfile <- BV[BV$FMid %in% FMfile$FMid,]
+  # SSfile <- SS[SS$SSid %in% SAfile$SSid,]
+  # LEfile <- LE[LE$LEid %in% SSfile$LEid,]
+  # FTfile <- FT[FT$FTid %in% LEfile$FTid,]
+  # OSfile <- OS[OS$OSid %in% FTfile$OSid,]
+  # SDfile <- SD[SD$SDid %in% OSfile$SDid,]
+  # DEfile <- DE[DE$DEid %in% SDfile$DEid,]
+  # VDfile <- VD[VD$VDid %in% LEfile$VDid,]
+  # SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
   
   
   ## TODO - hacks due to mistakes in the validator
@@ -331,7 +329,6 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # Sort the output into the correct order
   csForCheckingOrdered <- csForChecking[order(FileSortOrder)]
   
-  #write.table(csForCheckingOrdered, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
   fwrite(list(csForCheckingOrdered), paste(outputFolder,outputFileName,"_debug", sep = ""),row.names=F,col.names=F,quote=F)
 
   ## STEP 4) Create the real version of the output data
@@ -363,7 +360,6 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # replace ChangeMe with NA
   csOrdered <- gsub('ChangeMe','NA',csOrdered)
 
-  #write.table(csOrdered, paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   fwrite(list(csOrdered), paste(outputFolder,outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
   
 }
@@ -427,20 +423,20 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # these next few lines can be removed once we're happy with how the function works
 
   # SAfile <- SAfile[SAfile$SAid %in% c(3272,919, 3313,869 ),]
-  SAfile1 <- head(SAfile[SAfile$SAlowerHierarchy=='B',],10)
-  SAfile2 <- head(SAfile[SAfile$SAlowerHierarchy=='C',],10)
-  SAfile <- rbind(SAfile1,SAfile2)
-  
-  FMfile <- FM[FM$SAid %in% SAfile$SAid,]
-  # #BVfile <- BV[BV$SAid %in% FMfile$FMid,]
-  BVfile <- BV[BV$SAid %in% SAfile$SAid,]
-  SSfile <- SS[SS$SSid %in% SAfile$SSid,]
-  FOfile <- FO[FO$FOid %in% SSfile$FOid,]
-  FTfile <- FT[FT$FTid %in% FOfile$FTid,]
-  VSfile <- VS[VS$VSid %in% FTfile$VSid,]
-  SDfile <- SD[SD$SDid %in% VSfile$SDid,]
-  DEfile <- DE[DE$DEid %in% SDfile$DEid,]
-  SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
+  # SAfile1 <- head(SAfile[SAfile$SAlowerHierarchy=='B',],10)
+  # SAfile2 <- head(SAfile[SAfile$SAlowerHierarchy=='C',],10)
+  # SAfile <- rbind(SAfile1,SAfile2)
+  # 
+  # FMfile <- FM[FM$SAid %in% SAfile$SAid,]
+  # # #BVfile <- BV[BV$SAid %in% FMfile$FMid,]
+  # BVfile <- BV[BV$SAid %in% SAfile$SAid,]
+  # SSfile <- SS[SS$SSid %in% SAfile$SSid,]
+  # FOfile <- FO[FO$FOid %in% SSfile$FOid,]
+  # FTfile <- FT[FT$FTid %in% FOfile$FTid,]
+  # VSfile <- VS[VS$VSid %in% FTfile$VSid,]
+  # SDfile <- SD[SD$SDid %in% VSfile$SDid,]
+  # DEfile <- DE[DE$DEid %in% SDfile$DEid,]
+  # SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
   
   
   ## TODO - hacks due to mistakes in the validator
@@ -552,7 +548,6 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # Sort the output into the correct order
   csForCheckingOrdered <- csForChecking[order(FileSortOrder)]
   
-  #write.table(csForCheckingOrdered, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
   fwrite(list(csForCheckingOrdered), paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
   
   ## STEP 4) Create the real version of the output data
@@ -585,7 +580,6 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # replace ChangeMe with NA
   csOrdered <- gsub('ChangeMe','NA',csOrdered)
   
-  #write.table(csOrdered, paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   fwrite(list(csOrdered), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   
 }

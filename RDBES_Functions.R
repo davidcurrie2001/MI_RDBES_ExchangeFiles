@@ -223,18 +223,17 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # TODO - for the sake of testing we'll just generate the exchange file for a small subset of samples first
   # these next few lines can be removed once we're happy with how the function works
   
-  #SAfile <- SA[SA$SAnationalCode %in% c(40748,38778),]
-  SAfile <- head(SAfile,100)
-  FMfile <- FM[FM$SAid %in% SAfile$SAid,]
-  BVfile <- BV[BV$FMid %in% FMfile$FMid,]
-  SSfile <- SS[SS$SSid %in% SAfile$SSid,]
-  LEfile <- LE[LE$LEid %in% SSfile$LEid,]
-  FTfile <- FT[FT$FTid %in% LEfile$FTid,]
-  OSfile <- OS[OS$OSid %in% FTfile$OSid,]
-  SDfile <- SD[SD$SDid %in% OSfile$SDid,]
-  DEfile <- DE[DE$DEid %in% SDfile$DEid,]
-  VDfile <- VD[VD$VDid %in% LEfile$VDid,]
-  SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
+  # SAfile <- head(SAfile,100)
+  # FMfile <- FM[FM$SAid %in% SAfile$SAid,]
+  # BVfile <- BV[BV$FMid %in% FMfile$FMid,]
+  # SSfile <- SS[SS$SSid %in% SAfile$SSid,]
+  # LEfile <- LE[LE$LEid %in% SSfile$LEid,]
+  # FTfile <- FT[FT$FTid %in% LEfile$FTid,]
+  # OSfile <- OS[OS$OSid %in% FTfile$OSid,]
+  # SDfile <- SD[SD$SDid %in% OSfile$SDid,]
+  # DEfile <- DE[DE$DEid %in% SDfile$DEid,]
+  # VDfile <- VD[VD$VDid %in% LEfile$VDid,]
+  # SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
   
   
   ## TODO - hacks due to mistakes in the validator
@@ -257,6 +256,11 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   LEfile$LEsubpolygon <- "ChangeMe"
   LEfile$LEnationalCategory <- "ChangeMe"
 
+  # SA 
+  # Some values were too large
+  SAfile[SAfile$SAtotalWeightLive > 2000000000,"SAtotalWeightLive"] <- 2000000000
+  # not allowed blank unit types
+  SAfile[SAfile$SAunitType =="","SAunitType"] <- "Tray"
    
   ## BV hacks for mistakes in the validator
   BVfile$BVstratification <- 1
@@ -284,20 +288,16 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   
   SSfile$SortOrder <- paste( inner_join(SSfile,LEfile, by ="LEid")[,c("SortOrder")], SSfile$SSid, sep = "-")
   
-  # I now need SL to appear after SS so I need to do soemthing similar to VD here...
-  #SLfile2 <- inner_join(SLfile,SSfile, by = c("SLlistName" = "SSspeciesListName"))
-  # Assuming there are no other 'c's or 'd's in the string we'll change 'c' to 'd' for the SL sort order
-  # this will make it appear after the SS line in the sorted output
-  #SLfile2$SortOrder <- gsub('d','c',SLfile2$SortOrder)
-  #SLfile2$SortOrder <- paste(SLfile2$SortOrder,SLfile2$SLid, sep = "-")
-  
-  #SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, sep = "-")
+
   SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, "d", sep = "-")
   
+  # I now need SL to appear after SS so I need to do soemthing similar to VD here...
   SLfile2 <- inner_join(SLfile,SSfile, by = c("SLlistName" = "SSspeciesListName"))
   # Multiple columns called Sortorder so I need to change the name
   names(SLfile2)[names(SLfile2)=="SortOrder"]<-"SortOrder_SS"
   SLfile3 <- inner_join(SLfile2,SAfile,by="SSid")
+  # Assuming there are no other 'c's or 'd's in the string we'll change 'c' to 'd' for the SL sort order
+  # this will make it appear after the SS line in the sorted output
   SLfile3$SortOrder <- gsub('d','c',SLfile3$SortOrder)
   
   
@@ -312,7 +312,6 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
     VDfile2$SortOrder,
     FTfile$SortOrder,
     LEfile$SortOrder,
-    #SLfile2$SortOrder,
     SLfile3$SortOrder,
     SSfile$SortOrder,
     SAfile$SortOrder,
@@ -330,7 +329,6 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
     ,do.call('paste',c(VDfile2,sep=','))
     ,do.call('paste',c(FTfile,sep=','))
     ,do.call('paste',c(LEfile,sep=','))
-    #,do.call('paste',c(SLfile2,sep=','))
     ,do.call('paste',c(SLfile3,sep=','))
     ,do.call('paste',c(SSfile,sep=','))
     ,do.call('paste',c(SAfile,sep=','))
@@ -351,14 +349,11 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
     do.call('paste',c(select(DEfile,-c(DEid,SortOrder)),sep=','))
     ,do.call('paste',c(select(SDfile,-c(DEid,SDid,SortOrder)),sep=','))
     ,do.call('paste',c(select(OSfile,-c(SDid,OSid,SortOrder)),sep=','))
-    #,do.call('paste',c(select(VDfile2,-c(VDid,SortOrder)),sep=','))
     # Different pattern for VD
-    #,do.call('paste',c(select(VDfile2,-c(VDid,SortOrder)),sep=','))
     ,do.call('paste',c(select(VDfile2,c(VDrecordType,VDencryptedCode,VDhomePort,VDflagCountry,VDlength,VDlengthCategory,VDpower,VDsize,VDsizeUnit,VDtype)),sep=','))
     ,do.call('paste',c(select(FTfile,-c(FTid, OSid, VSid, VDid, SDid,SortOrder)),sep=','))
     ,do.call('paste',c(select(LEfile,-c(OSid,FTid,VSid,VDid,SAid,LEid,SortOrder)),sep=','))
     # Different patern for SL
-    #,do.call('paste',c(select(SLfile2,c(SLrecordType, SLlistName,SLyear, SLspeciesCode, SLcommercialSpecies, SLcatchFraction)),sep=','))
     ,do.call('paste',c(select(SLfile3,c(SLrecordType, SLlistName,SLyear, SLspeciesCode, SLcommercialSpecies, SLcatchFraction)),sep=','))
     ,do.call('paste',c(select(SSfile,-c(LEid,FOid,SSid,SSspeciesListID,SortOrder)),sep=','))
     ,do.call('paste',c(select(SAfile,-c(SAparentID,SSid,SAid,SortOrder)),sep=','))
@@ -438,21 +433,20 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # TODO - for the sake of testing we'll just generate the exchange file for a small subset of samples first
   # these next few lines can be removed once we're happy with how the function works
 
-  #SAfile <- SAfile[SAfile$SAid %in% c(3272,919, 3313,869 ),]
-  SAfile1 <- head(SAfile[SAfile$SAlowerHierarchy=='B',],2)
-  SAfile2 <- head(SAfile[SAfile$SAlowerHierarchy=='C',],2)
-  SAfile <- rbind(SAfile1,SAfile2)
-  # 
-  FMfile <- FM[FM$SAid %in% SAfile$SAid,]
-  # # #BVfile <- BV[BV$SAid %in% FMfile$FMid,]
-  BVfile <- BV[BV$SAid %in% SAfile$SAid,]
-  SSfile <- SS[SS$SSid %in% SAfile$SSid,]
-  FOfile <- FO[FO$FOid %in% SSfile$FOid,]
-  FTfile <- FT[FT$FTid %in% FOfile$FTid,]
-  VSfile <- VS[VS$VSid %in% FTfile$VSid,]
-  SDfile <- SD[SD$SDid %in% VSfile$SDid,]
-  DEfile <- DE[DE$DEid %in% SDfile$DEid,]
-  SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
+  # SAfile1 <- head(SAfile[SAfile$SAlowerHierarchy=='B',],2)
+  # SAfile2 <- head(SAfile[SAfile$SAlowerHierarchy=='C',],2)
+  # SAfile <- rbind(SAfile1,SAfile2)
+  # # 
+  # FMfile <- FM[FM$SAid %in% SAfile$SAid,]
+  # # # #BVfile <- BV[BV$SAid %in% FMfile$FMid,]
+  # BVfile <- BV[BV$SAid %in% SAfile$SAid,]
+  # SSfile <- SS[SS$SSid %in% SAfile$SSid,]
+  # FOfile <- FO[FO$FOid %in% SSfile$FOid,]
+  # FTfile <- FT[FT$FTid %in% FOfile$FTid,]
+  # VSfile <- VS[VS$VSid %in% FTfile$VSid,]
+  # SDfile <- SD[SD$SDid %in% VSfile$SDid,]
+  # DEfile <- DE[DE$DEid %in% SDfile$DEid,]
+  # SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
   
   
   ## TODO - hacks due to mistakes in the validator
@@ -465,7 +459,6 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # We'll just get the first row of each unique list name
   #SLfile <- head(SLfile,1)
   SLfile <- SLfile %>% group_by(SLlistName) %>% filter(row_number()==1)
-  
   
   ## VS - need to provide values for soem fields that shoudl be blank really
   VSfile$VSsampProb  <- -1
@@ -518,17 +511,13 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   SSfile$SortOrder <- paste( inner_join(SSfile,FOfile, by ="FOid")[,c("SortOrder")], SSfile$SSid, sep = "-")
   
   # I need SL to appear before SS so I need to do soemthing similar to VD here...
-  #SLfile2 <- inner_join(SLfile,SSfile, by = c("SLlistName" = "SSspeciesListName"))
-  # Assuming there are no other 'c's or 'd's in the string we'll change 'd' to 'c' for the SL sort order
-  # this will make it appear before the SS line in the sorted output
-  #SLfile2$SortOrder <- gsub('d','c',SLfile2$SortOrder)
-  #SLfile2$SortOrder <- paste(SLfile2$SortOrder,SLfile2$SLid, sep = "-")
-  
   SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, "d", sep = "-")
   SLfile2 <- inner_join(SLfile,SSfile, by = c("SLlistName" = "SSspeciesListName"))
   # Multiple columns called Sortorder so I need to change the name
   names(SLfile2)[names(SLfile2)=="SortOrder"]<-"SortOrder_SS"
   SLfile3 <- inner_join(SLfile2,SAfile,by="SSid")
+  # Assuming there are no other 'c's or 'd's in the string we'll change 'd' to 'c' for the SL sort order
+  # this will make it appear before the SS line in the sorted output
   SLfile3$SortOrder <- gsub('d','c',SLfile3$SortOrder)
   
   FMfile$SortOrder <- paste( inner_join(FMfile,SAfile, by ="SAid")[,c("SortOrder")], FMfile$FMid, sep = "-")
@@ -544,7 +533,6 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
     VDfile2$SortOrder,
     FTfile$SortOrder,
     FOfile$SortOrder,
-    #SLfile2$SortOrder,
     SLfile3$SortOrder,
     SSfile$SortOrder,
     SAfile$SortOrder,
@@ -562,7 +550,6 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
     ,do.call('paste',c(VDfile2,sep=','))
     ,do.call('paste',c(FTfile,sep=','))
     ,do.call('paste',c(FOfile,sep=','))
-    #,do.call('paste',c(SLfile2,sep=','))
     ,do.call('paste',c(SLfile3,sep=','))
     ,do.call('paste',c(SSfile,sep=','))
     ,do.call('paste',c(SAfile,sep=','))
@@ -584,13 +571,11 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
     ,do.call('paste',c(select(SDfile,-c(DEid,SDid,SortOrder)),sep=','))
     ,do.call('paste',c(select(VSfile,-c(SDid,VSid,VDid,TEid,SortOrder)),sep=','))
     # Different pattern for VD
-    #,do.call('paste',c(select(VDfile2,-c(VDid,SortOrder)),sep=','))
     ,do.call('paste',c(select(VDfile2,c(VDrecordType,VDencryptedCode,VDhomePort,VDflagCountry,VDlength,VDlengthCategory,VDpower,VDsize,VDsizeUnit,VDtype)),sep=','))
     ,do.call('paste',c(select(FTfile,-c(FTid, OSid, VSid, VDid, SDid,SortOrder)),sep=','))
     #,do.call('paste',c(select(LEfile,-c(OSid,FTid,VSid,VDid,SAid,LEid,SortOrder)),sep=','))
     ,do.call('paste',c(select(FOfile,-c(FOid,FTid,SortOrder)),sep=','))
     # Different patern for SL
-    #,do.call('paste',c(select(SLfile2,c(SLrecordType, SLlistName,SLyear, SLspeciesCode, SLcommercialSpecies, SLcatchFraction)),sep=','))
     ,do.call('paste',c(select(SLfile3,c(SLrecordType, SLlistName,SLyear, SLspeciesCode, SLcommercialSpecies, SLcatchFraction)),sep=','))
     ,do.call('paste',c(select(SSfile,-c(LEid,FOid,SSid,SSspeciesListID,SortOrder)),sep=','))
     ,do.call('paste',c(select(SAfile,-c(SAparentID,SSid,SAid,SortOrder)),sep=','))

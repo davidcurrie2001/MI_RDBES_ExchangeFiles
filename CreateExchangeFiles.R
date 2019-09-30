@@ -29,7 +29,10 @@ generateH5RDataFiles(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
 
 # Create an H1 CS file
 generateCSFile_H1(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
+# Save RData files
+generateH1RDataFiles(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
 
 
 # Load RData files
 #loadRDataFiles(directoryToSearch="./output/H5")
+#loadRDataFiles(directoryToSearch="./output/H1")

@@ -606,13 +606,13 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
 #' @return
 #' @export
 #'
-#' @examples
+#' @examples generateH5RDataFiles(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
 generateH5RDataFiles <- function(yearToUse = NULL, country, RDBESdata){
   
   # For testing
-  RDBESdata<-myRDBESData
-  yearToUse <- 2016
-  country <- 'IE'
+  #RDBESdata<-myRDBESData
+  #yearToUse <- 2016
+  #country <- 'IE'
   
   subfolder <- 'H5/'
   
@@ -678,41 +678,89 @@ generateH5RDataFiles <- function(yearToUse = NULL, country, RDBESdata){
   save(VD, file = paste0(outputFolder,subfolder,"VD", ".RData"))
   save(SL, file = paste0(outputFolder,subfolder,"SL", ".RData"))
   
-  
-  # myList <- list()
-  # myList[["DE"]] <- DE
-  # myList[["SD"]] <- SD
-  # myList[["OS"]] <- OS
-  # myList[["FT"]] <- FT
-  # myList[["LE"]] <- LE
-  # myList[["SS"]] <- SS
-  # myList[["SA"]] <- SA
-  # myList[["FM"]] <- FM
-  # myList[["BV"]] <- BV
-  # myList[["VD"]] <- VD
-  # myList[["SL"]] <- SL
-  
-  # names(myList[["DE"]])<- getCorrectColNames(myList[["DE"]],'DE')
-  # names(myList[["SD"]])<- getCorrectColNames(myList[["SD"]],'SD')
-  # names(myList[["OS"]])<- getCorrectColNames(myList[["OS"]],'OS')
-  # names(myList[["FT"]])<- getCorrectColNames(myList[["FT"]],'FT')
-  # names(myList[["LE"]])<- getCorrectColNames(myList[["LE"]],'LE')
-  # names(myList[["SS"]])<- getCorrectColNames(myList[["SS"]],'SS')
-  # names(myList[["SA"]])<- getCorrectColNames(myList[["SA"]],'SA')
-  # names(myList[["FM"]])<- getCorrectColNames(myList[["FM"]],'FM')
-  # names(myList[["BV"]])<- getCorrectColNames(myList[["BV"]],'BV')
-  # names(myList[["VD"]])<- getCorrectColNames(myList[["VD"]],'VD')
-  # names(myList[["SL"]])<- getCorrectColNames(myList[["SL"]],'SL')
-  
-  
-  
-  # Save list members to RData files
-  # lapply(names(myList), function(myName){  myDF <- myList[[myName]]
-  #        print(paste0("Saving ",myName))
-  #        save(myDF, file = paste0(outputFolder,subfolder,myName, ".RData"))
-  # })
-  
 
+}
+
+#' generateH1RDataFiles Generates RData files containing the relevent data frames for hierarchy 1.  Each data frame is stored in a seperate RData file.  Data is filtered by country and year (optional)
+#'
+#' @param yearToUse (Optional) Year to extract the data for
+#' @param country Country code to extract the data for (2 letter ISO code)
+#' @param RDBESdata A list containing the RDBES data frames
+#'
+#' @return
+#' @export
+#'
+#' @examples generateH1RDataFiles(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
+generateH1RDataFiles <- function(yearToUse = NULL, country, RDBESdata){
+  
+  # For testing
+  #RDBESdata<-myRDBESData
+  #yearToUse <- 2016
+  #country <- 'IE'
+  
+  subfolder <- 'H1/'
+  
+  ## Step 0
+  # Create the output directory if we need do 
+  ifelse(!dir.exists(file.path(paste0(outputFolder,subfolder))), dir.create(file.path(paste0(outputFolder,subfolder))), FALSE)
+  
+  ## Step 1 - Filter the data
+  
+  DE <- RDBESdata[['DE']]
+  SD <- RDBESdata[['SD']]
+  VS <- RDBESdata[['VS']]
+  VD <- RDBESdata[['VD']]
+  FT <- RDBESdata[['FT']]
+  FO <- RDBESdata[['FO']]
+  SL <- RDBESdata[['SL']]
+  SS <- RDBESdata[['SS']]
+  SA <- RDBESdata[['SA']]
+  FM <- RDBESdata[['FM']]
+  BV <- RDBESdata[['BV']]
+  
+  # Filter by year and country
+  DE <- DE[DE$DEyear == yearToUse & DE$DEhierarchy == 1,]
+  SD <- SD[SD$DEid %in% DE$DEid & SD$SDcountry == country,]
+  VS <- VS[VS$SDid %in% SD$SDid,]
+  FT <- FT[FT$VSid %in% VS$VSid,]
+  FO <- FO[FO$FTid %in% FT$FTid,]
+  SS <- SS[SS$FOid %in% FO$FOid,]
+  SA <- SA[SA$SSid %in% SS$SSid,]
+  FM <- FM[FM$SAid %in% SA$SAid,]
+  BV <- BV[BV$FMid %in% FM$FMid | BV$SAid %in% SA$SAid,]
+  VD <- VD[VD$VDid %in% VS$VDid,]
+  SL <- SL[SL$SLlistName %in% SS$SSspeciesListName,]
+  
+  # Anonymise the vessels
+  VD$VDpower <- NA
+  VD$VDsize <-NA
+  
+  # There should be a nicer way of doing this with lapply....
+  names(DE)<- getCorrectColNames(DE,'DE')
+  names(SD)<- getCorrectColNames(SD,'SD')
+  names(VS)<- getCorrectColNames(VS,'VS')
+  names(FT)<- getCorrectColNames(FT,'FT')
+  names(FO)<- getCorrectColNames(FO,'FO')
+  names(SS)<- getCorrectColNames(SS,'SS')
+  names(SA)<- getCorrectColNames(SA,'SA')
+  names(FM)<- getCorrectColNames(FM,'FM')
+  names(BV)<- getCorrectColNames(BV,'BV')
+  names(VD)<- getCorrectColNames(VD,'VD')
+  names(SL)<- getCorrectColNames(SL,'SL')
+  
+  save(DE, file = paste0(outputFolder,subfolder,"DE", ".RData"))
+  save(SD, file = paste0(outputFolder,subfolder,"SD", ".RData"))
+  save(VS, file = paste0(outputFolder,subfolder,"VS", ".RData"))
+  save(FT, file = paste0(outputFolder,subfolder,"FT", ".RData"))
+  save(FO, file = paste0(outputFolder,subfolder,"FO", ".RData"))
+  save(SS, file = paste0(outputFolder,subfolder,"SS", ".RData"))
+  save(SA, file = paste0(outputFolder,subfolder,"SA", ".RData"))
+  save(FM, file = paste0(outputFolder,subfolder,"FM", ".RData"))
+  save(BV, file = paste0(outputFolder,subfolder,"BV", ".RData"))
+  save(VD, file = paste0(outputFolder,subfolder,"VD", ".RData"))
+  save(SL, file = paste0(outputFolder,subfolder,"SL", ".RData"))
+  
+  
 }
 
 #' getCorrectColNames Change the column names of the RDBES data frames to the shorter column names for use in R

@@ -50,3 +50,4 @@ connectionString.RDS
 # xsd files
 *.xsd
 
+*.RData

@@ -3,6 +3,9 @@
 source("RDBES_Functions.R")
 source("ImportReferenceData.R")
 
+# Load the column name mapping file
+load(file="./output/List_RDBES_Variables_v1.17.Rdata")
+
 # IMPORTANT: Hack to stop write.csv changing numbers to scientific notation
 options(scipen=500) # big number of digits
 
@@ -20,6 +23,13 @@ generateCLFile(yearToUse = 2016, country = 'IRL',RDBESdata = myRDBESData)
 
 # Create an H5 CS file
 generateCSFile_H5(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
+# Save RData files
+generateH5RDataFiles(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
+
 
 # Create an H1 CS file
 generateCSFile_H1(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
+
+
+# Load RData files
+#loadRDataFiles(directoryToSearch="./output/H5")

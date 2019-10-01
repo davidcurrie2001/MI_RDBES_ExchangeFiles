@@ -170,18 +170,20 @@ generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
 #' @param country The country to extract data for
 #' @param RDBESdata A named list containing our RDBES data
 #' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
+#' @param numberOfSamples Limit the output to this number of samples (just used for testing)
 #'
 #' @return
 #' @export
 #'
 #' @examples generateCSFile_H5(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
-generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
+generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL){
   
   # For testing
   #RDBESdata<-myRDBESData
   #yearToUse <- 2016
   #country <- 'IE'
   #outputFileName <- ""
+  #numberOfSamples <- 5
 
   ## Step 0 - Generate a file name if we need to 
   if (outputFileName == ""){
@@ -220,21 +222,24 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   VDfile <- VD[VD$VDid %in% LEfile$VDid,]
   SLfile <- SL[SL$SLlistName %in% SSfile$SSspeciesListName,]
   
-  # TODO - for the sake of testing we'll just generate the exchange file for a small subset of samples first
-  # these next few lines can be removed once we're happy with how the function works
+
+  # If required, limit the number of samples we will output (normally just used during testing)
+  if (!is.null(numberOfSamples)){
+    # Take a sample of the samples :-)
+    SAidsToUse <- sample(SAfile$SAid, size = numberOfSamples, replace = FALSE)
+    SAfile <- SAfile[SAfile$SAid %in% SAidsToUse,]
+    FMfile <- FM[FM$SAid %in% SAfile$SAid,]
+    BVfile <- BV[BV$FMid %in% FMfile$FMid | BV$SAid %in% SAfile$SAid,]
+    SSfile <- SS[SS$SSid %in% SAfile$SSid,]
+    LEfile <- LE[LE$LEid %in% SSfile$LEid,]
+    FTfile <- FT[FT$FTid %in% LEfile$FTid,]
+    OSfile <- OS[OS$OSid %in% FTfile$OSid,]
+    SDfile <- SD[SD$SDid %in% OSfile$SDid,]
+    DEfile <- DE[DE$DEid %in% SDfile$DEid,]
+    VDfile <- VD[VD$VDid %in% LEfile$VDid,]
+    SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
   
-  # SAfile <- head(SAfile,100)
-  # FMfile <- FM[FM$SAid %in% SAfile$SAid,]
-  # BVfile <- BV[BV$FMid %in% FMfile$FMid,]
-  # SSfile <- SS[SS$SSid %in% SAfile$SSid,]
-  # LEfile <- LE[LE$LEid %in% SSfile$LEid,]
-  # FTfile <- FT[FT$FTid %in% LEfile$FTid,]
-  # OSfile <- OS[OS$OSid %in% FTfile$OSid,]
-  # SDfile <- SD[SD$SDid %in% OSfile$SDid,]
-  # DEfile <- DE[DE$DEid %in% SDfile$DEid,]
-  # VDfile <- VD[VD$VDid %in% LEfile$VDid,]
-  # SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
-  
+  }
   
   ## TODO - hacks due to mistakes in the validator
   
@@ -263,10 +268,12 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   SAfile[SAfile$SAunitType =="","SAunitType"] <- "Tray"
    
   ## BV hacks for mistakes in the validator
-  BVfile$BVstratification <- 1
-  BVfile[BVfile$BVunitValue %in% c("year","MaturityScale","Sex"),"BVunitValue"] <- "mm"
-  BVfile$BVmeasurementEquipment <- "Measured by hand with caliper"
-  BVfile$BVunitScaleList <- "A"
+  if (nrow(BVfile)>0){
+    BVfile$BVstratification <- 1
+    BVfile[BVfile$BVunitValue %in% c("year","MaturityScale","Sex"),"BVunitValue"] <- "mm"
+    BVfile$BVmeasurementEquipment <- "Measured by hand with caliper"
+    BVfile$BVunitScaleList <- "A"
+  }
    
   ## Step 2 - I now add a SortOrder field to each of our fitlered data frames
   ## this will allow me to generate the CS file in the correct row order without needing a slow for-loop
@@ -381,18 +388,20 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName=""){
 #' @param country The country to extract data for
 #' @param RDBESdata A named list containing our RDBES data
 #' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
+#' #' @param numberOfSamples Limit the output to this number of samples (just used for testing)
 #'
 #' @return
 #' @export
 #'
 #' @examples generateCSFile_H1(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
-generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
+generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL){
   
   # For testing
   #RDBESdata<-myRDBESData
   #yearToUse <- 2016
   #country <- 'IE'
   #outputFileName <- ""
+  #numberOfSamples <- 10
   
   ## Step 0 - Generate a file name if we need to 
   if (outputFileName == ""){
@@ -430,23 +439,22 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   VDfile <- VD[VD$VDid %in% VSfile$VDid,]
   SLfile <- SL[SL$SLlistName %in% SSfile$SSspeciesListName,]
   
-  # TODO - for the sake of testing we'll just generate the exchange file for a small subset of samples first
-  # these next few lines can be removed once we're happy with how the function works
-
-  # SAfile1 <- head(SAfile[SAfile$SAlowerHierarchy=='B',],2)
-  # SAfile2 <- head(SAfile[SAfile$SAlowerHierarchy=='C',],2)
-  # SAfile <- rbind(SAfile1,SAfile2)
-  # # 
-  # FMfile <- FM[FM$SAid %in% SAfile$SAid,]
-  # # # #BVfile <- BV[BV$SAid %in% FMfile$FMid,]
-  # BVfile <- BV[BV$SAid %in% SAfile$SAid,]
-  # SSfile <- SS[SS$SSid %in% SAfile$SSid,]
-  # FOfile <- FO[FO$FOid %in% SSfile$FOid,]
-  # FTfile <- FT[FT$FTid %in% FOfile$FTid,]
-  # VSfile <- VS[VS$VSid %in% FTfile$VSid,]
-  # SDfile <- SD[SD$SDid %in% VSfile$SDid,]
-  # DEfile <- DE[DE$DEid %in% SDfile$DEid,]
-  # SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
+  # If required, limit the number of samples we will output (normally just used during testing)
+  if (!is.null(numberOfSamples)){
+    # Take a sample of the samples :-)
+    SAidsToUse <- sample(SAfile$SAid, size = numberOfSamples, replace = FALSE)
+    SAfile <- SAfile[SAfile$SAid %in% SAidsToUse,]
+    FMfile <- FM[FM$SAid %in% SAfile$SAid,]
+    BVfile <- BV[BV$FMid %in% FMfile$FMid | BV$SAid %in% SAfile$SAid,]
+    SSfile <- SS[SS$SSid %in% SAfile$SSid,]
+    FOfile <- FO[FO$FOid %in% SSfile$FOid,]
+    FTfile <- FT[FT$FTid %in% FOfile$FTid,]
+    VSfile <- VS[VS$VSid %in% FTfile$VSid,]
+    SDfile <- SD[SD$SDid %in% VSfile$SDid,]
+    DEfile <- DE[DE$DEid %in% SDfile$DEid,]
+    SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
+    
+  }
   
   
   ## TODO - hacks due to mistakes in the validator
@@ -474,6 +482,7 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   FOfile$FOobservationCode <- "None"
   # Chaneg OTQ gears to OTB
   FOfile[FOfile$FOgear=="OTQ","FOgear"] <- "OTB"
+  FOfile[FOfile$FOcatchReg=="Non","FOcatchReg"] <- "None"
   
   ## SL
   SLfile[SLfile$SLspeciesCode == 125743,"SLspeciesCode"] <- 126458
@@ -485,10 +494,12 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   SAfile[SAfile$SAspeciesCode == 10331,"SAspeciesCode"] <- 127126
   
   ## BV hacks for mistakes in the validator
-  BVfile$BVstratification <- 1
-  BVfile[BVfile$BVunitValue %in% c("year","MaturityScale","Sex"),"BVunitValue"] <- "mm"
-  BVfile$BVmeasurementEquipment <- "Measured by hand with caliper"
-  BVfile$BVunitScaleList <- "A"
+  if (nrow(BVfile)>0){
+    BVfile$BVstratification <- 1
+    BVfile[BVfile$BVunitValue %in% c("year","MaturityScale","Sex"),"BVunitValue"] <- "mm"
+    BVfile$BVmeasurementEquipment <- "Measured by hand with caliper"
+    BVfile$BVunitScaleList <- "A"
+  }
   
   ## Step 2 - I now add a SortOrder field to each of our fitlered data frames
   ## this will allow me to generate the CS file in the correct row order without needing a slow for-loop
@@ -497,16 +508,30 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   # if the ordering isn't maintained then the exchange file will be output in the wrong order
   DEfile$SortOrder <- paste(DEfile$DEhierarchy,DEfile$DEyear,DEfile$DEstratum,sep="-")
   SDfile$SortOrder <- paste( inner_join(SDfile,DEfile, by ="DEid")[,c("SortOrder")], SDfile$SDid, sep = "-")
-  VSfile$SortOrder <- paste( inner_join(VSfile,SDfile, by ="SDid")[,c("SortOrder")], VSfile$VSid, "b",sep = "-")
-  FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")], FTfile$FTid, sep = "-")
+  #VSfile$SortOrder <- paste( inner_join(VSfile,SDfile, by ="SDid")[,c("SortOrder")], VSfile$VSid, "b",sep = "-")
+  VSfile <- inner_join(VSfile,SDfile, by ="SDid")
+  VSfile$SortOrder
+  #FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")], FTfile$FTid,"a", sep = "-")
+  FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")],FTfile$FTid, FTfile$VSid,"a", sep = "-")
   FOfile$SortOrder <- paste( inner_join(FOfile,FTfile, by ="FTid")[,c("SortOrder")], FOfile$FOid, sep = "-")
 
+  VSfile2 <- inner_join(VSfile,FTfile,by="VSid")
+  VSfile2$SortOrder <- VSfile2$SortOrder.y
+  VSfile2$SortOrder.x <- NULL
+  VSfile2$SortOrder.y <- NULL
+  VSfile2$SortOrder <- gsub('-a','',VSfile2$SortOrder)
+  
   # Need to have VD appear before VS in the output file so I need to do something different with the SortOrder value
   # Also can't use the VD frame directly becasue it will hve the wrong number of rows (not every FT/LE has a unique VD)
   VDfile2 <- inner_join(VDfile,FTfile, by ="VDid")
+  VDfile2$SortOrder
+  #VDfile2$SortOrder <- gsub('-a','',VDfile2$SortOrder)
+  
+  VDfile2$SortOrder <- unlist(lapply(strsplit(VDfile2$SortOrder,"-"), function(x){ paste(x[[1]],x[[2]],x[[3]],x[[4]],x[[5]], sep = "-") }))
+  
   # Assuming there are no other 'a's or 'b's in the string we'll change 'b' to 'a' for the VD sort order
   # this will make it appear before the VS line in the sorted output
-  VDfile2$SortOrder <- gsub('b','a',VDfile2$SortOrder)
+  #VDfile2$SortOrder <- gsub('b','a',VDfile2$SortOrder)
   
   SSfile$SortOrder <- paste( inner_join(SSfile,FOfile, by ="FOid")[,c("SortOrder")], SSfile$SSid, sep = "-")
   
@@ -529,7 +554,8 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   FileSortOrder <- c(
     DEfile$SortOrder,
     SDfile$SortOrder,
-    VSfile$SortOrder,
+    #VSfile$SortOrder,
+    VSfile2$SortOrder,
     VDfile2$SortOrder,
     FTfile$SortOrder,
     FOfile$SortOrder,
@@ -546,7 +572,8 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   csForChecking <- c(
     do.call('paste',c(DEfile,sep=','))
     ,do.call('paste',c(SDfile,sep=','))
-    ,do.call('paste',c(VSfile,sep=','))
+    #,do.call('paste',c(VSfile,sep=','))
+    ,do.call('paste',c(VSfile2,sep=','))
     ,do.call('paste',c(VDfile2,sep=','))
     ,do.call('paste',c(FTfile,sep=','))
     ,do.call('paste',c(FOfile,sep=','))
@@ -564,12 +591,13 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName=""){
   
   ## STEP 4) Create the real version of the output data
   
-  
+  names(VSfile)
   # Create the CS data with the sort columns and ids removed - this will then be used to generate the exchange file
   cs <- c(
     do.call('paste',c(select(DEfile,-c(DEid,SortOrder)),sep=','))
     ,do.call('paste',c(select(SDfile,-c(DEid,SDid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(VSfile,-c(SDid,VSid,VDid,TEid,SortOrder)),sep=','))
+    #,do.call('paste',c(select(VSfile,-c(SDid,VSid,VDid,TEid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(VSfile2,c(VSrecordType,VSstratification,VSstratum,VSclustering,VSclusterName,VSsampler,VStotal,VSsampled,VSsampProb,VSselectionMethod,VSselectionMethodCluster,VStotalClusters,VSsampledClusters,VSclustersProb,VSreasonNotSampled)),sep=','))
     # Different pattern for VD
     ,do.call('paste',c(select(VDfile2,c(VDrecordType,VDencryptedCode,VDhomePort,VDflagCountry,VDlength,VDlengthCategory,VDpower,VDsize,VDsizeUnit,VDtype)),sep=','))
     ,do.call('paste',c(select(FTfile,-c(FTid, OSid, VSid, VDid, SDid,SortOrder)),sep=','))

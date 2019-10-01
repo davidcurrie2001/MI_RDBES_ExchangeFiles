@@ -504,14 +504,19 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
   ## Step 2 - I now add a SortOrder field to each of our fitlered data frames
   ## this will allow me to generate the CS file in the correct row order without needing a slow for-loop
   
+  ## I need the rows in the following (stupid) order:
+  # DE, SD, VD, VS, (FT, FO), SS, (SL, SA), FM, BV
+  
+  ## This is not a very intuitive order based on the foreign keys so the code here is a bit messy - change at your own risk!
+  
   # IMPORTANT - I'm using inner_join from dply so we can maintain the ordering of the first data frame in the join
   # if the ordering isn't maintained then the exchange file will be output in the wrong order
   DEfile$SortOrder <- paste(DEfile$DEhierarchy,DEfile$DEyear,DEfile$DEstratum,sep="-")
   SDfile$SortOrder <- paste( inner_join(SDfile,DEfile, by ="DEid")[,c("SortOrder")], SDfile$SDid, sep = "-")
-  #VSfile$SortOrder <- paste( inner_join(VSfile,SDfile, by ="SDid")[,c("SortOrder")], VSfile$VSid, "b",sep = "-")
+  
   VSfile <- inner_join(VSfile,SDfile, by ="SDid")
-  VSfile$SortOrder
-  #FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")], FTfile$FTid,"a", sep = "-")
+
+
   FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")],FTfile$FTid, FTfile$VSid,"a", sep = "-")
   FOfile$SortOrder <- paste( inner_join(FOfile,FTfile, by ="FTid")[,c("SortOrder")], FOfile$FOid, sep = "-")
 
@@ -524,18 +529,13 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
   # Need to have VD appear before VS in the output file so I need to do something different with the SortOrder value
   # Also can't use the VD frame directly becasue it will hve the wrong number of rows (not every FT/LE has a unique VD)
   VDfile2 <- inner_join(VDfile,FTfile, by ="VDid")
-  VDfile2$SortOrder
-  #VDfile2$SortOrder <- gsub('-a','',VDfile2$SortOrder)
-  
+
+  # truncate my VDfile2 sort
   VDfile2$SortOrder <- unlist(lapply(strsplit(VDfile2$SortOrder,"-"), function(x){ paste(x[[1]],x[[2]],x[[3]],x[[4]],x[[5]], sep = "-") }))
-  
-  # Assuming there are no other 'a's or 'b's in the string we'll change 'b' to 'a' for the VD sort order
-  # this will make it appear before the VS line in the sorted output
-  #VDfile2$SortOrder <- gsub('b','a',VDfile2$SortOrder)
   
   SSfile$SortOrder <- paste( inner_join(SSfile,FOfile, by ="FOid")[,c("SortOrder")], SSfile$SSid, sep = "-")
   
-  # I need SL to appear before SS so I need to do soemthing similar to VD here...
+  # I need SL to appear before SS so I need to do some messing around here...
   SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, "d", sep = "-")
   SLfile2 <- inner_join(SLfile,SSfile, by = c("SLlistName" = "SSspeciesListName"))
   # Multiple columns called Sortorder so I need to change the name

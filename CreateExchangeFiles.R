@@ -2,15 +2,20 @@
 # Load our functions
 source("RDBES_Functions.R")
 source("ImportReferenceData.R")
-
-# Load the column name mapping file
-load(file="./output/List_RDBES_Variables_v1.17.Rdata")
+source("ValidateTables.R")
 
 # IMPORTANT: Hack to stop write.csv changing numbers to scientific notation
 options(scipen=500) # big number of digits
 
 # Load the allowed values from the XSD files
 allowedValues <- loadReferenceDataFromXSD(directoryToSearch = "./referenceData/", recursive = TRUE)
+
+# Load the column name mapping file
+load(file="./output/List_RDBES_Variables_v1.17.Rdata")
+
+# Load the validation data from xsd
+validationData <- getValidationData(fileLocation = './tableDefs/BaseTypes.xsd')
+
 
 # Load the RDBES data from the database
 myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))

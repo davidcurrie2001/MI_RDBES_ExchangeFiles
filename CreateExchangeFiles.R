@@ -20,7 +20,7 @@ validationData <- getValidationData(fileLocation = './tableDefs/BaseTypes.xsd')
 # Load the RDBES data from the database
 myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 
-validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 # Create a CE output file
 generateCEFile(yearToUse = 2016, country = 'IRL', RDBESdata = myRDBESData)

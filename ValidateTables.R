@@ -44,6 +44,18 @@ getValidationData <- function(fileLocation){
 }
 
 
+#' logValidationError Internal utility function to log errors into an error data frame
+#'
+#' @param errorList 
+#' @param tableName 
+#' @param rowID 
+#' @param fieldName 
+#' @param problemType 
+#' @param problemDescription 
+#'
+#' @return
+#'
+#' @examples
 logValidationError<- function(errorList,tableName, rowID, fieldName, problemType, problemDescription){
   
   
@@ -57,6 +69,17 @@ logValidationError<- function(errorList,tableName, rowID, fieldName, problemType
   
 }
 
+#' validateTables This function validates your RDBES tables against the ICES RDBES xsd files
+#'
+#' @param RDBESdata A named list of RDBES tables
+#' @param RDBESvalidationdata The validation data derived from BaseTypes.xsd
+#' @param RDBEScodeLists The RDBES code lists
+#' @param shortOutput Set to TRUE if you want a summarised error output, set to FALSE if you want the full error output
+#'
+#' @return
+#' @export
+#'
+#' @examples errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE)
 validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, shortOutput = FALSE){
   
   # For testing
@@ -66,20 +89,12 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
   #shortOutput <- TRUE
   
   # To hold the output
-  #errorList <- list()
   errorList <- data.frame(tableName=character(0)
                           ,rowID = integer(0)
                           ,fieldName=character(0)
                           ,problemType=character(0)
                           ,problemDescription=character(0), stringsAsFactors = FALSE)
   
-  #DE <- RDBESdata[['DE']]
-  #SD <- RDBESdata[['SD']]
-  #OS <- RDBESdata[['OS']]
-  #BV <- RDBESdata[['BV']]
-  #FT <- RDBESdata[['FT']]
-  #LE <- RDBESdata[['LE']]
-
   # We'll only validate these table types at the moment
   RDBESdata <- RDBESdata[c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","TE","VD","VS" )]
   # Remove any NAs (these are tables we don't have)
@@ -87,9 +102,6 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
   
   # for each data frame in our list
   for (dfToCheck in RDBESdata){
-    
-    #dfToCheck <- head(LE,10)
-    #dfToCheck <- BV
     
     # Get the field names as a data frame
     myDF <- data.frame(fieldName = names(dfToCheck), stringsAsFactors = FALSE)
@@ -100,18 +112,28 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
     myTableName <- substr(myIDField,1,2)
     #print(myTableName)
 
-    # For each field in the frame
+    ## Check 0: Check if we are missing any fields
+    missingFieldsCheck <- RDBESvalidationdata
+    missingFieldsCheck$table <- substr(missingFieldsCheck$name,1,2)
+    missingFieldsCheck <- missingFieldsCheck[missingFieldsCheck$table==myTableName,]
+    missingFields <- missingFieldsCheck[!missingFieldsCheck$name %in% myDF$fieldName,]
+    # If we have some missing fields lets log them as an error
+    if (nrow(missingFields) > 0){
+      #Log the error
+      errorList <- logValidationError(errorList = errorList
+                                      ,tableName = myTableName
+                                      ,rowID = NA
+                                      ,fieldName = missingFields$name
+                                      ,problemType = "Missing field check"
+                                      ,problemDescription = paste("The following field is missing from your data frames: ", missingFields$name, sep = " "))
+    }
+    
+    
+    # Now we'll check each field in our current data frame
     for (i in 1:length(names(dfToCheck))) {
     
-      #i <- 6
-      #print(i)
-      #print(nrow(errorList))
-        
       myFieldName <- names(dfToCheck)[[i]]
       myFT <- fieldsAndTypes[fieldsAndTypes$fieldName == names(dfToCheck)[[i]],]
-      
-      ## TODO - should also check if there are values in the validation file that we don't
-      # have columns for
       
       ## Check 1) NA values
       myValuesNA <- dfToCheck[is.na(dfToCheck[,myFieldName]),]
@@ -134,7 +156,7 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
       #dfToCheck <- dfToCheck[!is.na(dfToCheck[,myFieldName]),]
       dfToCheckNotNA <- dfToCheck[!is.na(dfToCheck[,myFieldName]),]
       
-      # Check 2 Do we kniw what type this field shoudl be?
+      # Check 2 Do we know what type this field should be?
       # If not, there's nothing much else we can do so skip to the end and log the error
       
       #Check if we know what types this field should have
@@ -152,7 +174,6 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
             myNonIntValues <- dfToCheckNotNA[!is.integer(dfToCheckNotNA[,myFieldName]),]
             if (nrow(myNonIntValues)>0){
               #Log the error
-              #print(myNonIntValues)
               errorList <- logValidationError(errorList = errorList
                                               ,tableName = myTableName
                                               ,rowID = myNonIntValues[,1]
@@ -175,7 +196,7 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
             }
           # String
           } else if (myType == "xs:string"){
-            # Everythign can be converted to a string so no problem here
+            # Everythign can be converted to a string so no problems here!
           }
         
         # Check 4 If we're dealing with code lists we need to see if we have allowed values  
@@ -183,8 +204,6 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
         # ELSE code list
         } else {
 
-          #myValuesNotNA <- dfToCheck[!is.na(dfToCheck[,myFieldName]),]
-          #myValuesNotNA <- dfToCheck
           # if we have some non-NA values lets check them
           if (nrow(dfToCheckNotNA)){
             # see if we can find the correct code list
@@ -231,8 +250,7 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
   
   } # Endfor each frame in RDBES data list
   
-  #errorList[[1]][[1]]
-  
+
   # If we want shorter output we won't show every error  - just the first of each type
   if (shortOutput){
     
@@ -259,8 +277,5 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
   
   # Our list of errors
   errorList
-  
-  
-  
   
 }

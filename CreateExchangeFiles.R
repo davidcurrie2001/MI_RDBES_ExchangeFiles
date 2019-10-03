@@ -16,11 +16,17 @@ load(file="./output/List_RDBES_Variables_v1.17.Rdata")
 # Load the validation data from xsd
 validationData <- getValidationData(fileLocation = './tableDefs/BaseTypes.xsd')
 
-
 # Load the RDBES data from the database
 myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 
-errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+# Example of how to change from DB names to R names and vice versa
+#rNames <- changeFieldNames(frameToRename = myRDBESData[["BV"]], fieldNameMap = list_RDBES_Variables, typeOfChange = "DBtoR")
+#names(myRDBESData[["BV"]]) <- rNames
+#dbNames <- changeFieldNames(frameToRename = myRDBESData[["BV"]], fieldNameMap = list_RDBES_Variables, typeOfChange = "RtoDB")
+#names(myRDBESData[["BV"]]) <- dbNames
+
+# Lets validate our data
+errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE)
 
 # Create a CE output file
 generateCEFile(yearToUse = 2016, country = 'IRL', RDBESdata = myRDBESData)

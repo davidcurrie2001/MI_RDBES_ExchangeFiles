@@ -681,18 +681,33 @@ generateH5RDataFiles <- function(yearToUse = NULL, country, RDBESdata){
   VD$VDpower <- NA
   VD$VDsize <-NA
   
-  # There should be a nicer way of doing this with lapply....
-  names(DE)<- getCorrectColNames(DE,'DE')
-  names(SD)<- getCorrectColNames(SD,'SD')
-  names(OS)<- getCorrectColNames(OS,'OS')
-  names(FT)<- getCorrectColNames(FT,'FT')
-  names(LE)<- getCorrectColNames(LE,'LE')
-  names(SS)<- getCorrectColNames(SS,'SS')
-  names(SA)<- getCorrectColNames(SA,'SA')
-  names(FM)<- getCorrectColNames(FM,'FM')
-  names(BV)<- getCorrectColNames(BV,'BV')
-  names(VD)<- getCorrectColNames(VD,'VD')
-  names(SL)<- getCorrectColNames(SL,'SL')
+  listOfFrames <- list("DE"=DE, "SD"=SD, "OS"=OS, "FT"=FT, "LE"=LE, "SS"=SS, "SA"=SA, "FM"=FM, "BV"=BV, "VD"=VD, "SL"=SL)
+  
+  newNames <- lapply(listOfFrames, function(x)  changeFieldNames(frameToRename = x, fieldNameMap = list_RDBES_Variables, typeOfChange = "DBtoR"))
+  
+  # Change the field names of the entries in our list of data frames
+  for (myFrame in  names(listOfFrames)){
+    names(listOfFrames[[myFrame]]) <- newNames[[myFrame]]
+  }
+  
+  #names(listOfFrames[["BV"]])
+  #newNames[['BV']]
+  #names(BV)
+  
+  # The stupid save function can only save whole objects so we need to convert the members in a list
+  # back into single objects
+  DE <- listOfFrames[['DE']]
+  SD <- listOfFrames[['SD']]
+  OS <- listOfFrames[['OS']]
+  VD <- listOfFrames[['VD']]
+  FT <- listOfFrames[['FT']]
+  LE <- listOfFrames[['LE']]
+  SL <- listOfFrames[['SL']]
+  SS <- listOfFrames[['SS']]
+  SA <- listOfFrames[['SA']]
+  FM <- listOfFrames[['FM']]
+  BV <- listOfFrames[['BV']]
+  
   
   save(DE, file = paste0(outputFolder,subfolder,"DE", ".RData"))
   save(SD, file = paste0(outputFolder,subfolder,"SD", ".RData"))
@@ -763,19 +778,34 @@ generateH1RDataFiles <- function(yearToUse = NULL, country, RDBESdata){
   VD$VDpower <- NA
   VD$VDsize <-NA
   
-  # There should be a nicer way of doing this with lapply....
-  names(DE)<- getCorrectColNames(DE,'DE')
-  names(SD)<- getCorrectColNames(SD,'SD')
-  names(VS)<- getCorrectColNames(VS,'VS')
-  names(FT)<- getCorrectColNames(FT,'FT')
-  names(FO)<- getCorrectColNames(FO,'FO')
-  names(SS)<- getCorrectColNames(SS,'SS')
-  names(SA)<- getCorrectColNames(SA,'SA')
-  names(FM)<- getCorrectColNames(FM,'FM')
-  names(BV)<- getCorrectColNames(BV,'BV')
-  names(VD)<- getCorrectColNames(VD,'VD')
-  names(SL)<- getCorrectColNames(SL,'SL')
+  listOfFrames <- list("DE"=DE, "SD"=SD, "VS"=VS, "FT"=FT, "FO"=FO, "SS"=SS, "SA"=SA, "FM"=FM, "BV"=BV, "VD"=VD, "SL"=SL)
   
+  newNames <- lapply(listOfFrames, function(x)  changeFieldNames(frameToRename = x, fieldNameMap = list_RDBES_Variables, typeOfChange = "DBtoR"))
+  
+  # Change the field names of the entries in our list of data frames
+  for (myFrame in  names(listOfFrames)){
+    names(listOfFrames[[myFrame]]) <- newNames[[myFrame]]
+  }
+
+  #names(listOfFrames[["BV"]])
+  #newNames[['BV']]
+  #names(BV)
+  
+  # The stupid save function can only save whole objects so we need to convert the members in a list
+  # back into single objects
+  DE <- listOfFrames[['DE']]
+  SD <- listOfFrames[['SD']]
+  VS <- listOfFrames[['VS']]
+  VD <- listOfFrames[['VD']]
+  FT <- listOfFrames[['FT']]
+  FO <- listOfFrames[['FO']]
+  SL <- listOfFrames[['SL']]
+  SS <- listOfFrames[['SS']]
+  SA <- listOfFrames[['SA']]
+  FM <- listOfFrames[['FM']]
+  BV <- listOfFrames[['BV']]
+  
+
   save(DE, file = paste0(outputFolder,subfolder,"DE", ".RData"))
   save(SD, file = paste0(outputFolder,subfolder,"SD", ".RData"))
   save(VS, file = paste0(outputFolder,subfolder,"VS", ".RData"))
@@ -791,32 +821,59 @@ generateH1RDataFiles <- function(yearToUse = NULL, country, RDBESdata){
   
 }
 
-#' getCorrectColNames Change the column names of the RDBES data frames to the shorter column names for use in R
+
+
+#' changeFieldNames Change the field names of an RDBES data either from database names to R names or vice versa
 #'
-#' @param frameToRename Our RDBES data frame, e.g. DE
-#' @param nameOfFrame The name of our data frame e.g. "DE"
+#' @param frameToRename The RDBES data frame we want to rename
+#' @param fieldNameMap The data frame holding our names mappings
+#' @param typeOfChange Either RtoDB or DBtoR
 #'
 #' @return
 #' @export
 #'
-#' @examples names(DE)<- getCorrectColNames(DE,'DE')
-getCorrectColNames <- function(frameToRename, nameOfFrame){
+#' @examples changeFieldNames(frameToRename = x, fieldNameMap = list_RDBES_Variables, typeOfChange = "DBtoR")
+changeFieldNames <- function(frameToRename, fieldNameMap, typeOfChange){
   
   # For testing
-  #frameToRename <- DE
-  #nameOfFrame <-  'DE'
+  #frameToRename <- myRDBESData[["BV"]]
+  #fieldNameMap <- list_RDBES_Variables
+  #typeOfChange <- "DBtoR"
   
-  # Get the current column names into a data frame
-  myDF <- data.frame(name = names(frameToRename), stringsAsFactors = FALSE)
-  
-  # Left join our current names against the replacement names
-  myMapping <- left_join(myDF,list_RDBES_Variables[list_RDBES_Variables$Table==nameOfFrame,c("Field.Name","R.Name")], by=c("name" = "Field.Name"))
-  
-  # Make sure we don't have any NAs in the list of names we'll use
-  myMapping$R.Name <- ifelse(is.na(myMapping$R.Name),myMapping$name,myMapping$R.Name)
+  if (!typeOfChange %in% c("RtoDB", "DBtoR")) stop("typeOfChange paramter shoudl be either RtoDB or DBtoR")
+  # IF change DB to R
+  if (typeOfChange == "DBtoR"){
+    
+    # Get the current column names into a data frame
+    myDF <- data.frame(name = names(frameToRename), stringsAsFactors = FALSE)
+    
+    # Assume the first entry is always the primary key of the table and extract the table name
+    myTableName <- substr(myDF[1,"name"],1,2)
+    
+    # Left join our current names against the replacement names (match to DB names)
+    myMapping <- left_join(myDF,list_RDBES_Variables[fieldNameMap$Table==myTableName,c("Field.Name","R.Name")], by=c("name" = "Field.Name"))
+    
+    # Make sure we don't have any NAs in the list of names we'll use
+    myMapping$R.Name <- ifelse(is.na(myMapping$R.Name),myMapping$name,myMapping$R.Name)
+    
+    # set the new names
+    myNewNames <- myMapping$R.Name
+    
+  } else if (typeOfChange == "RtoDB"){
+    
+    # Left join our current names against the replacement names (match to R names)
+    myMapping <- left_join(myDF,list_RDBES_Variables[fieldNameMap$Table==myTableName,c("Field.Name","R.Name")], by=c("name" = "R.Name"))
+    
+    # Make sure we don't have any NAs in the list of names we'll use
+    myMapping$Field.Name <- ifelse(is.na(myMapping$Field.Name),myMapping$name,myMapping$Field.Name)
+    
+    # set the new names
+    myNewNames <- myMapping$Field.Name
+    
+  }
   
   # return the new names
-  myMapping$R.Name
+  myNewNames
   
 }
 

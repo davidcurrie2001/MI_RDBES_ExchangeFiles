@@ -60,10 +60,10 @@ logValidationError<- function(errorList,tableName, rowID, fieldName, problemType
 validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, shortOutput = FALSE){
   
   # For testing
-  RDBESdata <- myRDBESData
-  RDBESvalidationdata <- validationData
-  RDBEScodeLists <- allowedValues
-  shortOutput <- TRUE
+  #RDBESdata <- myRDBESData
+  #RDBESvalidationdata <- validationData
+  #RDBEScodeLists <- allowedValues
+  #shortOutput <- TRUE
   
   # To hold the output
   #errorList <- list()
@@ -73,18 +73,22 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
                           ,problemType=character(0)
                           ,problemDescription=character(0), stringsAsFactors = FALSE)
   
-  DE <- RDBESdata[['DE']]
-  SD <- RDBESdata[['SD']]
-  OS <- RDBESdata[['OS']]
-  BV <- RDBESdata[['BV']]
+  #DE <- RDBESdata[['DE']]
+  #SD <- RDBESdata[['SD']]
+  #OS <- RDBESdata[['OS']]
+  #BV <- RDBESdata[['BV']]
+  #FT <- RDBESdata[['FT']]
+  #LE <- RDBESdata[['LE']]
 
   # We'll only validate these table types at the moment
   RDBESdata <- RDBESdata[c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","TE","VD","VS" )]
+  # Remove any NAs (these are tables we don't have)
+  RDBESdata <- RDBESdata[!is.na(names(RDBESdata))]
   
   # for each data frame in our list
   for (dfToCheck in RDBESdata){
     
-    #dfToCheck <- head(BV,10)
+    #dfToCheck <- head(LE,10)
     #dfToCheck <- BV
     
     # Get the field names as a data frame
@@ -94,7 +98,7 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
     ## Assume the id is always the first field - might be better to check the field names instead
     myIDField <- names(dfToCheck)[[1]]
     myTableName <- substr(myIDField,1,2)
-    print(myTableName)
+    #print(myTableName)
 
     # For each field in the frame
     for (i in 1:length(names(dfToCheck))) {
@@ -105,6 +109,9 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
         
       myFieldName <- names(dfToCheck)[[i]]
       myFT <- fieldsAndTypes[fieldsAndTypes$fieldName == names(dfToCheck)[[i]],]
+      
+      ## TODO - should also check if there are values in the validation file that we don't
+      # have columns for
       
       ## Check 1) NA values
       myValuesNA <- dfToCheck[is.na(dfToCheck[,myFieldName]),]
@@ -237,8 +244,10 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
 
     # Generate our extra rows that will show there were more errors present
     myExtraRows <- numberedErrorList[numberedErrorList$rowNum == 2,fieldsToKeep]
-    myExtraRows$rowID <- NA
-    myExtraRows$problemDescription <- "Multiple similar error error rows removed for clarity"
+    if(nrow(myExtraRows)>0) {
+      myExtraRows$rowID <- NA
+      myExtraRows$problemDescription <- "Multiple similar error error rows removed for clarity"
+    }
     
     # Combine the first row within each group with the extra rows
     shortErrorList <- rbind(numberedErrorList[numberedErrorList$rowNum == 1,fieldsToKeep],myExtraRows)

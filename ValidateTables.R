@@ -57,12 +57,13 @@ logValidationError<- function(errorList,tableName, rowID, fieldName, problemType
   
 }
 
-validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists){
+validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, shortOutput = FALSE){
   
   # For testing
   RDBESdata <- myRDBESData
   RDBESvalidationdata <- validationData
   RDBEScodeLists <- allowedValues
+  shortOutput <- TRUE
   
   # To hold the output
   #errorList <- list()
@@ -83,8 +84,9 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists){
   # for each data frame in our list
   for (dfToCheck in RDBESdata){
     
-    dfToCheck <- head(BV,10)
-  
+    #dfToCheck <- head(BV,10)
+    #dfToCheck <- BV
+    
     # Get the field names as a data frame
     myDF <- data.frame(fieldName = names(dfToCheck), stringsAsFactors = FALSE)
     # Join the field names to the field type data frame
@@ -92,14 +94,14 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists){
     ## Assume the id is always the first field - might be better to check the field names instead
     myIDField <- names(dfToCheck)[[1]]
     myTableName <- substr(myIDField,1,2)
-    
+    print(myTableName)
 
     # For each field in the frame
     for (i in 1:length(names(dfToCheck))) {
     
       #i <- 6
-      print(i)
-      print(nrow(errorList))
+      #print(i)
+      #print(nrow(errorList))
         
       myFieldName <- names(dfToCheck)[[i]]
       myFT <- fieldsAndTypes[fieldsAndTypes$fieldName == names(dfToCheck)[[i]],]
@@ -143,7 +145,7 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists){
             myNonIntValues <- dfToCheckNotNA[!is.integer(dfToCheckNotNA[,myFieldName]),]
             if (nrow(myNonIntValues)>0){
               #Log the error
-              print(myNonIntValues)
+              #print(myNonIntValues)
               errorList <- logValidationError(errorList = errorList
                                               ,tableName = myTableName
                                               ,rowID = myNonIntValues[,1]
@@ -224,7 +226,32 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists){
   
   #errorList[[1]][[1]]
   
+  # If we want shorter output we won't show every error  - just the first of each type
+  if (shortOutput){
+    
+    fieldsToKeep <- names(errorList)
+    # Sort the errors
+    errorList <- errorList[order(errorList$tableName, errorList$fieldName, errorList$problemType, errorList$rowID),]
+    # Get the row number within a group
+    numberedErrorList <- errorList %>% group_by(errorList$tableName, errorList$fieldName, errorList$problemType) %>% mutate(rowNum = row_number())
+
+    # Generate our extra rows that will show there were more errors present
+    myExtraRows <- numberedErrorList[numberedErrorList$rowNum == 2,fieldsToKeep]
+    myExtraRows$rowID <- NA
+    myExtraRows$problemDescription <- "Multiple similar error error rows removed for clarity"
+    
+    # Combine the first row within each group with the extra rows
+    shortErrorList <- rbind(numberedErrorList[numberedErrorList$rowNum == 1,fieldsToKeep],myExtraRows)
+    shortErrorList <- shortErrorList[order(shortErrorList$tableName, shortErrorList$fieldName, shortErrorList$problemType, shortErrorList$rowID),]
+    
+    errorList <- shortErrorList
+    
+  }
+  
   # Our list of errors
   errorList
+  
+  
+  
   
 }

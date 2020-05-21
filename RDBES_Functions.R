@@ -442,11 +442,11 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName="", 
 generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL){
   
   # For testing
-  RDBESdata<-myRDBESData
-  yearToUse <- 2017
-  country <- 'IE'
-  outputFileName <- ""
-  numberOfSamples <- 10
+  # RDBESdata<-myRDBESData
+  # yearToUse <- 2017
+  # country <- 'IE'
+  # outputFileName <- ""
+  # numberOfSamples <- 10
   
   ## Step 0 - Generate a file name if we need to 
   if (outputFileName == ""){

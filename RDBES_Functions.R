@@ -8,7 +8,7 @@ outputFolder <- "./output/"
 #' loadRDBESData
 #' This function loads data that is already in the RDBES format from a relational database.
 #' 
-#' @param connectionString A string specifying the connection string to the database in a formt that odbcDriverConnect can use
+#' @param connectionString A string specifying the connection string to the database in a formt that odbcDriverConnect can use e.g. 'driver=SQL Server;server=mysqlhost;database=mydbname;trusted_connection=true'
 #'
 #' @return A named list containing the different RDBES tables
 #' @export
@@ -103,7 +103,7 @@ generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   CE <- RDBESdata[['CE']]
   
   # Filter the CE data by year
-  ceFile <- CE[CE$Year == yearToUse & CE$VesselFlagCountry == country,]
+  ceFile <- CE[CE$CEyear == yearToUse & CE$CEvesselFlagCountry == country,]
   
   # Get all the values from CE and list them out
   ce <- do.call('paste',c(ceFile,sep=','))
@@ -150,7 +150,7 @@ generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   CL <- RDBESdata[['CL']]
   
   # Filter the CE data by year
-  clFile <- CL[CL$Year == yearToUse & CL$VesselFlagCountry == country,]
+  clFile <- CL[CL$CLyear == yearToUse & CL$CLvesselFlagCountry == country,]
   
   # Get all the values from CL and list them out
   cl <- do.call('paste',c(clFile,sep=','))

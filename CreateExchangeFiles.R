@@ -34,6 +34,8 @@ generateCEFile(yearToUse = 2017, country = 'IRL', RDBESdata = myRDBESData)
 # Create a CL output file
 generateCLFile(yearToUse = 2017, country = 'IRL',RDBESdata = myRDBESData)
 
+# Create a VD output file
+generateVDFile(yearToUse = 2017, country = 'IRL',RDBESdata = myRDBESData)
 
 # Create an H5 CS file
 generateCSFile_H5(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=10)

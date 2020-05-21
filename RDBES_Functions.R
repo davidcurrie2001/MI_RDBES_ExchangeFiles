@@ -162,7 +162,52 @@ generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   
 }
 
-
+#' generateVDFile Generate a VD exchange format file for the RDBS
+#'
+#' @param yearToUse The year we want to generate the VD file for
+#' @param country The country to extract data for
+#' @param RDBESdata A named list containing our RDBES data
+#' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
+#'
+#' @return
+#' @export
+#'
+#' @examples generateVDFile(yearToUse = 2016, country = 'IRL',RDBESdata = myRDBESData)
+generateVDFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
+  
+  # For testing
+  #RDBESdata<-myRDBESData
+  #yearToUse <- 2017
+  #country <- 'IRL'
+  #outputFileName <- ""
+  
+  ## Step 0 - Generate a file name if we need to 
+  if (outputFileName == ""){
+    outputFileName <- paste(country,yearToUse,"VD.csv", sep ="_")
+  }
+  
+  # Create the output directory if we need do 
+  ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
+  
+  ## Step 1 - Filter the data and write it out
+  
+  VD <- RDBESdata[['VD']]
+  
+  # Filter the CE data by year
+  VDFile <- VD[VD$VDyear == yearToUse & VD$VDcountry == country,]
+  
+  # Remove the IDs from the data frame
+  VDFile <- select(VDFile,-c(VDid))
+  
+  # Get all the values from VD and list them out
+  vd <- do.call('paste',c(VDFile,sep=','))
+  
+  # replace NA with blanks
+  vd <- gsub('NA','',vd)
+  
+  fwrite(list(vd), paste(outputFolder, outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
+  
+}
 
 #' generateCSFile_H5 This function creates an RDBES exchange file for Hierarchy 5 CS data
 #'

@@ -14,7 +14,7 @@ loadReferenceDataFromXSD <- function(directoryToSearch, recursive){
   
   # For testing
   #directoryToSearch <- "./referenceData/"
-  #recursive <- TRUE
+  #recursive <- FALSE
   
   filesToRead <- list.files(path = directoryToSearch, pattern = "*.xsd", recursive = recursive, full.names = TRUE)
   
@@ -35,6 +35,9 @@ loadReferenceDataFromXSD <- function(directoryToSearch, recursive){
 #'
 #' @examples getAllowedValues("./referenceData/RS_BiologicalMeasurementType.xsd")
 getAllowedValues<-function(fileName){
+  
+  # For testing
+  #fileName <- "./referenceData/EDMO.xsd"
   
   # Parse the XML
   doc <- xmlTreeParse(fileName,useInternal= TRUE)

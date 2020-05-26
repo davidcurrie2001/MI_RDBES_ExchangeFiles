@@ -92,7 +92,7 @@ generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   
   ## Step 0 - Generate a file name if we need to 
   if (outputFileName == ""){
-    outputFileName <- paste(country,yearToUse,"CE.csv", sep ="_")
+    outputFileName <- paste(country,yearToUse,"HCE.csv", sep ="_")
   }
   
   # Create the output directory if we need do 
@@ -139,7 +139,7 @@ generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   
   ## Step 0 - Generate a file name if we need to 
   if (outputFileName == ""){
-    outputFileName <- paste(country,yearToUse,"CL.csv", sep ="_")
+    outputFileName <- paste(country,yearToUse,"HCL.csv", sep ="_")
   }
   
   # Create the output directory if we need do 
@@ -178,12 +178,12 @@ generateVDFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   # For testing
   #RDBESdata<-myRDBESData
   #yearToUse <- 2017
-  #country <- 'IRL'
+  #country <- 'IE'
   #outputFileName <- ""
   
   ## Step 0 - Generate a file name if we need to 
   if (outputFileName == ""){
-    outputFileName <- paste(country,yearToUse,"VD.csv", sep ="_")
+    outputFileName <- paste(country,yearToUse,"HVD.csv", sep ="_")
   }
   
   # Create the output directory if we need do 
@@ -199,6 +199,10 @@ generateVDFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   # Remove the IDs from the data frame
   VDFile <- select(VDFile,-c(VDid))
   
+  # HACK - the validator currently wants things in a different order to the Data Model spreadsheet
+  VDFile$VDtype <- NA
+  VDFile <- VDFile[,c('VDrecordType','VDcountry', 'VDencryptedCode' , 'VDyear' ,'VDflagCountry', 'VDhomePort','VDlength','VDlengthCategory' ,'VDpower','VDtonnage','VDtonUnit' ,'VDtype')]
+
   # Get all the values from VD and list them out
   vd <- do.call('paste',c(VDFile,sep=','))
   

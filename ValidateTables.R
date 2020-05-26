@@ -96,7 +96,7 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
                           ,problemDescription=character(0), stringsAsFactors = FALSE)
   
   # We'll only validate these table types at the moment
-  RDBESdata <- RDBESdata[c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","TE","VD","VS" )]
+  RDBESdata <- RDBESdata[c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","TE","VD","VS","CL","CE" )]
   # Remove any NAs (these are tables we don't have)
   RDBESdata <- RDBESdata[!is.na(names(RDBESdata))]
   

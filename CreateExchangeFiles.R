@@ -11,7 +11,7 @@ options(scipen=500) # big number of digits
 allowedValues <- loadReferenceDataFromXSD(directoryToSearch = "./referenceData/", recursive = TRUE)
 
 # Load the column name mapping file
-load(file="./output/List_RDBES_Variables_v1.17.Rdata")
+#load(file="./output/List_RDBES_Variables_v1.17.Rdata")
 
 # Load the validation data from xsd
 validationData <- getValidationData(fileLocation = './tableDefs/BaseTypes.xsd')
@@ -29,13 +29,13 @@ myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE)
 
 # Create a CE output file
-generateCEFile(yearToUse = 2017, country = 'IRL', RDBESdata = myRDBESData)
+generateCEFile(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)
 
 # Create a CL output file
-generateCLFile(yearToUse = 2017, country = 'IRL',RDBESdata = myRDBESData)
+generateCLFile(yearToUse = 2017, country = 'IE',RDBESdata = myRDBESData)
 
 # Create a VD output file
-generateVDFile(yearToUse = 2017, country = 'IRL',RDBESdata = myRDBESData)
+generateVDFile(yearToUse = 2017, country = 'IE',RDBESdata = myRDBESData)
 
 # Create an H5 CS file
 generateCSFile_H5(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=10)

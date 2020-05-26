@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="tGearType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="DRB" />
+      <xs:enumeration value="FPN" />
+      <xs:enumeration value="FPO" />
+      <xs:enumeration value="FYK" />
+      <xs:enumeration value="GEL" />
+      <xs:enumeration value="GND" />
+      <xs:enumeration value="GNS" />
+      <xs:enumeration value="GTR" />
+      <xs:enumeration value="HMD" />
+      <xs:enumeration value="LA" />
+      <xs:enumeration value="LHM" />
+      <xs:enumeration value="LLD" />
+      <xs:enumeration value="LLS" />
+      <xs:enumeration value="LTL" />
+      <xs:enumeration value="MIS" />
+      <xs:enumeration value="OTB" />
+      <xs:enumeration value="OTM" />
+      <xs:enumeration value="OTT" />
+      <xs:enumeration value="PS" />
+      <xs:enumeration value="PTB" />
+      <xs:enumeration value="PTM" />
+      <xs:enumeration value="SBV" />
+      <xs:enumeration value="SDN" />
+      <xs:enumeration value="SPR" />
+      <xs:enumeration value="SSC" />
+      <xs:enumeration value="TBB" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

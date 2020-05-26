@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="tRS_SpecimensState">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Alive" />
+      <xs:enumeration value="Dead" />
+      <xs:enumeration value="Decomposed" />
+      <xs:enumeration value="Mixed" />
+      <xs:enumeration value="NotDetermined" />
+      <xs:enumeration value="Unknown" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

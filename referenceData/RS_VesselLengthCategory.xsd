@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="tRS_VesselLengthCategory">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="&lt;8" />
+      <xs:enumeration value="10-&lt;12" />
+      <xs:enumeration value="12-&lt;15" />
+      <xs:enumeration value="15-&lt;18" />
+      <xs:enumeration value="18-&lt;24" />
+      <xs:enumeration value="24-&lt;40" />
+      <xs:enumeration value="40&lt;" />
+      <xs:enumeration value="8-&lt;10" />
+      <xs:enumeration value="Unknown" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

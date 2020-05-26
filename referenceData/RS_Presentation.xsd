@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="tRS_Presentation">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Boiled" />
+      <xs:enumeration value="BoiledFrozen" />
+      <xs:enumeration value="Frozen" />
+      <xs:enumeration value="Gutted" />
+      <xs:enumeration value="GuttedSalted" />
+      <xs:enumeration value="Headless" />
+      <xs:enumeration value="Salted" />
+      <xs:enumeration value="Tail" />
+      <xs:enumeration value="Whole" />
+      <xs:enumeration value="Wing" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

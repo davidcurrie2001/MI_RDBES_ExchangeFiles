@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="tTargetSpecies">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ANA" />
+      <xs:enumeration value="CAT" />
+      <xs:enumeration value="CEP" />
+      <xs:enumeration value="CRU" />
+      <xs:enumeration value="DEF" />
+      <xs:enumeration value="DWS" />
+      <xs:enumeration value="FIF" />
+      <xs:enumeration value="FWS" />
+      <xs:enumeration value="LPF" />
+      <xs:enumeration value="MCD" />
+      <xs:enumeration value="MCF" />
+      <xs:enumeration value="MOL" />
+      <xs:enumeration value="MPD" />
+      <xs:enumeration value="SPF" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

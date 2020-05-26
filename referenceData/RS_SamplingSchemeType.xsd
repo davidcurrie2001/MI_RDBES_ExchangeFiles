@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="tRS_SamplingSchemeType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="NatPil" />
+      <xs:enumeration value="NatRou" />
+      <xs:enumeration value="RegiPil" />
+      <xs:enumeration value="RegiRou" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

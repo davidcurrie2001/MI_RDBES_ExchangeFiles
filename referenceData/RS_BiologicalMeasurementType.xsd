@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="tRS_BiologicalMeasurementType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Age" />
+      <xs:enumeration value="FolkLength" />
+      <xs:enumeration value="HeadLength" />
+      <xs:enumeration value="Maturity" />
+      <xs:enumeration value="Sex" />
+      <xs:enumeration value="SpecimentState" />
+      <xs:enumeration value="Stock" />
+      <xs:enumeration value="TailLength" />
+      <xs:enumeration value="TotalLength" />
+      <xs:enumeration value="WeightGutted" />
+      <xs:enumeration value="WeightHeadless" />
+      <xs:enumeration value="WeightLive" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

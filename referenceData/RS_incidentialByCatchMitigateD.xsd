@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="tRS_incidentialByCatchMitigateD">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Funcping" />
+      <xs:enumeration value="None" />
+      <xs:enumeration value="Sealexcl" />
+      <xs:enumeration value="Sortgrid" />
+      <xs:enumeration value="Turtexcl" />
+      <xs:enumeration value="Unknow" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

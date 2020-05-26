@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="tRS_SelectionMethod">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="CENSUS" />
+      <xs:enumeration value="NotApp" />
+      <xs:enumeration value="NotSam" />
+      <xs:enumeration value="NPAH" />
+      <xs:enumeration value="NPEJ" />
+      <xs:enumeration value="NPQS" />
+      <xs:enumeration value="SRSWOR" />
+      <xs:enumeration value="SRSWR" />
+      <xs:enumeration value="SYSS" />
+      <xs:enumeration value="UPSWOR" />
+      <xs:enumeration value="UPSWR" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

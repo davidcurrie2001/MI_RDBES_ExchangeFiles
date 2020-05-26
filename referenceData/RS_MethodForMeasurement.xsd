@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="tRS_MethodForMeasurement">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="External Examination" />
+      <xs:enumeration value="Internal Examination" />
+      <xs:enumeration value="Otolith" />
+      <xs:enumeration value="Scale" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

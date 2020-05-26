@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="tRS_ReasonForNotSampling">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Industrial Decline" />
+      <xs:enumeration value="No Answer" />
+      <xs:enumeration value="No Contact Details" />
+      <xs:enumeration value="Not Avalible" />
+      <xs:enumeration value="Observer Decline" />
+      <xs:enumeration value="Other" />
+      <xs:enumeration value="Quota Reached" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

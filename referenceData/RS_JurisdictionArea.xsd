@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="tRS_JurisdictionArea">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Angola" />
+      <xs:enumeration value="Canaries" />
+      <xs:enumeration value="Congo" />
+      <xs:enumeration value="Guinea" />
+      <xs:enumeration value="Guinea-Bissau" />
+      <xs:enumeration value="Madeira" />
+      <xs:enumeration value="Mauritania" />
+      <xs:enumeration value="Morocco" />
+      <xs:enumeration value="Senegal" />
+      <xs:enumeration value="Sierra Leona" />
+      <xs:enumeration value="The Gambia" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

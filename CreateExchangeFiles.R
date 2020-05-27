@@ -7,14 +7,25 @@ source("ValidateTables.R")
 # IMPORTANT: Hack to stop write.csv changing numbers to scientific notation
 options(scipen=500) # big number of digits
 
-# Load the allowed values from the XSD files
-allowedValues <- loadReferenceDataFromXSD(directoryToSearch = "./referenceData/", recursive = TRUE)
+# Load the validation data from xsd
+validationData <- getValidationData(fileLocation = './tableDefs/BaseTypes.xsd')
+
+# Load the reference data: there are 3 ways to do this:
+
+# 1) Load the reference data from the XSD files
+#allowedValues <- loadReferenceDataFromXSD(directoryToSearch = "./referenceData/", recursive = TRUE)
+
+# 2) OR if we have already downloaded the reference data from ICES just load that file
+load(file="./referenceData/allowedValues.rData")
+
+# 3) OR we can refresh our reference data from ICES
+# (we need to remove the first 't' from the list names before we try and download the lists)
+#codeListsToRefresh <- unique(validationData[grep('xs:*', validationData$type, invert = TRUE),'type'])
+#codeListsToRefresh <- sub('.', '', codeListsToRefresh)
+#allowedValues <- refreshReferenceDataFromICES(codeListsToRefresh)
 
 # Load the column name mapping file
 #load(file="./output/List_RDBES_Variables_v1.17.Rdata")
-
-# Load the validation data from xsd
-validationData <- getValidationData(fileLocation = './tableDefs/BaseTypes.xsd')
 
 # Load the RDBES data from the database - you will need to write your own database connection string in a format similar to this: 'driver=SQL Server;server=mysqlhost;database=mydbname;trusted_connectio
 myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))

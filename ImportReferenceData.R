@@ -1,4 +1,56 @@
 library(XML)
+library(icesVocab)
+
+
+
+#' refreshReferenceDataFromICES Downloads the required reference data from ICES
+#'
+#' @return
+#' @export
+#'
+#' @examples
+refreshReferenceDataFromICES <- function(codeListsToRefresh){
+
+  #codeListsToRefresh <- unique(validationData[grep('xs:*', validationData$type, invert = TRUE),'type'])
+  # We want to remove the first 't' from the list names
+  #View(codeListsToRefresh)
+  #codeListsToRefresh <- sub('.', '', codeListsToRefresh)
+  
+
+  # extracts list types from ICES vocabulary server
+  codeTypes <- getCodeTypeList()
+  
+  # pick out the list types that we need
+  target_codeTypes <- codeTypes[codeTypes$Key %in% codeListsToRefresh,'Key']
+  
+  # Create an empty list
+  codeLists<-sapply(target_codeTypes,function(x) NULL)
+  
+  # Get all the reference data we need
+  for (i in target_codeTypes){
+    print(i)
+    codeLists[[i]]<-getCodeList(i)
+    codeLists[[i]]$listName <- paste("t", i, sep = "")
+    codeLists[[i]]$fileName <- "icesVocab"
+    codeLists[[i]]$allowedValues <- codeLists[[i]]$Key
+  }
+  
+  # Put the list entries into a single data frame
+  allowedValues <- do.call("rbind", codeLists)
+  
+  # save to file so we don't need to download from ICES every time
+  save(allowedValues, file="referenceData/allowedValues.rData")
+    
+  allowedValues
+  
+}
+
+
+# installs access to ices vocabulary https://github.com/ices-tools-prod/icesVocab
+#install.packages("icesVocab")
+library(icesVocab)
+#?icesVocab
+
 
 
 #' loadReferenceDataFromXSD Searches a directory (recursively if desired) and then attempts to extract the allowed values from any .xsd files it finds there. The results are returned as a large data frame.

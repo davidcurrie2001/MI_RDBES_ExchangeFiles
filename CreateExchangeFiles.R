@@ -56,7 +56,7 @@ generateH5RDataFiles(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)
 
 
 # Create an H1 CS file
-generateCSFile_H1(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=20)
+generateCSFile_H1(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=10)
 generateCSFile_H1(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)
 
 # Save RData files

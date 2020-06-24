@@ -43,8 +43,17 @@
   <xs:complexType name="FT">
     <xs:complexContent mixed="false">
       <xs:extension base="BaseFT">
+        <xs:sequence>
+          <xs:element minOccurs="0"  maxOccurs="unbounded" name="FO" type="FO" />     
+         </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="FO">
+    <xs:complexContent mixed="false">
+      <xs:extension base="BaseFO">
         <xs:sequence  maxOccurs="unbounded" >
-          <xs:element minOccurs="0"  maxOccurs="unbounded" name="LE" type="LE" />          
+          <xs:element minOccurs="0"  maxOccurs="unbounded" name="LE" type="LE" />
           <xs:element  minOccurs="0"   name="SS" type="SS" />
         </xs:sequence>
       </xs:extension>

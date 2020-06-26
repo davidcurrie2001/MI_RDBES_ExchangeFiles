@@ -1,8 +1,6 @@
 
 # Load our functions
 source("RDBES_Functions.R")
-#source("ImportReferenceData.R")
-#source("ValidateTables.R")
 
 # IMPORTANT: Hack to stop write.csv changing numbers to scientific notation
 options(scipen=500) # big number of digits
@@ -37,9 +35,9 @@ myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 #names(myRDBESData[["BV"]]) <- dbNames
 
 # Lets validate our data
-#errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE)
+errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE)
 
-#errorsCL <- errors[errors$tableName == 'CL',]
+#errorsSA <- errors[errors$tableName == 'SA',]
 
 
 # Create a CE output file
@@ -51,17 +49,18 @@ generateCLFile(yearToUse = 2017, country = 'IE',RDBESdata = myRDBESData, numberO
 #generateCLFile(yearToUse = 2017, country = 'IE',RDBESdata = myRDBESData)
 
 # Create a VD output file
-generateVDFile(yearToUse = 2017, country = 'IE',RDBESdata = myRDBESData)
+generateVDFile(yearToUse = 2017, country = 'IE',RDBESdata = myRDBESData, numberOfRows=20,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+#generateVDFile(yearToUse = 2017, country = 'IE',RDBESdata = myRDBESData)
 
 # Create an H5 CS file
-generateCSFile_H5(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=10)
+generateCSFile_H5(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=10,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 generateCSFile_H5(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)
 # Save RData files
 generateH5RDataFiles(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)
 
 
 # Create an H1 CS file
-generateCSFile_H1(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=10)
+generateCSFile_H1(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=10,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 generateCSFile_H1(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)
 
 # Save RData files

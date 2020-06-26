@@ -41,8 +41,8 @@ loadRDBESData <- function(connectionString){
   mySL <- sqlQuery(channel,"select * from dbo.SpeciesListDetails", stringsAsFactors = FALSE)
   myVD <- sqlQuery(channel,"select * from dbo.VesselDetails", stringsAsFactors = FALSE)
   
-  myLocodes <- sqlQuery(channel,"select * from dbo.PortLocodes", stringsAsFactors = FALSE)
-  myAphiaIds <- sqlQuery(channel,"select * from dbo.SpeciesAphiaIDs", stringsAsFactors = FALSE)
+  #myLocodes <- sqlQuery(channel,"select * from dbo.PortLocodes", stringsAsFactors = FALSE)
+  #myAphiaIds <- sqlQuery(channel,"select * from dbo.SpeciesAphiaIDs", stringsAsFactors = FALSE)
   
   # Close the connection
   close(channel)
@@ -63,8 +63,8 @@ loadRDBESData <- function(connectionString){
                        ,BV = myBV
                        ,SL = mySL
                        ,VD = myVD
-                       ,Locodes = myLocodes
-                       ,Aphiaids = myAphiaIds
+                       #,Locodes = myLocodes
+                       #,Aphiaids = myAphiaIds
   )
   
   return(myRDBESData)
@@ -116,7 +116,7 @@ generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = "", n
   if(cleanData){
     
     rowsBefore <- nrow(ceFile)
-    print(paste(rowsBefore, ' CE rows before removing invalid data', sep =""))
+    print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
     
     # Validate CL
     myErrors <- validateTables(RDBESdata = RDBESdata, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c("CE"))
@@ -126,15 +126,17 @@ generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = "", n
     myErrors <- myErrors[!(myErrors$fieldName == 'CEgsaSubarea' & myErrors$problemType =='Code list problem' & grepl('NotApplicable', myErrors$problemDescription)),]
     
     # Remove any invalid rows 
-    invalidRows <- unique(myErrors[myErrors$tableName == 'CE' & !is.na(myErrors$rowID),"rowID"])
-    ceFile <- ceFile[!ceFile$CEid %in% invalidRows,]
+    #invalidRows <- unique(myErrors[myErrors$tableName == 'CE' & !is.na(myErrors$rowID),"rowID"])
+    #ceFile <- ceFile[!ceFile$CEid %in% invalidRows,]
+    ceFile <- removeInvalidRows(tableName = 'CE',dataToClean = ceFile,errorList = myErrors)
+    
     
     rowsAfter <- nrow(ceFile)
-    print(paste(nrow(ceFile), ' CE rows after removing invalid data', sep =""))
+    print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
     
     if (rowsAfter < rowsBefore){
       missingRows <- rowsBefore - rowsAfter
-      warning(paste(missingRows,' invalid rows removed from CE before trying to generate output files', sep = ""))
+      warning(paste(missingRows,' invalid rows removed before trying to generate output files', sep = ""))
     }
     
   }
@@ -211,7 +213,7 @@ generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = "", n
   if(cleanData){
     
     rowsBefore <- nrow(clFile)
-    print(paste(rowsBefore, ' CL rows before removing invalid data', sep =""))
+    print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
     
     # Validate CL
     myErrors <- validateTables(RDBESdata = RDBESdata, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c("CL"))
@@ -221,15 +223,16 @@ generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = "", n
     myErrors <- myErrors[!(myErrors$fieldName == 'CLgsaSubarea' & myErrors$problemType =='Code list problem' & grepl('NotApplicable', myErrors$problemDescription)),]
     
     # Remove any invalid rows 
-    invalidRows <- unique(myErrors[myErrors$tableName == 'CL' & !is.na(myErrors$rowID),"rowID"])
-    clFile <- clFile[!clFile$CLid %in% invalidRows,]
+    #invalidRows <- unique(myErrors[myErrors$tableName == 'CL' & !is.na(myErrors$rowID),"rowID"])
+    #clFile <- clFile[!clFile$CLid %in% invalidRows,]
+    clFile <- removeInvalidRows(tableName = 'CL',dataToClean = clFile,errorList = myErrors)
     
     rowsAfter <- nrow(clFile)
-    print(paste(nrow(clFile), ' CL rows after removing invalid data', sep =""))
+    print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
     
     if (rowsAfter < rowsBefore){
       missingRows <- rowsBefore - rowsAfter
-      warning(paste(missingRows,' invalid rows removed from CL before trying to generate output files', sep = ""))
+      warning(paste(missingRows,' invalid rows removed before trying to generate output files', sep = ""))
     }
     
   }
@@ -271,7 +274,7 @@ generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = "", n
 #' @export
 #'
 #' @examples generateVDFile(yearToUse = 2016, country = 'IRL',RDBESdata = myRDBESData)
-generateVDFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
+generateVDFile <- function(yearToUse, country, RDBESdata, outputFileName = "", numberOfRows = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
   
   # For testing
   #RDBESdata<-myRDBESData
@@ -291,15 +294,48 @@ generateVDFile <- function(yearToUse, country, RDBESdata, outputFileName = ""){
   
   VD <- RDBESdata[['VD']]
   
-  # Filter the CE data by year
+  # Filter the data by year
   VDFile <- VD[VD$VDyear == yearToUse & VD$VDcountry == country,]
+  
+  # If we want to remove any invalid data before generating the upload files do this now
+  if(cleanData){
+    
+    rowsBefore <- nrow(VDFile)
+    print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
+    
+    # Validate 
+    myErrors <- validateTables(RDBESdata = RDBESdata, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c("VD"))
+    
+    # Remove any invalid rows 
+    #invalidRows <- unique(myErrors[myErrors$tableName == 'VD' & !is.na(myErrors$rowID),"rowID"])
+    #VDFile <- VDFile[!VDFile$VDid %in% invalidRows,]
+    VDFile <- removeInvalidRows(tableName = 'VD',dataToClean = VDFile,errorList = myErrors)
+    
+    rowsAfter <- nrow(VDFile)
+    print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
+    
+    if (rowsAfter < rowsBefore){
+      missingRows <- rowsBefore - rowsAfter
+      warning(paste(missingRows,' invalid rows removed from VD before trying to generate output files', sep = ""))
+    }
+    
+  }
+  
+  # If we only want a certain number of rows we'll subset the data (normally just used during testing)
+  if (!is.null(numberOfRows) & nrow(VDFile) > numberOfRows){
+    VDFile <- VDFile[1:numberOfRows,]
+  }
+  
+  
+  # We now write out the data frame with ids and column names included to make debugging easier
+  fwrite(VDFile, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=T,quote=F)
   
   # Remove the IDs from the data frame
   VDFile <- select(VDFile,-c(VDid))
   
   # HACK - the validator currently wants things in a different order to the Data Model spreadsheet
-  VDFile$VDtype <- NA
-  VDFile <- VDFile[,c('VDrecordType','VDcountry', 'VDencryptedCode' , 'VDyear' ,'VDflagCountry', 'VDhomePort','VDlength','VDlengthCategory' ,'VDpower','VDtonnage','VDtonUnit' ,'VDtype')]
+  #VDFile$VDtype <- NA
+  #VDFile <- VDFile[,c('VDrecordType','VDcountry', 'VDencryptedCode' , 'VDyear' ,'VDflagCountry', 'VDhomePort','VDlength','VDlengthCategory' ,'VDpower','VDtonnage','VDtonUnit' ,'VDtype')]
 
   # Get all the values from VD and list them out
   vd <- do.call('paste',c(VDFile,sep=','))
@@ -529,6 +565,7 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName="", 
   
 }
 
+
 #' generateCSFile_H1 This function creates an RDBES exchange file for Hierarchy 1 CS data
 #'
 #' @param yearToUse The year we want to generate the CS H5 file for
@@ -541,7 +578,7 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName="", 
 #' @export
 #'
 #' @examples generateCSFile_H1(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
-generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL){
+generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
   
   # For testing
   # RDBESdata<-myRDBESData
@@ -549,6 +586,9 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
   # country <- 'IE'
   # outputFileName <- ""
   # numberOfSamples <- 10
+  # cleanData <- FALSE
+  # RDBESvalidationdata <- validationData
+  # RDBEScodeLists <- allowedValues
   
   ## Step 0 - Generate a file name if we need to 
   if (outputFileName == ""){
@@ -564,10 +604,10 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
   DE <- RDBESdata[['DE']]
   SD <- RDBESdata[['SD']]
   VS <- RDBESdata[['VS']]
-  VD <- RDBESdata[['VD']]
+  #VD <- RDBESdata[['VD']]
   FT <- RDBESdata[['FT']]
   FO <- RDBESdata[['FO']]
-  SL <- RDBESdata[['SL']]
+  #SL <- RDBESdata[['SL']]
   SS <- RDBESdata[['SS']]
   SA <- RDBESdata[['SA']]
   FM <- RDBESdata[['FM']]
@@ -583,8 +623,40 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
   SAfile <- SA[SA$SSid %in% SSfile$SSid,]
   FMfile <- FM[FM$SAid %in% SAfile$SAid,]
   BVfile <- BV[BV$FMid %in% FMfile$FMid | BV$SAid %in% SAfile$SAid,]
-  VDfile <- VD[VD$VDid %in% VSfile$VDid,]
-  SLfile <- SL[SL$SLlistName %in% SSfile$SSspeciesListName,]
+  #VDfile <- VD[VD$VDid %in% VSfile$VDid,]
+  #SLfile <- SL[SL$SLlistName %in% SSfile$SSspeciesListName,]
+  
+  # If we want to remove any invalid data before generating the upload files do this now
+  if(cleanData){
+    
+    rowsBefore <- nrow(DEfile)+nrow(SDfile)+nrow(VSfile)+nrow(FTfile)+nrow(FOfile)+nrow(SSfile)+nrow(SAfile)+nrow(FMfile)+nrow(BVfile)
+    print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
+    
+    # Validate CL
+    myErrors <- validateTables(RDBESdata = RDBESdata, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c('DE','SD','VS','FT','FO','SS','SA','FM','BV'))
+    
+    # Remove any invalid rows 
+    DEfile <- removeInvalidRows(tableName = 'DE',dataToClean = DEfile,errorList = myErrors)
+    SDfile <- removeInvalidRows(tableName = 'SD',dataToClean = SDfile,errorList = myErrors)
+    VSfile <- removeInvalidRows(tableName = 'VS',dataToClean = VSfile,errorList = myErrors)
+    FTfile <- removeInvalidRows(tableName = 'FT',dataToClean = FTfile,errorList = myErrors)
+    FOfile <- removeInvalidRows(tableName = 'FO',dataToClean = FOfile,errorList = myErrors)
+    SSfile <- removeInvalidRows(tableName = 'SS',dataToClean = SSfile,errorList = myErrors)
+    SAfile <- removeInvalidRows(tableName = 'SA',dataToClean = SAfile,errorList = myErrors)
+    FMfile <- removeInvalidRows(tableName = 'FM',dataToClean = FMfile,errorList = myErrors)
+    BVfile <- removeInvalidRows(tableName = 'BV',dataToClean = BVfile,errorList = myErrors)
+    
+    
+    rowsAfter <- nrow(DEfile)+nrow(SDfile)+nrow(VSfile)+nrow(FTfile)+nrow(FOfile)+nrow(SSfile)+nrow(SAfile)+nrow(FMfile)+nrow(BVfile)
+    print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
+    
+    if (rowsAfter < rowsBefore){
+      missingRows <- rowsBefore - rowsAfter
+      warning(paste(missingRows,' invalid rows removed before trying to generate output files', sep = ""))
+    }
+    
+  }
+  
   
   # If required, limit the number of samples we will output (normally just used during testing)
   if (!is.null(numberOfSamples)){
@@ -599,7 +671,7 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
     VSfile <- VS[VS$VSid %in% FTfile$VSid,]
     SDfile <- SD[SD$SDid %in% VSfile$SDid,]
     DEfile <- DE[DE$DEid %in% SDfile$DEid,]
-    SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
+    #SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
     
   }
   
@@ -1289,6 +1361,27 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
   
 }
 
+#' removeInvalidRows
+#'
+#' @param tableName The name of the table e.g. 'DE'
+#' @param dataToClean The data frame we wish to clean
+#' @param errorList The list of errors produced by the validation function
+#'
+#' @return
+#' @export
+#'
+#' @examples
+removeInvalidRows <- function(tableName,dataToClean,errorList ){
+  
+  # Remove any invalid rows 
+  invalidRows <- unique(errorList[errorList$tableName == tableName & !is.na(errorList$rowID),"rowID"])
+  # Assume the first column is always the ID field
+  dataToClean <- dataToClean[!dataToClean[,1] %in% invalidRows,]
+  
+  dataToClean
+}
+
+
 
 #' refreshReferenceDataFromICES Downloads the required reference data from ICES
 #'
@@ -1331,12 +1424,6 @@ refreshReferenceDataFromICES <- function(codeListsToRefresh){
   allowedValues
   
 }
-
-
-# installs access to ices vocabulary https://github.com/ices-tools-prod/icesVocab
-#install.packages("icesVocab")
-library(icesVocab)
-#?icesVocab
 
 
 

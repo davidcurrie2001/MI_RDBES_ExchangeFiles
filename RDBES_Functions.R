@@ -3,6 +3,7 @@ library(dplyr)
 library(data.table)
 library(XML)
 library(icesVocab)
+library(RCurl)
 
 # Location for our output files
 outputFolder <- "./output/"
@@ -71,35 +72,38 @@ loadRDBESData <- function(connectionString){
   
 }
 
-
-
-#' generateCEFile Generate a CE exchange format file for the RDBS
+#' generateSimpleExchangeFile Generate either a CE, CL, VD, or SL exchange format file for the RDBES
 #'
+#' @param typeOfFile The file we want to create - allowed values are CL, CE, VD, or SL
+#' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
 #' @param yearToUse The year we want to generate the CE file for
 #' @param country The country to extract data for
 #' @param RDBESdata A named list containing our RDBES data
-#' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
 #' @param numberOfRows (Optional) Limit the output to this number of rows (just used for testing)
-#'
+#' @param cleanData (Optional) if TRUE then remove any invalid rows from the data before generating the upload files - warning data will potentially be lost from your upload file if you do this!
+#' @param RDBESvalidationdata (Optional) If you have selected to cleanData then you need to supply validation data (derived from BaseTypes.xsd)
+#' @param RDBEScodeLists (Optional) If you have selected to cleanData then you need to supply reference data (derived from ICES vocabulary server)
+#' 
 #' @return
 #' @export
 #'
-#' @examples generateCEFile(yearToUse = 2016, country = 'IRL', RDBESdata = myRDBESData)
-generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = "", numberOfRows = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
+#' @examples generateSimpleExchangeFile(typeOfFile = 'CL', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUse, country, RDBESdata,numberOfRows = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
   
-  # For testing
-  #RDBESdata<-myRDBESData
-  #yearToUse <- 2017
-  #country <- 'IE'
-  #outputFileName <- ""
-  #numberOfRows <- 50
-  #cleanData <- TRUE
-  #RDBESvalidationdata <- validationData
-  #RDBEScodeLists <- allowedValues
+  # We only need a 2 letter name for the file/table to use
+  if (length(typeOfFile)>2){
+    typeOfFile <- substr(typeOfFile,1,2)
+  }
+  
+  # Stop if we don't have a valid file type
+  if (!typeOfFile %in% c("CL","CE","VD","SL")){
+    stop(paste("Invalid value for 'typeOfFile': ",typeOfFile))
+  }
   
   ## Step 0 - Generate a file name if we need to 
   if (outputFileName == ""){
-    outputFileName <- paste(country,yearToUse,"HCE.csv", sep ="_")
+    fileName <- paste("H",typeOfFile,".csv", sep ="")
+    outputFileName <- paste(country,yearToUse,fileName, sep ="_")
   }
   
   # Create the output directory if we need do 
@@ -107,31 +111,40 @@ generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = "", n
   
   ## Step 1 - Filter the data and write it out
   
-  CE <- RDBESdata[['CE']]
+  RDBESdataForFile <- list(CE=RDBESdata[['CE']], CL=RDBESdata[['CL']], VD=RDBESdata[['VD']], SL=RDBESdata[['SL']])
   
-  # Filter the CE data by year
-  ceFile <- CE[CE$CEyear == yearToUse & CE$CEvesselFlagCountry == country,]
+  myData <- RDBESdataForFile[[typeOfFile]]
+
+  # Filter the data by our input parameters
+  if (typeOfFile == 'CE'){
+    myDataForFile <- myData[myData$CEyear == yearToUse & myData$CEvesselFlagCountry == country,]
+  } else if (typeOfFile == 'CL'){
+    myDataForFile <- myData[myData$CLyear == yearToUse & myData$CLvesselFlagCountry == country,]
+  } else if (typeOfFile == 'VD') {
+    myDataForFile <- myData[myData$VDyear == yearToUse & myData$VDcountry == country,]
+  } else if (typeOfFile == 'SL') {
+    myDataForFile <- myData[myData$SLyear == yearToUse & myData$SLcountry == country,]
+  }
   
+  RDBESdataForFile[[typeOfFile]]<-myDataForFile
+
   # If we want to remove any invalid data before generating the upload files do this now
   if(cleanData){
     
-    rowsBefore <- nrow(ceFile)
+    rowsBefore <- nrow(myDataForFile)
     print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
     
-    # Validate CL
-    myErrors <- validateTables(RDBESdata = RDBESdata, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c("CE"))
+    # Validate
+    myErrors <- validateTables(RDBESdata = RDBESdataForFile, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c(typeOfFile))
     
     # UGLY FIX 
     # Get rid of the errors associates with CLgsaSubarea having a value of NotApplicable
-    myErrors <- myErrors[!(myErrors$fieldName == 'CEgsaSubarea' & myErrors$problemType =='Code list problem' & grepl('NotApplicable', myErrors$problemDescription)),]
+    myErrors <- myErrors[!(grepl('gsaSubarea',myErrors$fieldName) & myErrors$problemType =='Code list problem' & grepl('NotApplicable', myErrors$problemDescription)),]
     
     # Remove any invalid rows 
-    #invalidRows <- unique(myErrors[myErrors$tableName == 'CE' & !is.na(myErrors$rowID),"rowID"])
-    #ceFile <- ceFile[!ceFile$CEid %in% invalidRows,]
-    ceFile <- removeInvalidRows(tableName = 'CE',dataToClean = ceFile,errorList = myErrors)
+    myDataForFile <- removeInvalidRows(tableName = typeOfFile,dataToClean = myDataForFile,errorList = myErrors)
     
-    
-    rowsAfter <- nrow(ceFile)
+    rowsAfter <- nrow(myDataForFile)
     print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
     
     if (rowsAfter < rowsBefore){
@@ -142,210 +155,413 @@ generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = "", n
   }
   
   # If we only want a certain number of rows we'll subset the data (normally just used during testing)
-  if (!is.null(numberOfRows) & nrow(ceFile) > numberOfRows){
-    ceFile <- ceFile[1:numberOfRows,]
+  if (!is.null(numberOfRows)){
+    if (nrow(myDataForFile) > numberOfRows)
+    {
+      myDataForFile <- myDataForFile[1:numberOfRows,]
+      print(paste("File truncated to ",numberOfRows, " rows",sep=""))
+    }
   }
   
   # We now write out the data frame with ids and column names included to make debugging easier
-  fwrite(ceFile, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=T,quote=F)
+  fwrite(myDataForFile, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=T,quote=F)
   
-  # Now we'll get rid of the CEid values because we won't want them in our final output file
-  ceFile <- select(ceFile,-c(CEid))
+  # Now we'll get rid of the id values because we won't want them in our final output file
+  if (typeOfFile == 'CE'){
+    myDataForFile <- select(myDataForFile,-c(CEid))
+  } else if (typeOfFile == 'CL'){
+    myDataForFile <- select(myDataForFile,-c(CLid))
+  } else if (typeOfFile == 'VD') {
+    myDataForFile <- select(myDataForFile,-c(VDid))
+  } else if (typeOfFile == 'SL') {
+    myDataForFile <- select(myDataForFile,-c(SLid))
+  }
   
   # Get all the values from ceFile and list them out
-  ce <- do.call('paste',c(ceFile,sep=','))
+  myFinalData <- do.call('paste',c(myDataForFile,sep=','))
   
   # replace NA with blanks
-  ce <- gsub('NA','',ce)
+  myFinalData <- gsub('NA','',myFinalData)
   
   # UGLY FIX 
   # Where there is no GSA sub-area value then we shoudl use the value "NA" - however the previous line will change all "NA"'s into blanks :-S 
   # I needed to do soemthing a bit ugly so that we can submit NA for the actual GSA sub-area value
-  ce <- gsub('NotApplicable','NA',ce)
+  myFinalData <- gsub('NotApplicable','NA',myFinalData)
   
   # Write out the file
-  fwrite(list(ce), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
+  fwrite(list(myFinalData), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
+  print(paste("Output file written to ",outputFileName,sep=""))
   
 }
 
 
-#' generateCLFile Generate a CL exchange format file for the RDBS
-#'
-#' @param yearToUse The year we want to generate the CL file for
-#' @param country The country to extract data for
-#' @param RDBESdata A named list containing our RDBES data
-#' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
-#' @param numberOfRows (Optional) Limit the output to this number of rows (just used for testing)
-#' @param cleanData (Optional) if TRUE then remove any invalid rows from the data before generating the upload files - warning data will potentially be lost if you do this!
-#'
-#' @return
-#' @export
-#'
-#' @examples generateCLFile(yearToUse = 2016, country = 'IRL',RDBESdata = myRDBESData)
-generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = "", numberOfRows = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
-  
-  # For testing
-  #RDBESdata<-myRDBESData
-  #yearToUse <- 2017
-  #country <- 'IE'
-  #outputFileName <- ""
-  #numberOfRows <- 50
-  #cleanData <- TRUE
-  #RDBESvalidationdata <- validationData
-  #RDBEScodeLists <- allowedValues
-  
-  ## Step 0 - Generate a file name if we need to 
-  if (outputFileName == ""){
-    outputFileName <- paste(country,yearToUse,"HCL.csv", sep ="_")
-  }
-  
-  # Create the output directory if we need do 
-  ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
-  
-  ## Step 1 - Filter the data and write it out
-  
-  CL <- RDBESdata[['CL']]
-  
-  # Filter the CE data by year
-  clFile <- CL[CL$CLyear == yearToUse & CL$CLvesselFlagCountry == country,]
-  
-  # If we want to remove any invalid data before generating the upload files do this now
-  if(cleanData){
-    
-    rowsBefore <- nrow(clFile)
-    print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
-    
-    # Validate CL
-    myErrors <- validateTables(RDBESdata = RDBESdata, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c("CL"))
-    
-    # UGLY FIX 
-    # Get rid of the errors associates with CLgsaSubarea having a value of NotApplicable
-    myErrors <- myErrors[!(myErrors$fieldName == 'CLgsaSubarea' & myErrors$problemType =='Code list problem' & grepl('NotApplicable', myErrors$problemDescription)),]
-    
-    # Remove any invalid rows 
-    #invalidRows <- unique(myErrors[myErrors$tableName == 'CL' & !is.na(myErrors$rowID),"rowID"])
-    #clFile <- clFile[!clFile$CLid %in% invalidRows,]
-    clFile <- removeInvalidRows(tableName = 'CL',dataToClean = clFile,errorList = myErrors)
-    
-    rowsAfter <- nrow(clFile)
-    print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
-    
-    if (rowsAfter < rowsBefore){
-      missingRows <- rowsBefore - rowsAfter
-      warning(paste(missingRows,' invalid rows removed before trying to generate output files', sep = ""))
-    }
-    
-  }
-  
-  # If we only want a certain number of rows we'll subset the data (normally just used during testing)
-  if (!is.null(numberOfRows) & nrow(clFile) > numberOfRows){
-    clFile <- clFile[1:numberOfRows,]
-  }
-  
-  # We now write out the data frame with ids and column names included to make debugging easier
-  fwrite(clFile, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=T,quote=F)
-  
-  # Now we'll get rid of the CEid values because we won't want them in our final output file
-  clFile <- select(clFile,-c(CLid))
-  
-  # Get all the values from CL and list them out
-  cl <- do.call('paste',c(clFile,sep=','))
-  
-  # replace NA with blanks
-  cl <- gsub('NA','',cl)
-  
-  # UGLY FIX 
-  # Where there is no GSA sub-area value then we shoudl use the value "NA" - however the previous line will change all "NA"'s into blanks :-S 
-  # I needed to do soemthing a bit ugly so that we can submit NA for the actual GSA sub-area value
-  cl <- gsub('NotApplicable','NA',cl)
-  
-  fwrite(list(cl), paste(outputFolder, outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
-  
-}
 
-#' generateVDFile Generate a VD exchange format file for the RDBS
-#'
-#' @param yearToUse The year we want to generate the VD file for
-#' @param country The country to extract data for
-#' @param RDBESdata A named list containing our RDBES data
-#' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
-#'
-#' @return
-#' @export
-#'
-#' @examples generateVDFile(yearToUse = 2016, country = 'IRL',RDBESdata = myRDBESData)
-generateVDFile <- function(yearToUse, country, RDBESdata, outputFileName = "", numberOfRows = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
-  
-  # For testing
-  #RDBESdata<-myRDBESData
-  #yearToUse <- 2017
-  #country <- 'IE'
-  #outputFileName <- ""
-  
-  ## Step 0 - Generate a file name if we need to 
-  if (outputFileName == ""){
-    outputFileName <- paste(country,yearToUse,"HVD.csv", sep ="_")
-  }
-  
-  # Create the output directory if we need do 
-  ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
-  
-  ## Step 1 - Filter the data and write it out
-  
-  VD <- RDBESdata[['VD']]
-  
-  # Filter the data by year
-  VDFile <- VD[VD$VDyear == yearToUse & VD$VDcountry == country,]
-  
-  # If we want to remove any invalid data before generating the upload files do this now
-  if(cleanData){
-    
-    rowsBefore <- nrow(VDFile)
-    print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
-    
-    # Validate 
-    myErrors <- validateTables(RDBESdata = RDBESdata, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c("VD"))
-    
-    # Remove any invalid rows 
-    #invalidRows <- unique(myErrors[myErrors$tableName == 'VD' & !is.na(myErrors$rowID),"rowID"])
-    #VDFile <- VDFile[!VDFile$VDid %in% invalidRows,]
-    VDFile <- removeInvalidRows(tableName = 'VD',dataToClean = VDFile,errorList = myErrors)
-    
-    rowsAfter <- nrow(VDFile)
-    print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
-    
-    if (rowsAfter < rowsBefore){
-      missingRows <- rowsBefore - rowsAfter
-      warning(paste(missingRows,' invalid rows removed from VD before trying to generate output files', sep = ""))
-    }
-    
-  }
-  
-  # If we only want a certain number of rows we'll subset the data (normally just used during testing)
-  if (!is.null(numberOfRows) & nrow(VDFile) > numberOfRows){
-    VDFile <- VDFile[1:numberOfRows,]
-  }
-  
-  
-  # We now write out the data frame with ids and column names included to make debugging easier
-  fwrite(VDFile, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=T,quote=F)
-  
-  # Remove the IDs from the data frame
-  VDFile <- select(VDFile,-c(VDid))
-  
-  # HACK - the validator currently wants things in a different order to the Data Model spreadsheet
-  #VDFile$VDtype <- NA
-  #VDFile <- VDFile[,c('VDrecordType','VDcountry', 'VDencryptedCode' , 'VDyear' ,'VDflagCountry', 'VDhomePort','VDlength','VDlengthCategory' ,'VDpower','VDtonnage','VDtonUnit' ,'VDtype')]
-
-  # Get all the values from VD and list them out
-  vd <- do.call('paste',c(VDFile,sep=','))
-  
-  # replace NA with blanks
-  vd <- gsub('NA','',vd)
-  
-  fwrite(list(vd), paste(outputFolder, outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
-  
-}
+#' #' generateCEFile Generate a CE exchange format file for the RDBS
+#' #'
+#' #' @param yearToUse The year we want to generate the CE file for
+#' #' @param country The country to extract data for
+#' #' @param RDBESdata A named list containing our RDBES data
+#' #' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
+#' #' @param numberOfRows (Optional) Limit the output to this number of rows (just used for testing)
+#' #' @param cleanData (Optional) if TRUE then remove any invalid rows from the data before generating the upload files - warning data will potentially be lost from your upload file if you do this!
+#' #' @param RDBESvalidationdata (Optional) If you have selected to cleanData then you need to supply validation data (derived from BaseTypes.xsd)
+#' #' @param RDBEScodeLists (Optional) If you have selected to cleanData then you need to supply reference data (derived from ICES vocabulary server)
+#' #'
+#' #' @return
+#' #' @export
+#' #'
+#' #' @examples generateCEFile(yearToUse = 2016, country = 'IRL', RDBESdata = myRDBESData)
+#' generateCEFile <- function(yearToUse, country, RDBESdata, outputFileName = "", numberOfRows = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
+#'   
+#'   # For testing
+#'   #RDBESdata<-myRDBESData
+#'   #yearToUse <- 2017
+#'   #country <- 'IE'
+#'   #outputFileName <- ""
+#'   #numberOfRows <- 50
+#'   #cleanData <- TRUE
+#'   #RDBESvalidationdata <- validationData
+#'   #RDBEScodeLists <- allowedValues
+#'   
+#'   ## Step 0 - Generate a file name if we need to 
+#'   if (outputFileName == ""){
+#'     outputFileName <- paste(country,yearToUse,"HCE.csv", sep ="_")
+#'   }
+#'   
+#'   # Create the output directory if we need do 
+#'   ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
+#'   
+#'   ## Step 1 - Filter the data and write it out
+#'   
+#'   CE <- RDBESdata[['CE']]
+#'   
+#'   # Filter the CE data by year
+#'   ceFile <- CE[CE$CEyear == yearToUse & CE$CEvesselFlagCountry == country,]
+#'   
+#'   # If we want to remove any invalid data before generating the upload files do this now
+#'   if(cleanData){
+#'     
+#'     rowsBefore <- nrow(ceFile)
+#'     print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
+#'     
+#'     # Validate CL
+#'     myErrors <- validateTables(RDBESdata = RDBESdata, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c("CE"))
+#'     
+#'     # UGLY FIX 
+#'     # Get rid of the errors associates with CLgsaSubarea having a value of NotApplicable
+#'     myErrors <- myErrors[!(myErrors$fieldName == 'CEgsaSubarea' & myErrors$problemType =='Code list problem' & grepl('NotApplicable', myErrors$problemDescription)),]
+#'     
+#'     # Remove any invalid rows 
+#'     #invalidRows <- unique(myErrors[myErrors$tableName == 'CE' & !is.na(myErrors$rowID),"rowID"])
+#'     #ceFile <- ceFile[!ceFile$CEid %in% invalidRows,]
+#'     ceFile <- removeInvalidRows(tableName = 'CE',dataToClean = ceFile,errorList = myErrors)
+#'     
+#'     
+#'     rowsAfter <- nrow(ceFile)
+#'     print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
+#'     
+#'     if (rowsAfter < rowsBefore){
+#'       missingRows <- rowsBefore - rowsAfter
+#'       warning(paste(missingRows,' invalid rows removed before trying to generate output files', sep = ""))
+#'     }
+#'     
+#'   }
+#'   
+#'   # If we only want a certain number of rows we'll subset the data (normally just used during testing)
+#'   if (!is.null(numberOfRows) & nrow(ceFile) > numberOfRows){
+#'     ceFile <- ceFile[1:numberOfRows,]
+#'   }
+#'   
+#'   # We now write out the data frame with ids and column names included to make debugging easier
+#'   fwrite(ceFile, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=T,quote=F)
+#'   
+#'   # Now we'll get rid of the CEid values because we won't want them in our final output file
+#'   ceFile <- select(ceFile,-c(CEid))
+#'   
+#'   # Get all the values from ceFile and list them out
+#'   ce <- do.call('paste',c(ceFile,sep=','))
+#'   
+#'   # replace NA with blanks
+#'   ce <- gsub('NA','',ce)
+#'   
+#'   # UGLY FIX 
+#'   # Where there is no GSA sub-area value then we shoudl use the value "NA" - however the previous line will change all "NA"'s into blanks :-S 
+#'   # I needed to do soemthing a bit ugly so that we can submit NA for the actual GSA sub-area value
+#'   ce <- gsub('NotApplicable','NA',ce)
+#'   
+#'   # Write out the file
+#'   fwrite(list(ce), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
+#'   print(paste("Output file written to ",outputFileName,sep=""))
+#'   
+#' }
+#' 
+#' 
+#' #' generateCLFile Generate a CL exchange format file for the RDBS
+#' #'
+#' #' @param yearToUse The year we want to generate the CL file for
+#' #' @param country The country to extract data for
+#' #' @param RDBESdata A named list containing our RDBES data
+#' #' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
+#' #' @param numberOfRows (Optional) Limit the output to this number of rows (just used for testing)
+#' #' @param cleanData (Optional) if TRUE then remove any invalid rows from the data before generating the upload files - warning data will potentially be lost from your upload file if you do this!
+#' #' @param RDBESvalidationdata (Optional) If you have selected to cleanData then you need to supply validation data (derived from BaseTypes.xsd)
+#' #' @param RDBEScodeLists (Optional) If you have selected to cleanData then you need to supply reference data (derived from ICES vocabulary server)
+#' #'
+#' #' @return
+#' #' @export
+#' #'
+#' #' @examples generateCLFile(yearToUse = 2016, country = 'IRL',RDBESdata = myRDBESData)
+#' generateCLFile <- function(yearToUse, country, RDBESdata, outputFileName = "", numberOfRows = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
+#'   
+#'   # For testing
+#'   #RDBESdata<-myRDBESData
+#'   #yearToUse <- 2017
+#'   #country <- 'IE'
+#'   #outputFileName <- ""
+#'   #numberOfRows <- 50
+#'   #cleanData <- TRUE
+#'   #RDBESvalidationdata <- validationData
+#'   #RDBEScodeLists <- allowedValues
+#'   
+#'   ## Step 0 - Generate a file name if we need to 
+#'   if (outputFileName == ""){
+#'     outputFileName <- paste(country,yearToUse,"HCL.csv", sep ="_")
+#'   }
+#'   
+#'   # Create the output directory if we need do 
+#'   ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
+#'   
+#'   ## Step 1 - Filter the data and write it out
+#'   
+#'   CL <- RDBESdata[['CL']]
+#'   
+#'   # Filter the CE data by year
+#'   clFile <- CL[CL$CLyear == yearToUse & CL$CLvesselFlagCountry == country,]
+#'   
+#'   # If we want to remove any invalid data before generating the upload files do this now
+#'   if(cleanData){
+#'     
+#'     rowsBefore <- nrow(clFile)
+#'     print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
+#'     
+#'     # Validate CL
+#'     myErrors <- validateTables(RDBESdata = RDBESdata, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c("CL"))
+#'     
+#'     # UGLY FIX 
+#'     # Get rid of the errors associates with CLgsaSubarea having a value of NotApplicable
+#'     myErrors <- myErrors[!(myErrors$fieldName == 'CLgsaSubarea' & myErrors$problemType =='Code list problem' & grepl('NotApplicable', myErrors$problemDescription)),]
+#'     
+#'     # Remove any invalid rows 
+#'     #invalidRows <- unique(myErrors[myErrors$tableName == 'CL' & !is.na(myErrors$rowID),"rowID"])
+#'     #clFile <- clFile[!clFile$CLid %in% invalidRows,]
+#'     clFile <- removeInvalidRows(tableName = 'CL',dataToClean = clFile,errorList = myErrors)
+#'     
+#'     rowsAfter <- nrow(clFile)
+#'     print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
+#'     
+#'     if (rowsAfter < rowsBefore){
+#'       missingRows <- rowsBefore - rowsAfter
+#'       warning(paste(missingRows,' invalid rows removed before trying to generate output files', sep = ""))
+#'     }
+#'     
+#'   }
+#'   
+#'   # If we only want a certain number of rows we'll subset the data (normally just used during testing)
+#'   if (!is.null(numberOfRows) & nrow(clFile) > numberOfRows){
+#'     clFile <- clFile[1:numberOfRows,]
+#'   }
+#'   
+#'   # We now write out the data frame with ids and column names included to make debugging easier
+#'   fwrite(clFile, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=T,quote=F)
+#'   
+#'   # Now we'll get rid of the CEid values because we won't want them in our final output file
+#'   clFile <- select(clFile,-c(CLid))
+#'   
+#'   # Get all the values from CL and list them out
+#'   cl <- do.call('paste',c(clFile,sep=','))
+#'   
+#'   # replace NA with blanks
+#'   cl <- gsub('NA','',cl)
+#'   
+#'   # UGLY FIX 
+#'   # Where there is no GSA sub-area value then we shoudl use the value "NA" - however the previous line will change all "NA"'s into blanks :-S 
+#'   # I needed to do soemthing a bit ugly so that we can submit NA for the actual GSA sub-area value
+#'   cl <- gsub('NotApplicable','NA',cl)
+#'   
+#'   fwrite(list(cl), paste(outputFolder, outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
+#'   print(paste("Output file written to ",outputFileName,sep=""))
+#'   
+#' }
+#' 
+#' #' generateVDFile Generate a VD exchange format file for the RDBS
+#' #'
+#' #' @param yearToUse The year we want to generate the VD file for
+#' #' @param country The country to extract data for
+#' #' @param RDBESdata A named list containing our RDBES data
+#' #' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
+#' #' @param numberOfRows (Optional) Limit the output to this number of rows (just used for testing)
+#' #' @param cleanData (Optional) if TRUE then remove any invalid rows from the data before generating the upload files - warning data will potentially be lost from your upload file if you do this!
+#' #' @param RDBESvalidationdata (Optional) If you have selected to cleanData then you need to supply validation data (derived from BaseTypes.xsd)
+#' #' @param RDBEScodeLists (Optional) If you have selected to cleanData then you need to supply reference data (derived from ICES vocabulary server)
+#' #'
+#' #' @return
+#' #' @export
+#' #'
+#' #' @examples generateVDFile(yearToUse = 2016, country = 'IRL',RDBESdata = myRDBESData)
+#' generateVDFile <- function(yearToUse, country, RDBESdata, outputFileName = "", numberOfRows = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
+#'   
+#'   # For testing
+#'   #RDBESdata<-myRDBESData
+#'   #yearToUse <- 2017
+#'   #country <- 'IE'
+#'   #outputFileName <- ""
+#'   
+#'   ## Step 0 - Generate a file name if we need to 
+#'   if (outputFileName == ""){
+#'     outputFileName <- paste(country,yearToUse,"HVD.csv", sep ="_")
+#'   }
+#'   
+#'   # Create the output directory if we need do 
+#'   ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
+#'   
+#'   ## Step 1 - Filter the data and write it out
+#'   
+#'   VD <- RDBESdata[['VD']]
+#'   
+#'   # Filter the data by year
+#'   VDFile <- VD[VD$VDyear == yearToUse & VD$VDcountry == country,]
+#'   
+#'   # If we want to remove any invalid data before generating the upload files do this now
+#'   if(cleanData){
+#'     
+#'     rowsBefore <- nrow(VDFile)
+#'     print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
+#'     
+#'     # Validate 
+#'     myErrors <- validateTables(RDBESdata = RDBESdata, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c("VD"))
+#'     
+#'     # Remove any invalid rows 
+#'     #invalidRows <- unique(myErrors[myErrors$tableName == 'VD' & !is.na(myErrors$rowID),"rowID"])
+#'     #VDFile <- VDFile[!VDFile$VDid %in% invalidRows,]
+#'     VDFile <- removeInvalidRows(tableName = 'VD',dataToClean = VDFile,errorList = myErrors)
+#'     
+#'     rowsAfter <- nrow(VDFile)
+#'     print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
+#'     
+#'     if (rowsAfter < rowsBefore){
+#'       missingRows <- rowsBefore - rowsAfter
+#'       warning(paste(missingRows,' invalid rows removed from VD before trying to generate output files', sep = ""))
+#'     }
+#'     
+#'   }
+#'   
+#'   # If we only want a certain number of rows we'll subset the data (normally just used during testing)
+#'   if (!is.null(numberOfRows) & nrow(VDFile) > numberOfRows){
+#'     VDFile <- VDFile[1:numberOfRows,]
+#'   }
+#'   
+#'   
+#'   # We now write out the data frame with ids and column names included to make debugging easier
+#'   fwrite(VDFile, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=T,quote=F)
+#'   
+#'   # Remove the IDs from the data frame
+#'   VDFile <- select(VDFile,-c(VDid))
+#'   
+#'   # HACK - the validator currently wants things in a different order to the Data Model spreadsheet
+#'   #VDFile$VDtype <- NA
+#'   #VDFile <- VDFile[,c('VDrecordType','VDcountry', 'VDencryptedCode' , 'VDyear' ,'VDflagCountry', 'VDhomePort','VDlength','VDlengthCategory' ,'VDpower','VDtonnage','VDtonUnit' ,'VDtype')]
+#' 
+#'   # Get all the values from VD and list them out
+#'   vd <- do.call('paste',c(VDFile,sep=','))
+#'   
+#'   # replace NA with blanks
+#'   vd <- gsub('NA','',vd)
+#'   
+#'   fwrite(list(vd), paste(outputFolder, outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
+#'   print(paste("Output file written to ",outputFileName,sep=""))
+#' }
+#' 
+#' #' generateSLFile Generate a VD exchange format file for the RDBS
+#' #'
+#' #' @param yearToUse The year we want to generate the VD file for
+#' #' @param country The country to extract data for
+#' #' @param RDBESdata A named list containing our RDBES data
+#' #' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
+#' #' @param numberOfRows (Optional) Limit the output to this number of rows (just used for testing)
+#' #' @param cleanData (Optional) if TRUE then remove any invalid rows from the data before generating the upload files - warning data will potentially be lost from your upload file if you do this!
+#' #' @param RDBESvalidationdata (Optional) If you have selected to cleanData then you need to supply validation data (derived from BaseTypes.xsd)
+#' #' @param RDBEScodeLists (Optional) If you have selected to cleanData then you need to supply reference data (derived from ICES vocabulary server)
+#' #'
+#' #' @return
+#' #' @export
+#' #'
+#' #' @examples generateSLFile(yearToUse = 2016, country = 'IRL',RDBESdata = myRDBESData)
+#' generateSLFile <- function(yearToUse, country, RDBESdata, outputFileName = "", numberOfRows = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
+#'   
+#'   # For testing
+#'   #RDBESdata<-myRDBESData
+#'   #yearToUse <- 2017
+#'   #country <- 'IE'
+#'   #outputFileName <- ""
+#'   
+#'   ## Step 0 - Generate a file name if we need to 
+#'   if (outputFileName == ""){
+#'     outputFileName <- paste(country,yearToUse,"HSL.csv", sep ="_")
+#'   }
+#'   
+#'   # Create the output directory if we need do 
+#'   ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
+#'   
+#'   ## Step 1 - Filter the data and write it out
+#'   
+#'   SL <- RDBESdata[['SL']]
+#'   
+#'   # Filter the data by year
+#'   Slfile <- SL[SL$SLyear == yearToUse & SL$SLcountry == country,]
+#'   
+#'   # If we want to remove any invalid data before generating the upload files do this now
+#'   if(cleanData){
+#'     
+#'     rowsBefore <- nrow(Slfile)
+#'     print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
+#'     
+#'     # Validate 
+#'     myErrors <- validateTables(RDBESdata = RDBESdata, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c("SL"))
+#'     
+#'     # Remove any invalid rows 
+#'     Slfile <- removeInvalidRows(tableName = 'SL',dataToClean = Slfile,errorList = myErrors)
+#'     
+#'     rowsAfter <- nrow(Slfile)
+#'     print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
+#'     
+#'     if (rowsAfter < rowsBefore){
+#'       missingRows <- rowsBefore - rowsAfter
+#'       warning(paste(missingRows,' invalid rows removed before trying to generate output files', sep = ""))
+#'     }
+#'     
+#'   }
+#'   
+#'   # If we only want a certain number of rows we'll subset the data (normally just used during testing)
+#'   if (!is.null(numberOfRows) & nrow(Slfile) > numberOfRows){
+#'     Slfile <- Slfile[1:numberOfRows,]
+#'   }
+#'   
+#'   
+#'   # We now write out the data frame with ids and column names included to make debugging easier
+#'   fwrite(Slfile, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=T,quote=F)
+#'   
+#'   # Remove the IDs from the data frame
+#'   Slfile <- select(Slfile,-c(SLid))
+#'   
+#'   # Get all the values from VD and list them out
+#'   sl <- do.call('paste',c(Slfile,sep=','))
+#'   
+#'   # replace NA with blanks
+#'   sl <- gsub('NA','',sl)
+#'   
+#'   fwrite(list(sl), paste(outputFolder, outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
+#'   print(paste("Output file written to ",outputFileName,sep=""))
+#' }
 
 #' generateCSFile_H5 This function creates an RDBES exchange file for Hierarchy 5 CS data
 #'
@@ -572,7 +788,10 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName="", 
 #' @param country The country to extract data for
 #' @param RDBESdata A named list containing our RDBES data
 #' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
-#' @param numberOfSamples Limit the output to this number of samples (just used for testing)
+#' @param numberOfSamples (Optional) Limit the output to this number of samples (just used for testing)
+#' @param cleanData (Optional) if TRUE then remove any invalid rows from the data before generating the upload files - warning data will potentially be lost from your upload file if you do this!
+#' @param RDBESvalidationdata (Optional) If you have selected to cleanData then you need to supply validation data (derived from BaseTypes.xsd)
+#' @param RDBEScodeLists (Optional) If you have selected to cleanData then you need to supply reference data (derived from ICES vocabulary server)
 #'
 #' @return
 #' @export
@@ -581,14 +800,14 @@ generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName="", 
 generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
   
   # For testing
-  # RDBESdata<-myRDBESData
-  # yearToUse <- 2017
-  # country <- 'IE'
-  # outputFileName <- ""
-  # numberOfSamples <- 10
-  # cleanData <- FALSE
-  # RDBESvalidationdata <- validationData
-  # RDBEScodeLists <- allowedValues
+  #RDBESdata<-myRDBESData
+  #yearToUse <- 2017
+  #country <- 'IE'
+  #outputFileName <- ""
+  #numberOfSamples <- 10
+  #cleanData <- TRUE
+  #RDBESvalidationdata <- validationData
+  #RDBEScodeLists <- allowedValues
   
   ## Step 0 - Generate a file name if we need to 
   if (outputFileName == ""){
@@ -626,14 +845,35 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
   #VDfile <- VD[VD$VDid %in% VSfile$VDid,]
   #SLfile <- SL[SL$SLlistName %in% SSfile$SSspeciesListName,]
   
+
+  #UGLY HACKS
+  # Need to change the value of DEsamplingScheme until the correct values are added to the ICES code list
+  DEfile[DEfile$DEsamplingScheme == 'Ireland DCF Catch Sampling' | DEfile$DEsamplingScheme == 'Ireland DCF Catch Sampling (4S)','DEsamplingScheme'] <- 'National Routine'
+  
+  # Temporarily change the value of FMmeasurementEquipment until ICES add the correct value
+  FMfile[FMfile$FMmeasurementEquipment == 'Measured by hand with ruler','FMmeasurementEquipment'] <- 'Measured by hand with caliper'
+  
+  # Truncate any decimal places from SAconversionFactorMesLive - shouldn't be required
+  SAfile$SAconversionFactorMesLive <- floor(SAfile$SAconversionFactorMesLive)
+  
+  
   # If we want to remove any invalid data before generating the upload files do this now
   if(cleanData){
     
     rowsBefore <- nrow(DEfile)+nrow(SDfile)+nrow(VSfile)+nrow(FTfile)+nrow(FOfile)+nrow(SSfile)+nrow(SAfile)+nrow(FMfile)+nrow(BVfile)
     print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
     
-    # Validate CL
-    myErrors <- validateTables(RDBESdata = RDBESdata, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c('DE','SD','VS','FT','FO','SS','SA','FM','BV'))
+    # Validate 
+    myErrors <- validateTables(RDBESdata = list(DE=DEfile,SD=SDfile,VS=VSfile,FT=FTfile,FO=FOfile,SS=SSfile,SA=SAfile,FM=FMfile,BV=BVfile)
+                              ,RDBESvalidationdata = RDBESvalidationdata
+                              ,RDBEScodeLists = RDBEScodeLists
+                              ,shortOutput = FALSE
+                              ,framestoValidate = c('DE','SD','VS','FT','FO','SS','SA','FM','BV')
+                              )
+    
+    # UGLY FIX 
+    # Get rid of the errors associates with SAgsaSubarea having a value of NotApplicable
+    myErrors <- myErrors[!(grepl('gsaSubarea',myErrors$fieldName) & myErrors$problemType =='Code list problem' & grepl('NotApplicable', myErrors$problemDescription)),]
     
     # Remove any invalid rows 
     DEfile <- removeInvalidRows(tableName = 'DE',dataToClean = DEfile,errorList = myErrors)
@@ -660,19 +900,22 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
   
   # If required, limit the number of samples we will output (normally just used during testing)
   if (!is.null(numberOfSamples)){
-    # Take a sample of the samples :-)
-    SAidsToUse <- sample(SAfile$SAid, size = numberOfSamples, replace = FALSE)
-    SAfile <- SAfile[SAfile$SAid %in% SAidsToUse,]
-    FMfile <- FM[FM$SAid %in% SAfile$SAid,]
-    BVfile <- BV[BV$FMid %in% FMfile$FMid | BV$SAid %in% SAfile$SAid,]
-    SSfile <- SS[SS$SSid %in% SAfile$SSid,]
-    FOfile <- FO[FO$FOid %in% SSfile$FOid,]
-    FTfile <- FT[FT$FTid %in% FOfile$FTid,]
-    VSfile <- VS[VS$VSid %in% FTfile$VSid,]
-    SDfile <- SD[SD$SDid %in% VSfile$SDid,]
-    DEfile <- DE[DE$DEid %in% SDfile$DEid,]
-    #SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
-    
+    if (nrow(SAfile)>numberOfSamples ) {
+        # Take a sample of the samples :-)
+        SAidsToUse <- sample(SAfile$SAid, size = numberOfSamples, replace = FALSE)
+        SAfile <- SAfile[SAfile$SAid %in% SAidsToUse,]
+        FMfile <- FMfile[FMfile$SAid %in% SAfile$SAid,]
+        BVfile <- BVfile[BVfile$FMid %in% FMfile$FMid | BVfile$SAid %in% SAfile$SAid,]
+        SSfile <- SSfile[SSfile$SSid %in% SAfile$SSid,]
+        FOfile <- FOfile[FOfile$FOid %in% SSfile$FOid,]
+        FTfile <- FTfile[FTfile$FTid %in% FOfile$FTid,]
+        VSfile <- VSfile[VSfile$VSid %in% FTfile$VSid,]
+        SDfile <- SDfile[SDfile$SDid %in% VSfile$SDid,]
+        DEfile <- DEfile[DEfile$DEid %in% SDfile$DEid,]
+        #SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
+        
+        print(paste("File truncated to data relating to ",numberOfSamples, " samples",sep=""))
+    }
   }
   
   
@@ -726,19 +969,38 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
   ## I need the rows in the following order:
   # DE, SD, VS, FT, FO, SS, SA, FM, BV
   
-
+  # Add in a blank SortOrder column to each data frame before populating it - that way I can guarantee it exists even if there is no data in one of the tables
+  # DEfile$SortOrder <- character(nrow(DEfile))
+  # SDfile$SortOrder <- character(nrow(SDfile))
+  # VSfile$SortOrder <- character(nrow(VSfile))
+  # FTfile$SortOrder <- character(nrow(FTfile))
+  # FOfile$SortOrder <- character(nrow(FOfile))
+  # SSfile$SortOrder <- character(nrow(SSfile))
+  # SAfile$SortOrder <- character(nrow(SAfile))
+  # FMfile$SortOrder <- character(nrow(FMfile))
+  # BVfile$SortOrder <- character(nrow(BVfile))
+  
   # IMPORTANT - I'm using inner_join from dply so we can maintain the ordering of the first data frame in the join
   # if the ordering isn't maintained then the exchange file will be output in the wrong order
-  DEfile$SortOrder <- paste(DEfile$DEhierarchy,DEfile$DEyear,DEfile$DEstratum,sep="-")
-  SDfile$SortOrder <- paste( inner_join(SDfile,DEfile, by ="DEid")[,c("SortOrder")], SDfile$SDid, sep = "-")
-  VSfile$SortOrder <- paste( inner_join(VSfile,SDfile, by ="SDid")[,c("SortOrder")], VSfile$VSid, sep = "-")
-  FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")],FTfile$FTid, FTfile$VSid,"a", sep = "-")
-  FOfile$SortOrder <- paste( inner_join(FOfile,FTfile, by ="FTid")[,c("SortOrder")], FOfile$FOid, sep = "-")
-  SSfile$SortOrder <- paste( inner_join(SSfile,FOfile, by ="FOid")[,c("SortOrder")], SSfile$SSid, sep = "-")
-  SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, sep = "-")
-  FMfile$SortOrder <- paste( inner_join(FMfile,SAfile, by ="SAid")[,c("SortOrder")], FMfile$FMid, sep = "-")
+  if(nrow(DEfile)>0) {DEfile$SortOrder <- paste(DEfile$DEhierarchy,DEfile$DEyear,DEfile$DEstratum,sep="-")} else
+    {DEfile$SortOrder <- character(0)}
+  if(nrow(SDfile)>0) {SDfile$SortOrder <- paste( inner_join(SDfile,DEfile, by ="DEid")[,c("SortOrder")], SDfile$SDid, sep = "-")} else
+    {SDfile$SortOrder <- character(0)}
+  if(nrow(VSfile)>0) {VSfile$SortOrder <- paste( inner_join(VSfile,SDfile, by ="SDid")[,c("SortOrder")], VSfile$VSid, sep = "-")} else
+    {VSfile$SortOrder <- character(0)}
+  if(nrow(FTfile)>0) {FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")],FTfile$FTid, FTfile$VSid,"a", sep = "-")} else
+    {FTfile$SortOrder <- character(0)}
+  if(nrow(FOfile)>0) {FOfile$SortOrder <- paste( inner_join(FOfile,FTfile, by ="FTid")[,c("SortOrder")], FOfile$FOid, sep = "-")} else
+    {FOfile$SortOrder <- character(0)}
+  if(nrow(SSfile)>0) {SSfile$SortOrder <- paste( inner_join(SSfile,FOfile, by ="FOid")[,c("SortOrder")], SSfile$SSid, sep = "-")} else
+    {SSfile$SortOrder <- character(0)}
+  if(nrow(SAfile)>0) {SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, sep = "-")} else
+    {SAfile$SortOrder <- character(0)}
+  if(nrow(FMfile)>0) {FMfile$SortOrder <- paste( inner_join(FMfile,SAfile, by ="SAid")[,c("SortOrder")], FMfile$FMid, sep = "-")} else
+    {FMfile$SortOrder <- character(0)}
   # TODO For our data BV only follows SA not FM - need to check that the sort order will work if there is a mix of lower hierarchies
-  BVfile$SortOrder <- paste( inner_join(BVfile,SAfile, by ="SAid")[,c("SortOrder")], BVfile$BVid, sep = "-")
+  if(nrow(BVfile)>0) {BVfile$SortOrder <- paste( inner_join(BVfile,SAfile, by ="SAid")[,c("SortOrder")], BVfile$BVid, sep = "-")} else
+    {BVfile$SortOrder <- character(0)}
   
   # Combine our SortOrder values
   FileSortOrder <- c(
@@ -783,7 +1045,7 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
     ,do.call('paste',c(select(VSfile,-c(VSid,SDid,VDid,TEid,SortOrder)),sep=','))
     ,do.call('paste',c(select(FTfile,-c(FTid, OSid, VSid, VDid, SDid,SortOrder)),sep=','))
     ,do.call('paste',c(select(FOfile,-c(FOid,FTid,SDid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(SSfile,-c(LEid,FOid,SSid,SSspeciesListID,SortOrder)),sep=','))
+    ,do.call('paste',c(select(SSfile,-c(LEid,FOid,SSid,SLid,SortOrder)),sep=','))
     ,do.call('paste',c(select(SAfile,-c(SSid,SAid,SortOrder)),sep=','))
     ,do.call('paste',c(select(FMfile,-c(SAid,FMid,SortOrder)),sep=','))
     ,do.call('paste',c(select(BVfile,-c(SAid,FMid,BVid,SortOrder)),sep=','))
@@ -795,11 +1057,13 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
   # replace NA with blanks
   csOrdered <- gsub('NA','',csOrdered)
   
-  # TODO - one of the code lists only has an allowed value of NA - we don't want this replaced with blanks so we do this hack...
-  # replace ChangeMe with NA
-  #csOrdered <- gsub('ChangeMe','NA',csOrdered)
+  # UGLY FIX 
+  # Where there is no GSA sub-area value then we shoudl use the value "NA" - however the previous line will change all "NA"'s into blanks :-S 
+  # I needed to do soemthing a bit ugly so that we can submit NA for the actual GSA sub-area value
+  csOrdered <- gsub('NotApplicable','NA',csOrdered)
   
   fwrite(list(csOrdered), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
+  print(paste("Output file written to ",outputFileName,sep=""))
   
 }
 
@@ -1089,10 +1353,18 @@ loadRDataFiles <- function(directoryToSearch, recursive = FALSE){
 #' @export
 #'
 #' @examples validationData <- getValidationData(fileLocation = './tableDefs/BaseTypes.xsd')
-getValidationData <- function(fileLocation){
+getValidationData <- function(downloadFromGitHub = TRUE, fileLocation){
   
   # For testing
+  #downloadFromGitHub = TRUE
   #fileLocation <- './tableDefs/BaseTypes.xsd'
+  
+  if (downloadFromGitHub){
+    # get the latest BaseTypes.xsd file from GitHub
+    myBaseTypes <- getURL("https://raw.githubusercontent.com/ices-tools-dev/RDBES/master/XSD-files/BaseTypes.xsd")
+    # save the file locally
+    writeLines(myBaseTypes, fileLocation)
+  }
   
   # Parse the XML
   doc <- xmlTreeParse(fileLocation,useInternal= TRUE)
@@ -1238,86 +1510,92 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
       #dfToCheck <- dfToCheck[!is.na(dfToCheck[,myFieldName]),]
       dfToCheckNotNA <- dfToCheck[!is.na(dfToCheck[,myFieldName]),]
       
-      # Check 2 Do we know what type this field should be?
-      # If not, there's nothing much else we can do so skip to the end and log the error
-      
-      #Check if we know what types this field should have
-      if (!is.na(myFT$type)){
-        myType <- myFT$type
+        # Check 2 Do we know what type this field should be?
+        # If not, there's nothing much else we can do so skip to the end and log the error
         
-        # CHeck 3 For simple data types we'll see if we have the right format data
-        
-        # IF simple type
-        if (length(grep("xs:",myType)) > 0) {
-          ## simple type, so check data type 
-          # Ints
-          if (myType == "xs:int"){
-            # Check for any non integer values
-            myNonIntValues <- dfToCheckNotNA[!is.integer(dfToCheckNotNA[,myFieldName]),]
-            if (nrow(myNonIntValues)>0){
-              #Log the error
-              errorList <- logValidationError(errorList = errorList
-                                              ,tableName = myTableName
-                                              ,rowID = myNonIntValues[,1]
-                                              ,fieldName = myFieldName
-                                              ,problemType = "Data type check"
-                                              ,problemDescription = paste("Data type problem (int);",myIDField,":", myNonIntValues[,1], " ;Column:",myFieldName, ";Unallowed value:",myNonIntValues[,myFieldName], sep = " "))
-            }
-            # Decimal
-          } else if (myType == "xs:decimal"){
-            # Check for any non numeric values
-            myNonDecValues <- dfToCheckNotNA[!is.numeric(dfToCheckNotNA[,myFieldName]),]
-            if (nrow(myNonDecValues)>0){
-              #Log the error
-              errorList <- logValidationError(errorList = errorList
-                                              ,tableName = myTableName
-                                              ,rowID = myNonDecValues[,1]
-                                              ,fieldName = myFieldName
-                                              ,problemType = "Data type check"
-                                              ,problemDescription = paste("Data type problem (decimal);",myIDField,":", myNonDecValues[,1], " ;Column:",myFieldName, ";Unallowed value:",myNonDecValues[,myFieldName], sep = " "))
-            }
-            # String
-          } else if (myType == "xs:string"){
-            # Everythign can be converted to a string so no problems here!
-          }
+        #Check if we know what types this field should have
+        if (!is.na(myFT$type)){
+          myType <- myFT$type
           
-          # Check 4 If we're dealing with code lists we need to see if we have allowed values  
+          # We only want to carry on with further checks if we actually have some non-NA rows  
+          # otherwise we can get validation errors where a field in the data frame is technically the wrong data type 
+          # but if there is no data in the field the online RDBES validator won't know or care about that....
+          if (nrow(dfToCheckNotNA) >0) {
           
-          # ELSE code list
-        } else {
-          
-          # if we have some non-NA values lets check them
-          if (nrow(dfToCheckNotNA)){
-            # see if we can find the correct code list
-            myAllowedValues <- RDBEScodeLists[RDBEScodeLists$listName == myType,"allowedValues"]
-            # If we found which values are allowed then we can check our data against them
-            if (length(myAllowedValues)>0){
-              # Check if our values are in the allowed list of values
-              myResults <- dfToCheckNotNA[!dfToCheckNotNA[,myFieldName] %in% myAllowedValues,]
-              # If we have soem values that aren't in the allowed list flag them as errors
-              if (nrow(myResults)>0){
-                #Log the error
-                errorList <- logValidationError(errorList = errorList
-                                                ,tableName = myTableName
-                                                ,rowID = myResults[,1]
-                                                ,fieldName = myFieldName
-                                                ,problemType = "Code list problem"
-                                                ,problemDescription = paste("Code list problem;",myIDField,":", myResults[,1], " ;Column:",myFieldName, ";Unallowed value:",myResults[,myFieldName], ";Code list name:",myType, sep = " "))
+            # CHeck 3 For simple data types we'll see if we have the right format data
+            
+            # IF simple type
+            if (length(grep("xs:",myType)) > 0) {
+              ## simple type, so check data type 
+              # Ints
+              if (myType == "xs:int"){
+                # Check for any non integer values
+                myNonIntValues <- dfToCheckNotNA[!is.integer(dfToCheckNotNA[,myFieldName]),]
+                if (nrow(myNonIntValues)>0){
+                  #Log the error
+                  errorList <- logValidationError(errorList = errorList
+                                                  ,tableName = myTableName
+                                                  ,rowID = myNonIntValues[,1]
+                                                  ,fieldName = myFieldName
+                                                  ,problemType = "Data type check"
+                                                  ,problemDescription = paste("Data type problem (int);",myIDField,":", myNonIntValues[,1], " ;Column:",myFieldName, ";Unallowed value:",myNonIntValues[,myFieldName], sep = " "))
+                }
+                # Decimal
+              } else if (myType == "xs:decimal"){
+                # Check for any non numeric values
+                myNonDecValues <- dfToCheckNotNA[!is.numeric(dfToCheckNotNA[,myFieldName]),]
+                if (nrow(myNonDecValues)>0){
+                  #Log the error
+                  errorList <- logValidationError(errorList = errorList
+                                                  ,tableName = myTableName
+                                                  ,rowID = myNonDecValues[,1]
+                                                  ,fieldName = myFieldName
+                                                  ,problemType = "Data type check"
+                                                  ,problemDescription = paste("Data type problem (decimal);",myIDField,":", myNonDecValues[,1], " ;Column:",myFieldName, ";Unallowed value:",myNonDecValues[,myFieldName], sep = " "))
+                }
+                # String
+              } else if (myType == "xs:string"){
+                # Everythign can be converted to a string so no problems here!
               }
-              # ELSE if we didn't find a list of allowed values then log that as an error
+              
+              # Check 4 If we're dealing with code lists we need to see if we have allowed values  
+              
+              # ELSE code list
             } else {
-              #Log the error
-              errorList <- logValidationError(errorList = errorList
-                                              ,tableName = myTableName
-                                              ,rowID = NA
-                                              ,fieldName = myFieldName
-                                              ,problemType = "Missing code list"
-                                              ,problemDescription = paste("Could not find code list", myType, " for ", myFieldName, sep = " "))
-            } # ENDIF find allowed values
-          } # Endif NA/non na values
-        } # ENDIF simple type 
-        # Could not find validation inforation on this field
-      } else {
+              
+              # if we have some non-NA values lets check them
+              if (nrow(dfToCheckNotNA)){
+                # see if we can find the correct code list
+                myAllowedValues <- RDBEScodeLists[RDBEScodeLists$listName == myType,"allowedValues"]
+                # If we found which values are allowed then we can check our data against them
+                if (length(myAllowedValues)>0){
+                  # Check if our values are in the allowed list of values
+                  myResults <- dfToCheckNotNA[!dfToCheckNotNA[,myFieldName] %in% myAllowedValues,]
+                  # If we have soem values that aren't in the allowed list flag them as errors
+                  if (nrow(myResults)>0){
+                    #Log the error
+                    errorList <- logValidationError(errorList = errorList
+                                                    ,tableName = myTableName
+                                                    ,rowID = myResults[,1]
+                                                    ,fieldName = myFieldName
+                                                    ,problemType = "Code list problem"
+                                                    ,problemDescription = paste("Code list problem;",myIDField,":", myResults[,1], " ;Column:",myFieldName, ";Unallowed value:",myResults[,myFieldName], ";Code list name:",myType, sep = " "))
+                  }
+                  # ELSE if we didn't find a list of allowed values then log that as an error
+                } else {
+                  #Log the error
+                  errorList <- logValidationError(errorList = errorList
+                                                  ,tableName = myTableName
+                                                  ,rowID = NA
+                                                  ,fieldName = myFieldName
+                                                  ,problemType = "Missing code list"
+                                                  ,problemDescription = paste("Could not find code list", myType, " for ", myFieldName, sep = " "))
+                } # ENDIF find allowed values
+              } # Endif NA/non na values
+            } # ENDIF simple type 
+          } # No non-NA rows       
+        } # Could not find validation inforation on this field
+      else {
         # id and recordType fields don't have validation information so don't bother recording an error for those types of fields
         if (length(grep("^..id$",myFieldName)) == 0 & length(grep("^..recordType$",myFieldName)) == 0){
           errorList <- logValidationError(errorList = errorList
@@ -1381,6 +1659,34 @@ removeInvalidRows <- function(tableName,dataToClean,errorList ){
   dataToClean
 }
 
+#' Load the reference data we need for validation
+#'
+#' @param downloadFromICES Set to TRUE if you wish to download the latest vocabulary data from ICES, set to FALSE if you just want to use a local file.  When you download the data from ICES it is also saved locally.
+#'
+#' @return
+#' @export
+#'
+#' @examples
+loadReferenceData <- function(downloadFromICES = TRUE, validationData = NULL)
+{
+  
+  if (downloadFromICES){
+  
+    # Download from the ICES vocabulary server
+    codeListsToRefresh <- unique(validationData[grep('xs:*', validationData$type, invert = TRUE),'type'])
+    codeListsToRefresh <- sub('.', '', codeListsToRefresh)
+    allowedValues <- refreshReferenceDataFromICES(codeListsToRefresh)
+    
+    # save to file so we don't need to download from ICES every time
+    saveRDS(allowedValues, file="referenceData/allowedValues.RDS")
+  
+  } else {
+    # Just load from file
+    allowedValues <- readRDS(file="./referenceData/allowedValues.RDS")
+  }
+  
+  allowedValues
+}
 
 
 #' refreshReferenceDataFromICES Downloads the required reference data from ICES
@@ -1418,69 +1724,66 @@ refreshReferenceDataFromICES <- function(codeListsToRefresh){
   # Put the list entries into a single data frame
   allowedValues <- do.call("rbind", codeLists)
   
-  # save to file so we don't need to download from ICES every time
-  save(allowedValues, file="referenceData/allowedValues.rData")
-  
   allowedValues
   
 }
 
 
 
-#' loadReferenceDataFromXSD Searches a directory (recursively if desired) and then attempts to extract the allowed values from any .xsd files it finds there. The results are returned as a large data frame.
-#'
-#' @param directoryToSearch The directory to search
-#' @param recursive TRUE to search recursively
-#'
-#' @return
-#' @export
-#'
-#' @examples allowedValues <- loadReferenceDataFromXSD(directoryToSearch = "./referenceData/", recursive = TRUE)
-loadReferenceDataFromXSD <- function(directoryToSearch, recursive){
-  
-  # For testing
-  #directoryToSearch <- "./referenceData/"
-  #recursive <- FALSE
-  
-  filesToRead <- list.files(path = directoryToSearch, pattern = "*.xsd", recursive = recursive, full.names = TRUE)
-  
-  # This returns a list of data frames - 1 data frame for each file
-  myResults <- lapply(filesToRead, function(x) getAllowedValues(x) )
-  
-  # rbind all the data frames into a single data frame
-  myResults <- do.call("rbind", myResults)
-  
-}
+#' #' loadReferenceDataFromXSD Searches a directory (recursively if desired) and then attempts to extract the allowed values from any .xsd files it finds there. The results are returned as a large data frame.
+#' #'
+#' #' @param directoryToSearch The directory to search
+#' #' @param recursive TRUE to search recursively
+#' #'
+#' #' @return
+#' #' @export
+#' #'
+#' #' @examples allowedValues <- loadReferenceDataFromXSD(directoryToSearch = "./referenceData/", recursive = TRUE)
+#' loadReferenceDataFromXSD <- function(directoryToSearch, recursive){
+#'   
+#'   # For testing
+#'   #directoryToSearch <- "./referenceData/"
+#'   #recursive <- FALSE
+#'   
+#'   filesToRead <- list.files(path = directoryToSearch, pattern = "*.xsd", recursive = recursive, full.names = TRUE)
+#'   
+#'   # This returns a list of data frames - 1 data frame for each file
+#'   myResults <- lapply(filesToRead, function(x) getAllowedValues(x) )
+#'   
+#'   # rbind all the data frames into a single data frame
+#'   myResults <- do.call("rbind", myResults)
+#'   
+#' }
 
-#' getAllowedValues Reads an XSD file from the ICES RDBES and extracts the list name and the allwoed values into a data frame.  NOTE: This doesn't currently do any error checking and assumes the structure of the XSD files is always the same - this might not be the case!
-#'
-#' @param fileName - the name of the file to read (including path)
-#'
-#' @return
-#' @export
-#'
-#' @examples getAllowedValues("./referenceData/RS_BiologicalMeasurementType.xsd")
-getAllowedValues<-function(fileName){
-  
-  # For testing
-  #fileName <- "./referenceData/EDMO.xsd"
-  
-  # Parse the XML
-  doc <- xmlTreeParse(fileName,useInternal= TRUE)
-  myXML <- xmlToList(doc)
-  
-  # Get the list name (assumes this is always defined within a simpleType)
-  listName <- as.character(myXML$simpleType$.attrs)
-  
-  # get the allowed values (assumes these are always defined as restictions within a simpleType)
-  myValues <- lapply(myXML$simpleType$restriction, function(x) { as.character(x[[1]]) })
-  # Don't want the attrs included in our allowed values so lets remove them
-  myValues[[".attrs"]]<-NULL
-  
-  # Put the results in a data frame
-  myDF <- data.frame(listName = listName, fileName = fileName, allowedValues = unlist(myValues), stringsAsFactors=FALSE)
-  
-  myDF
-  
-}
+#' #' getAllowedValues Reads an XSD file from the ICES RDBES and extracts the list name and the allwoed values into a data frame.  NOTE: This doesn't currently do any error checking and assumes the structure of the XSD files is always the same - this might not be the case!
+#' #'
+#' #' @param fileName - the name of the file to read (including path)
+#' #'
+#' #' @return
+#' #' @export
+#' #'
+#' #' @examples getAllowedValues("./referenceData/RS_BiologicalMeasurementType.xsd")
+#' getAllowedValues<-function(fileName){
+#'   
+#'   # For testing
+#'   #fileName <- "./referenceData/EDMO.xsd"
+#'   
+#'   # Parse the XML
+#'   doc <- xmlTreeParse(fileName,useInternal= TRUE)
+#'   myXML <- xmlToList(doc)
+#'   
+#'   # Get the list name (assumes this is always defined within a simpleType)
+#'   listName <- as.character(myXML$simpleType$.attrs)
+#'   
+#'   # get the allowed values (assumes these are always defined as restictions within a simpleType)
+#'   myValues <- lapply(myXML$simpleType$restriction, function(x) { as.character(x[[1]]) })
+#'   # Don't want the attrs included in our allowed values so lets remove them
+#'   myValues[[".attrs"]]<-NULL
+#'   
+#'   # Put the results in a data frame
+#'   myDF <- data.frame(listName = listName, fileName = fileName, allowedValues = unlist(myValues), stringsAsFactors=FALSE)
+#'   
+#'   myDF
+#'   
+#' }
 

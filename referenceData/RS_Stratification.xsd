@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<xs:schema attributeFormDefault="qualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
-  <xs:simpleType name="tRS_Stratification">
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="No" />
-      <xs:enumeration value="Yes" />
-    </xs:restriction>
-  </xs:simpleType>
-</xs:schema>

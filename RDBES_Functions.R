@@ -965,21 +965,11 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
   
   ## Step 2 - I now add a SortOrder field to each of our fitlered data frames
   ## this will allow me to generate the CS file in the correct row order without needing a slow for-loop
+  # Even if the data frame is empty I add in a blank SortOrder column - that way I can guarantee it exists 
   
   ## I need the rows in the following order:
   # DE, SD, VS, FT, FO, SS, SA, FM, BV
-  
-  # Add in a blank SortOrder column to each data frame before populating it - that way I can guarantee it exists even if there is no data in one of the tables
-  # DEfile$SortOrder <- character(nrow(DEfile))
-  # SDfile$SortOrder <- character(nrow(SDfile))
-  # VSfile$SortOrder <- character(nrow(VSfile))
-  # FTfile$SortOrder <- character(nrow(FTfile))
-  # FOfile$SortOrder <- character(nrow(FOfile))
-  # SSfile$SortOrder <- character(nrow(SSfile))
-  # SAfile$SortOrder <- character(nrow(SAfile))
-  # FMfile$SortOrder <- character(nrow(FMfile))
-  # BVfile$SortOrder <- character(nrow(BVfile))
-  
+
   # IMPORTANT - I'm using inner_join from dply so we can maintain the ordering of the first data frame in the join
   # if the ordering isn't maintained then the exchange file will be output in the wrong order
   if(nrow(DEfile)>0) {DEfile$SortOrder <- paste(DEfile$DEhierarchy,DEfile$DEyear,DEfile$DEstratum,sep="-")} else
@@ -1409,8 +1399,7 @@ getValidationData <- function(downloadFromGitHub = TRUE, fileLocation){
 #' @return
 #'
 #' @examples
-logValidationError<- function(errorList,tableName, rowID, fieldName, problemType, problemDescription){
-  
+logValidationError<- function(errorListToAppendTo = NULL,tableName, rowID, fieldName, problemType, problemDescription){
   
   myErrors <- data.frame(tableName = tableName
                          ,rowID = rowID
@@ -1418,7 +1407,14 @@ logValidationError<- function(errorList,tableName, rowID, fieldName, problemType
                          ,problemType = problemType
                          ,problemDescription = problemDescription
                          ,stringsAsFactors = FALSE)
-  errorList <- rbind(errorList, myErrors)
+  
+  if (is.null(errorListToAppendTo)){
+    errorListToReturn <- myErrors
+  } else {
+    errorListToReturn <- rbind(errorListToAppendTo, myErrors)
+  }
+  
+  errorListToReturn
   
 }
 
@@ -1436,10 +1432,12 @@ logValidationError<- function(errorList,tableName, rowID, fieldName, problemType
 validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, shortOutput = FALSE, framestoValidate = c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","TE","VD","VS","CL","CE" )){
   
   # For testing
-  #RDBESdata <- myRDBESData
-  #RDBESvalidationdata <- validationData
-  #RDBEScodeLists <- allowedValues
-  #shortOutput <- TRUE
+  # RDBESdata <- myRDBESData
+  # RDBESvalidationdata <- validationData
+  # RDBEScodeLists <- allowedValues
+  # shortOutput <- TRUE
+  # #framestoValidate <- c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","TE","VD","VS","CL","CE" )
+  # framestoValidate <- c("BV","DE","XX")
   
   # To hold the output
   errorList <- data.frame(tableName=character(0)
@@ -1448,14 +1446,21 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
                           ,problemType=character(0)
                           ,problemDescription=character(0), stringsAsFactors = FALSE)
   
-  # We'll only validate specifc tables
+  # We'll only validate specific tables
   RDBESdata <- RDBESdata[framestoValidate]
   
-  # Remove any NAs (these are tables we don't have)
+  # CHECK 1) are we missing any tables?
+  newErrors <- validateMissingTables(RDBESdataToCheck=RDBESdata,framesToCheck=framestoValidate)
+  errorList <- rbind(errorList,newErrors)
+  
+  # Remove any NAs from ths lis of tables (these are the tables we don't have)
   RDBESdata <- RDBESdata[!is.na(names(RDBESdata))]
   
   # for each data frame in our list
   for (dfToCheck in RDBESdata){
+    
+    # Clear out any errors from any earlier checking
+    newErrors <- NULL
     
     # Get the field names as a data frame
     myDF <- data.frame(fieldName = names(dfToCheck), stringsAsFactors = FALSE)
@@ -1464,138 +1469,59 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
     ## Assume the id is always the first field - might be better to check the field names instead
     myIDField <- names(dfToCheck)[[1]]
     myTableName <- substr(myIDField,1,2)
-    #print(myTableName)
+    print(paste("Validating ",myTableName,sep=""))
     
-    ## Check 0: Check if we are missing any fields
-    missingFieldsCheck <- RDBESvalidationdata
-    missingFieldsCheck$table <- substr(missingFieldsCheck$name,1,2)
-    missingFieldsCheck <- missingFieldsCheck[missingFieldsCheck$table==myTableName,]
-    missingFields <- missingFieldsCheck[!missingFieldsCheck$name %in% myDF$fieldName,]
-    # If we have some missing fields lets log them as an error
-    if (nrow(missingFields) > 0){
-      #Log the error
-      errorList <- logValidationError(errorList = errorList
-                                      ,tableName = myTableName
-                                      ,rowID = NA
-                                      ,fieldName = missingFields$name
-                                      ,problemType = "Missing field check"
-                                      ,problemDescription = paste("The following field is missing from your data frames: ", missingFields$name, sep = " "))
-    }
+    ## Check 2: Check if we are missing any fields
+    newErrors <- validateMissingFields(RDBESdataToCheck=RDBESdata,RDBESvalidationdata=RDBESvalidationdata, tableToCheck=myTableName )
+    errorList <- rbind(errorList,newErrors)
     
-    
+
     # Now we'll check each field in our current data frame
     for (i in 1:length(names(dfToCheck))) {
       
       myFieldName <- names(dfToCheck)[[i]]
-      myFT <- fieldsAndTypes[fieldsAndTypes$fieldName == names(dfToCheck)[[i]],]
+      myFieldType <- fieldsAndTypes[fieldsAndTypes$fieldName == myFieldName,]
       
-      ## Check 1) NA values
-      myValuesNA <- dfToCheck[is.na(dfToCheck[,myFieldName]),]
-      # If we have NA values check if thats ok
-      if (nrow(myValuesNA)>0){
-        # if we are not allowed to have empty values here then log an error
-        if (ifelse(is.na(myFT$min),0,myFT$min) >0){
-          #Log the error
-          errorList <- logValidationError(errorList = errorList
-                                          ,tableName = myTableName
-                                          ,rowID = myValuesNA[,1]
-                                          ,fieldName = myFieldName
-                                          ,problemType = "Null value check"
-                                          ,problemDescription = paste("Null value problem;",myIDField,":", myValuesNA[,1], " ;Column:",myFieldName, ";Unallowed value:",myValuesNA[,myFieldName], sep = " "))
-        }
-      } # Endif NA check
+      ## Check 3) NA values
+      newErrors <- validateNAvalues(fieldToCheck=myFieldName,dataToCheck=dfToCheck,fieldTypeToCheck=myFieldType)
+      errorList <- rbind(errorList,newErrors)
       
       # Now that we have passed the NA check point lets get rid of any NA values so 
       # we don't need to worry about them again
-      #dfToCheck <- dfToCheck[!is.na(dfToCheck[,myFieldName]),]
       dfToCheckNotNA <- dfToCheck[!is.na(dfToCheck[,myFieldName]),]
       
-        # Check 2 Do we know what type this field should be?
+        # Check 4 Do we know what type this field should be?
         # If not, there's nothing much else we can do so skip to the end and log the error
         
-        #Check if we know what types this field should have
-        if (!is.na(myFT$type)){
-          myType <- myFT$type
+        # Check if we know what types this field should have
+        if (!is.na(myFieldType$type)){
+          myType <- myFieldType$type
           
           # We only want to carry on with further checks if we actually have some non-NA rows  
           # otherwise we can get validation errors where a field in the data frame is technically the wrong data type 
           # but if there is no data in the field the online RDBES validator won't know or care about that....
           if (nrow(dfToCheckNotNA) >0) {
           
-            # CHeck 3 For simple data types we'll see if we have the right format data
-            
             # IF simple type
             if (length(grep("xs:",myType)) > 0) {
-              ## simple type, so check data type 
-              # Ints
-              if (myType == "xs:int"){
-                # Check for any non integer values
-                myNonIntValues <- dfToCheckNotNA[!is.integer(dfToCheckNotNA[,myFieldName]),]
-                if (nrow(myNonIntValues)>0){
-                  #Log the error
-                  errorList <- logValidationError(errorList = errorList
-                                                  ,tableName = myTableName
-                                                  ,rowID = myNonIntValues[,1]
-                                                  ,fieldName = myFieldName
-                                                  ,problemType = "Data type check"
-                                                  ,problemDescription = paste("Data type problem (int);",myIDField,":", myNonIntValues[,1], " ;Column:",myFieldName, ";Unallowed value:",myNonIntValues[,myFieldName], sep = " "))
-                }
-                # Decimal
-              } else if (myType == "xs:decimal"){
-                # Check for any non numeric values
-                myNonDecValues <- dfToCheckNotNA[!is.numeric(dfToCheckNotNA[,myFieldName]),]
-                if (nrow(myNonDecValues)>0){
-                  #Log the error
-                  errorList <- logValidationError(errorList = errorList
-                                                  ,tableName = myTableName
-                                                  ,rowID = myNonDecValues[,1]
-                                                  ,fieldName = myFieldName
-                                                  ,problemType = "Data type check"
-                                                  ,problemDescription = paste("Data type problem (decimal);",myIDField,":", myNonDecValues[,1], " ;Column:",myFieldName, ";Unallowed value:",myNonDecValues[,myFieldName], sep = " "))
-                }
-                # String
-              } else if (myType == "xs:string"){
-                # Everythign can be converted to a string so no problems here!
-              }
               
-              # Check 4 If we're dealing with code lists we need to see if we have allowed values  
-              
+              # CHeck 5 For simple data types we'll see if we have the right format data
+              newErrors <- validateSimpleTypes(fieldToCheck=myFieldName,dataToCheck=dfToCheckNotNA,fieldTypeToCheck=myFieldType)
+              errorList <- rbind(errorList,newErrors)
+  
               # ELSE code list
             } else {
               
-              # if we have some non-NA values lets check them
-              if (nrow(dfToCheckNotNA)){
-                # see if we can find the correct code list
-                myAllowedValues <- RDBEScodeLists[RDBEScodeLists$listName == myType,"allowedValues"]
-                # If we found which values are allowed then we can check our data against them
-                if (length(myAllowedValues)>0){
-                  # Check if our values are in the allowed list of values
-                  myResults <- dfToCheckNotNA[!dfToCheckNotNA[,myFieldName] %in% myAllowedValues,]
-                  # If we have soem values that aren't in the allowed list flag them as errors
-                  if (nrow(myResults)>0){
-                    #Log the error
-                    errorList <- logValidationError(errorList = errorList
-                                                    ,tableName = myTableName
-                                                    ,rowID = myResults[,1]
-                                                    ,fieldName = myFieldName
-                                                    ,problemType = "Code list problem"
-                                                    ,problemDescription = paste("Code list problem;",myIDField,":", myResults[,1], " ;Column:",myFieldName, ";Unallowed value:",myResults[,myFieldName], ";Code list name:",myType, sep = " "))
-                  }
-                  # ELSE if we didn't find a list of allowed values then log that as an error
-                } else {
-                  #Log the error
-                  errorList <- logValidationError(errorList = errorList
-                                                  ,tableName = myTableName
-                                                  ,rowID = NA
-                                                  ,fieldName = myFieldName
-                                                  ,problemType = "Missing code list"
-                                                  ,problemDescription = paste("Could not find code list", myType, " for ", myFieldName, sep = " "))
-                } # ENDIF find allowed values
-              } # Endif NA/non na values
-            } # ENDIF simple type 
-          } # No non-NA rows       
-        } # Could not find validation inforation on this field
-      else {
+              # Check 6 If we're dealing with code lists we need to see if we have allowed values
+              newErrors <- validateAgainstCodeList(fieldToCheck=myFieldName,dataToCheck=dfToCheckNotNA,fieldTypeToCheck=myFieldType, codeLists = allowedValues)
+              errorList <- rbind(errorList,newErrors)
+                
+            } # ENDIF simple type / code list 
+          } # No non-NA rows
+          
+      # ELSE could not find validation inforation on this field so log an error
+     } else {
+       
         # id and recordType fields don't have validation information so don't bother recording an error for those types of fields
         if (length(grep("^..id$",myFieldName)) == 0 & length(grep("^..recordType$",myFieldName)) == 0){
           errorList <- logValidationError(errorList = errorList
@@ -1605,9 +1531,8 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
                                           ,problemType = "Code list missing"
                                           ,problemDescription = paste("Could not find validation information for ", myFieldName, sep = " "))
         }
-      }
+      } #EndIF validation infromation exists / does not exist
     } # Endfor each field in frame
-    
   } # Endfor each frame in RDBES data list
   
   # If we want shorter output we won't show every error  - just the first of each type
@@ -1638,6 +1563,158 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
   errorList
   
 }
+
+
+validateMissingTables <- function(RDBESdataToCheck,framesToCheck){
+  
+  errorsToReturn <- NULL
+
+  missingTables <-framesToCheck[!framesToCheck %in% names(RDBESdataToCheck)]
+  
+  if (length(missingTables)>0){
+    errorsToReturn <- logValidationError(errorList = NULL
+                                    ,tableName = missingTables
+                                    ,rowID = NA
+                                    ,fieldName = NA
+                                    ,problemType = "Missing table check"
+                                    ,problemDescription = paste("The following table is missing from your list: ", missingTables, sep = " "))
+  } 
+  
+  errorsToReturn
+
+}
+
+
+validateMissingFields <- function(RDBESdataToCheck,RDBESvalidationdata,tableToCheck){
+
+  errorsToReturn <- NULL
+  
+  missingFieldsCheck <- RDBESvalidationdata
+  missingFieldsCheck$table <- substr(missingFieldsCheck$name,1,2)
+  missingFieldsCheck <- missingFieldsCheck[missingFieldsCheck$table==tableToCheck,]
+  missingFields <- missingFieldsCheck[!missingFieldsCheck$name %in% myDF$fieldName,]
+  # If we have some missing fields lets log them as an error
+  if (nrow(missingFields) > 0){
+    #Log the error
+    errorsToReturn <- logValidationError(errorList = NULL
+                                    ,tableName = substr(fieldToCheck,1,2)
+                                    ,rowID = NA
+                                    ,fieldName = missingFields$name
+                                    ,problemType = "Missing field check"
+                                    ,problemDescription = paste("The following field is missing from your data frames: ", missingFields$name, sep = " "))
+  } 
+  
+  errorsToReturn
+
+}
+
+validateNAvalues <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
+  
+  errorsToReturn <- NULL
+  
+  #myFieldType <- fieldsAndTypesData[fieldsAndTypesData$fieldName == fieldToCheck,]
+  myValuesNA <- dataToCheck[is.na(dataToCheck[,fieldToCheck]),]
+  # If we have NA values check if thats ok
+  if (nrow(myValuesNA)>0){
+    # if we are not allowed to have empty values here then log an error
+    if (ifelse(is.na(fieldTypeToCheck$min),0,fieldTypeToCheck$min) >0){
+      #Log the error
+      errorsToReturn <- logValidationError(errorList = NA
+                                      ,tableName = substr(fieldToCheck,1,2)
+                                      ,rowID = myValuesNA[,1]
+                                      ,fieldName = fieldToCheck
+                                      ,problemType = "Null value check"
+                                      ,problemDescription = paste("Null value problem;",paste(substr(fieldToCheck,1,2),"id", sep=""),":", myValuesNA[,1], " ;Column:",fieldToCheck, ";Unallowed value:",myValuesNA[,fieldToCheck], sep = " "))
+    }
+  } # Endif NA check
+  
+  errorsToReturn  
+}
+
+
+
+validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
+  
+  errorsToReturn <- NULL
+  
+  myTypeToCheck <- fieldTypeToCheck$type
+  
+  ## simple type, so check data type 
+  # Ints
+  if (myTypeToCheck == "xs:int"){
+    # Check for any non integer values
+    myNonIntValues <- dataToCheck[!is.integer(dataToCheck[,fieldToCheck]),]
+    if (nrow(myNonIntValues)>0){
+      #Log the error
+      errorsToReturn <- logValidationError(errorList = NULL
+                                      ,tableName = substr(fieldToCheck,1,2)
+                                      ,rowID = myNonIntValues[,1]
+                                      ,fieldName = fieldToCheck
+                                      ,problemType = "Data type check"
+                                      ,problemDescription = paste("Data type problem (int);",paste(substr(fieldToCheck,1,2),"id", sep=""),":", myNonIntValues[,1], " ;Column:",fieldToCheck, ";Unallowed value:",myNonIntValues[,fieldToCheck], sep = " "))
+    }
+    # Decimal
+  } else if (myTypeToCheck == "xs:decimal"){
+    # Check for any non numeric values
+    myNonDecValues <- dataToCheck[!is.numeric(dataToCheck[,fieldToCheck]),]
+    if (nrow(myNonDecValues)>0){
+      #Log the error
+      errorList <- logValidationError(errorList = NULL
+                                      ,tableName = substr(fieldToCheck,1,2)
+                                      ,rowID = myNonDecValues[,1]
+                                      ,fieldName = fieldToCheck
+                                      ,problemType = "Data type check"
+                                      ,problemDescription = paste("Data type problem (decimal);",paste(substr(fieldToCheck,1,2),"id", sep=""),":", myNonDecValues[,1], " ;Column:",fieldToCheck, ";Unallowed value:",myNonDecValues[,fieldToCheck], sep = " "))
+    }
+    # String
+  } else if (myTypeToCheck == "xs:string"){
+    # Everythign can be converted to a string so no problems here!
+  }
+  
+  errorsToReturn
+  
+}
+
+
+validateAgainstCodeList <- function(fieldToCheck,dataToCheck,fieldTypeToCheck,codeLists){
+
+  errorsToReturn <- NULL
+  
+  myTypeToCheck <- fieldTypeToCheck$type
+  
+  # see if we can find the correct code list
+  myAllowedValues <- codeLists[codeLists$listName == myTypeToCheck,"allowedValues"]
+  # If we found which values are allowed then we can check our data against them
+  if (length(myAllowedValues)>0){
+    # Check if our values are in the allowed list of values
+    myResults <- dataToCheck[!dataToCheck[,fieldToCheck] %in% myAllowedValues,]
+    # If we have soem values that aren't in the allowed list flag them as errors
+    if (nrow(myResults)>0){
+      #Log the error
+      errorsToReturn <- logValidationError(errorList = NULL
+                                      ,tableName = substr(fieldToCheck,1,2)
+                                      ,rowID = myResults[,1]
+                                      ,fieldName = fieldToCheck
+                                      ,problemType = "Code list problem"
+                                      ,problemDescription = paste("Code list problem;",paste(substr(fieldToCheck,1,2),"id",sep=""),":", myResults[,1], " ;Column:",fieldToCheck, ";Unallowed value:",myResults[,fieldToCheck], ";Code list name:",myTypeToCheck, sep = " "))
+    }
+    # ELSE if we didn't find a list of allowed values then log that as an error
+  } else {
+    #Log the error
+    errorsToReturn <- logValidationError(errorList = NULL
+                                    ,tableName = substr(fieldToCheck,1,2)
+                                    ,rowID = NA
+                                    ,fieldName = fieldToCheck
+                                    ,problemType = "Missing code list"
+                                    ,problemDescription = paste("Could not find code list", myTypeToCheck, " for ", fieldToCheck, sep = " "))
+  } # ENDIF find allowed values
+  
+  errorsToReturn
+  
+}
+
+
+
 
 #' removeInvalidRows
 #'

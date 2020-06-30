@@ -646,6 +646,298 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
   
 }
 
+#' generateComplexExchangeFile This function creates an RDBES exchange file for CS data
+#'
+#' @param typeOfFile The hierarchy we want to generate a CS file for e.g. 'H1'
+#' @param yearToUse The year we want to generate the CS H5 file for
+#' @param country The country to extract data for
+#' @param RDBESdata A named list containing our RDBES data
+#' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
+#' @param numberOfSamples (Optional) Limit the output to this number of samples (just used for testing)
+#' @param cleanData (Optional) if TRUE then remove any invalid rows from the data before generating the upload files - warning data will potentially be lost from your upload file if you do this!
+#' @param RDBESvalidationdata (Optional) If you have selected to cleanData then you need to supply validation data (derived from BaseTypes.xsd)
+#' @param RDBEScodeLists (Optional) If you have selected to cleanData then you need to supply reference data (derived from ICES vocabulary server)
+#'
+#' @return
+#' @export
+#'
+#' @examples generateComplexExchangeFile(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
+generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
+  
+  # For testing
+  typeOfFile <- 'H1'
+  RDBESdata<-myRDBESData
+  yearToUse <- 2017
+  country <- 'IE'
+  outputFileName <- ""
+  numberOfSamples <- 10
+  cleanData <- TRUE
+  RDBESvalidationdata <- validationData
+  RDBEScodeLists <- allowedValues
+  
+  ## Step 0 - Check typeOfFile and generate a file name if we need to 
+  validCSfileTypes <- c('H1')
+  
+  if (!typeOfFile %in% c('H1')){
+    stop(paste("Method not implemented for ",typeOfFile, " yet - not going any further", sep =""))
+  }
+  
+  if (outputFileName == ""){
+    outputFileName <- paste(country,yearToUse,paste(typeOfFile,".csv", sep = ""), sep ="_")
+  }
+  
+  # Create the output directory if we need do 
+  ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
+
+  if(typeOfFile == 'H1'){
+    requiredTables <- c("DE", "SD", "VS", "FT", "FO", "SS", "SA", "FM", "BV")
+    upperHierarchy <- 1
+  }
+    
+  ## Step 1 - Filter the data
+  
+  myCSData <- list()
+  myData <- NULL
+  previousRequiredTable <- NULL
+  
+  # Get the data for each required table - filter by year, country, and upper hierarchy
+  for (myRequiredTable in requiredTables){
+    myData <- RDBESdata[[myRequiredTable]]
+    
+    # Need to filter DE by year and upper hieararchy
+    if (myRequiredTable == 'DE'){
+      myData <- myData[myData$DEyear == yearToUse & myData$DEhierarchy == upperHierarchy,]
+      myCSData[[myRequiredTable]] = myData
+    } 
+    # Need to filter SD by country
+    else if (myRequiredTable == 'SD'){
+      myData <- myData[myData$DEid %in% myCSData[[previousRequiredTable]]$DEid & myData$SDcountry == country,]
+      myCSData[[myRequiredTable]] = myData
+    } 
+    # BVid can either be in FM or SA
+    else if (myRequiredTable == 'BV'){
+      myData <- myData[myData$FMid %in% myCSData[['FM']]$FMid | myData$SAid %in% myCSData[['SA']]$SAid,]
+     myCSData[[myRequiredTable]] = myData
+    } 
+    # all other tables can follow a general pattern of matching
+    else {
+      #previousHierarchyTable <- RDBESdata[[myRequiredTable]]
+      previousHierarchyTable <- RDBESdata[[previousRequiredTable]]
+      ## Assume the primary key is the first field
+      previousPrimaryKey <- names(previousHierarchyTable)[1]
+      myData <- myData[myData[,previousPrimaryKey] %in% previousHierarchyTable[,previousPrimaryKey],]
+      myCSData[[myRequiredTable]] = myData
+    }
+    
+    previousRequiredTable <- myRequiredTable
+  }
+  
+
+  #UGLY HACKS
+  if (typeOfFile == 'H1'){
+  # Need to change the value of DEsamplingScheme until the correct values are added to the ICES code list
+  myCSData[['DE']][myCSData[['DE']]$DEsamplingScheme == 'Ireland DCF Catch Sampling' | myCSData[['DE']]$DEsamplingScheme == 'Ireland DCF Catch Sampling (4S)','DEsamplingScheme'] <- 'National Routine'
+  
+  # Temporarily change the value of FMmeasurementEquipment until ICES add the correct value
+  myCSData[['FM']][myCSData[['FM']]$FMmeasurementEquipment == 'Measured by hand with ruler','FMmeasurementEquipment'] <- 'Measured by hand with caliper'
+  
+  # Truncate any decimal places from SAconversionFactorMesLive - shouldn't be required
+  myCSData[['SA']]$SAconversionFactorMesLive <- floor(myCSData[['SA']]$SAconversionFactorMesLive)
+  
+  }
+  
+  
+  # If we want to remove any invalid data before generating the upload files do this now
+  if(cleanData){
+    
+    rowsBefore <- 0
+    for (myRequiredTable in requiredTables){
+      rowsBefore <- rowsBefore + nrow(myCSData[[myRequiredTable]])
+    }
+    print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
+    
+    # Validate 
+    myErrors <- validateTables(RDBESdata = myCSData
+                               ,RDBESvalidationdata = RDBESvalidationdata
+                               ,RDBEScodeLists = RDBEScodeLists
+                               ,shortOutput = FALSE
+                               ,framestoValidate = requiredTables
+    )
+    
+    # UGLY FIX 
+    # Get rid of the errors associates with SAgsaSubarea having a value of NotApplicable
+    myErrors <- myErrors[!(grepl('gsaSubarea',myErrors$fieldName) & myErrors$problemType =='Code list problem' & grepl('NotApplicable', myErrors$problemDescription)),]
+    
+    # Remove any invalid rows 
+    for (myRequiredTable in requiredTables){
+      myCSData[[myRequiredTable]]<- removeInvalidRows(tableName = myRequiredTable,dataToClean = myCSData[[myRequiredTable]],errorList = myErrors)
+    }
+    
+    rowsAfter <- 0
+    for (myRequiredTable in requiredTables){
+      rowsAfter <- rowsAfter + nrow(myCSData[[myRequiredTable]])
+    }
+    print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
+    
+    if (rowsAfter < rowsBefore){
+      missingRows <- rowsBefore - rowsAfter
+      warning(paste(missingRows,' invalid rows removed before trying to generate output files', sep = ""))
+    }
+    
+  }
+  
+  
+  # If required, limit the number of samples we will output (normally just used during testing)
+  if (!is.null(numberOfSamples)){
+    if (nrow(myCSData[['SA']])>numberOfSamples ) {
+      # Take a sample of the samples :-)
+      #SAidsToUse <- sample(SAfile$SAid, size = numberOfSamples, replace = FALSE)
+      SAidsToUse <- sample(myCSData[['SA']]$SAid, size = numberOfSamples, replace = FALSE)
+      #SAfile <- SAfile[SAfile$SAid %in% SAidsToUse,]
+      
+      # Need Sort out SA and FM first, then we'll deal with the other tables
+      myCSData[['SA']]<- myCSData[['SA']][myCSData[['SA']]$SAid %in% SAidsToUse,]
+      myCSData[['FM']]<- myCSData[['FM']][myCSData[['FM']]$SAid %in% myCSData[['SA']]$SAid,]
+
+      myData <- NULL
+      previousRequiredTable <- NULL
+      
+      # Iterate through the required tables in reverse order and remove any records not assoicated with our selected samples
+      for (myRequiredTable in rev(requiredTables)){
+
+        if (myRequiredTable %in% c('SA','FM')){
+          # Do nothing - already handled above
+        } 
+        # Need to check if the BV records are in either the FM or SA tables
+        else if (myRequiredTable == 'BV'){
+          myData <- myCSData[['BV']][myCSData[['BV']]$FMid %in% myCSData[['FM']]$FMid | myCSData[['BV']]$SAid %in% myCSData[['SA']]$SAid,]
+          myCSData[['BV']] <- myData
+        } 
+        # Other tables can follow a general pattern
+        else {
+          
+          previousHierarchyTable <- myCSData[[previousRequiredTable]]
+          ## Assume the primary key is the first field
+          currentPrimaryKey <- names(myCSData[[myRequiredTable]])[1]
+          myData <- myCSData[[myRequiredTable]][myCSData[[myRequiredTable]][,currentPrimaryKey] %in% previousHierarchyTable[,currentPrimaryKey],]
+          myCSData[[myRequiredTable]] = myData
+          
+        }
+        
+        previousRequiredTable <- myRequiredTable
+        
+      }
+      
+      # FMfile <- FMfile[FMfile$SAid %in% SAfile$SAid,]
+      # BVfile <- BVfile[BVfile$FMid %in% FMfile$FMid | BVfile$SAid %in% SAfile$SAid,]
+      # SSfile <- SSfile[SSfile$SSid %in% SAfile$SSid,]
+      # FOfile <- FOfile[FOfile$FOid %in% SSfile$FOid,]
+      # FTfile <- FTfile[FTfile$FTid %in% FOfile$FTid,]
+      # VSfile <- VSfile[VSfile$VSid %in% FTfile$VSid,]
+      # SDfile <- SDfile[SDfile$SDid %in% VSfile$SDid,]
+      # DEfile <- DEfile[DEfile$DEid %in% SDfile$DEid,]
+      # #SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
+      
+      print(paste("File truncated to data relating to ",numberOfSamples, " samples",sep=""))
+    }
+  }
+  
+  
+  ## Step 2 - I now add a SortOrder field to each of our fitlered data frames
+  ## this will allow me to generate the CS file in the correct row order without needing a slow for-loop
+  # Even if the data frame is empty I add in a blank SortOrder column - that way I can guarantee it exists 
+  
+  ## I need the rows in the following order:
+  # DE, SD, VS, FT, FO, SS, SA, FM, BV
+  
+  # IMPORTANT - I'm using inner_join from dply so we can maintain the ordering of the first data frame in the join
+  # if the ordering isn't maintained then the exchange file will be output in the wrong order
+  if(nrow(DEfile)>0) {DEfile$SortOrder <- paste(DEfile$DEhierarchy,DEfile$DEyear,DEfile$DEstratum,sep="-")} else
+  {DEfile$SortOrder <- character(0)}
+  if(nrow(SDfile)>0) {SDfile$SortOrder <- paste( inner_join(SDfile,DEfile, by ="DEid")[,c("SortOrder")], SDfile$SDid, sep = "-")} else
+  {SDfile$SortOrder <- character(0)}
+  if(nrow(VSfile)>0) {VSfile$SortOrder <- paste( inner_join(VSfile,SDfile, by ="SDid")[,c("SortOrder")], VSfile$VSid, sep = "-")} else
+  {VSfile$SortOrder <- character(0)}
+  if(nrow(FTfile)>0) {FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")],FTfile$FTid, FTfile$VSid,"a", sep = "-")} else
+  {FTfile$SortOrder <- character(0)}
+  if(nrow(FOfile)>0) {FOfile$SortOrder <- paste( inner_join(FOfile,FTfile, by ="FTid")[,c("SortOrder")], FOfile$FOid, sep = "-")} else
+  {FOfile$SortOrder <- character(0)}
+  if(nrow(SSfile)>0) {SSfile$SortOrder <- paste( inner_join(SSfile,FOfile, by ="FOid")[,c("SortOrder")], SSfile$SSid, sep = "-")} else
+  {SSfile$SortOrder <- character(0)}
+  if(nrow(SAfile)>0) {SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, sep = "-")} else
+  {SAfile$SortOrder <- character(0)}
+  if(nrow(FMfile)>0) {FMfile$SortOrder <- paste( inner_join(FMfile,SAfile, by ="SAid")[,c("SortOrder")], FMfile$FMid, sep = "-")} else
+  {FMfile$SortOrder <- character(0)}
+  # TODO For our data BV only follows SA not FM - need to check that the sort order will work if there is a mix of lower hierarchies
+  if(nrow(BVfile)>0) {BVfile$SortOrder <- paste( inner_join(BVfile,SAfile, by ="SAid")[,c("SortOrder")], BVfile$BVid, sep = "-")} else
+  {BVfile$SortOrder <- character(0)}
+  
+  # Combine our SortOrder values
+  FileSortOrder <- c(
+    DEfile$SortOrder,
+    SDfile$SortOrder,
+    VSfile$SortOrder,
+    FTfile$SortOrder,
+    FOfile$SortOrder,
+    SSfile$SortOrder,
+    SAfile$SortOrder,
+    FMfile$SortOrder,
+    BVfile$SortOrder
+  )
+  
+  ## STEP 3) Create a version of the output data for debugging
+  
+  # Here we create a version of the output data with all the ids and sorting columns in so I can check things are correct
+  csForChecking <- c(
+    do.call('paste',c(DEfile,sep=','))
+    ,do.call('paste',c(SDfile,sep=','))
+    ,do.call('paste',c(VSfile,sep=','))
+    ,do.call('paste',c(FTfile,sep=','))
+    ,do.call('paste',c(FOfile,sep=','))
+    ,do.call('paste',c(SSfile,sep=','))
+    ,do.call('paste',c(SAfile,sep=','))
+    ,do.call('paste',c(FMfile,sep=','))
+    ,do.call('paste',c(BVfile,sep=','))
+  )
+  
+  # Sort the output into the correct order
+  csForCheckingOrdered <- csForChecking[order(FileSortOrder)]
+  
+  fwrite(list(csForCheckingOrdered), paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
+  
+  ## STEP 4) Create the real version of the output data
+  
+  #names(VSfile)
+  # Create the CS data with the sort columns and ids removed - this will then be used to generate the exchange file
+  cs <- c(
+    do.call('paste',c(select(DEfile,-c(DEid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(SDfile,-c(DEid,SDid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(VSfile,-c(VSid,SDid,VDid,TEid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(FTfile,-c(FTid, OSid, VSid, VDid, SDid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(FOfile,-c(FOid,FTid,SDid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(SSfile,-c(LEid,FOid,SSid,SLid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(SAfile,-c(SSid,SAid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(FMfile,-c(SAid,FMid,SortOrder)),sep=','))
+    ,do.call('paste',c(select(BVfile,-c(SAid,FMid,BVid,SortOrder)),sep=','))
+  )
+  
+  # Sort the output into the correct order
+  csOrdered <- cs[order(FileSortOrder)]
+  
+  # replace NA with blanks
+  csOrdered <- gsub('NA','',csOrdered)
+  
+  # UGLY FIX 
+  # Where there is no GSA sub-area value then we shoudl use the value "NA" - however the previous line will change all "NA"'s into blanks :-S 
+  # I needed to do soemthing a bit ugly so that we can submit NA for the actual GSA sub-area value
+  csOrdered <- gsub('NotApplicable','NA',csOrdered)
+  
+  fwrite(list(csOrdered), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
+  print(paste("Output file written to ",outputFileName,sep=""))
+  
+}
+
+
 #' generateH5RDataFiles Generates RData files containing the relevent data frames for hierarchy 5.  Each data frame is stored in a seperate RData file.  Data is filtered by country and year (optional)
 #'
 #' @param yearToUse (Optional) Year to extract the data for

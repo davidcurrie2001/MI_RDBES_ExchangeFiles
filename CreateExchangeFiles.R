@@ -29,7 +29,7 @@ errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validati
 
 #errorsSS <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("SS"))
 
-View(errors[errors$tableName == 'DE',])
+#View(errors[errors$tableName == 'DE',])
 #View(allowedValues[allowedValues$listName == 'tRS_UnitOfValue',])
 
 # Create a CE output file
@@ -60,7 +60,13 @@ generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = 2017, country = 'IE', 
 
 
 # Create an H1 CS file
+generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=10,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+
 generateCSFile_H1(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=10,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateCSFile_H1(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+
+
 generateCSFile_H1(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)
 
 # Save RData files

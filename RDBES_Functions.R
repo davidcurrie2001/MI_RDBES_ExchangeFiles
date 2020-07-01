@@ -535,7 +535,9 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
   if (!is.null(numberOfSamples)){
     if (nrow(SAfile)>numberOfSamples ) {
         # Take a sample of the samples :-)
-        SAidsToUse <- sample(SAfile$SAid, size = numberOfSamples, replace = FALSE)
+        #SAidsToUse <- sample(SAfile$SAid, size = numberOfSamples, replace = FALSE)
+        SAidsToUse <- SAfile[1:numberOfSamples,"SAid"]
+        
         SAfile <- SAfile[SAfile$SAid %in% SAidsToUse,]
         FMfile <- FMfile[FMfile$SAid %in% SAfile$SAid,]
         BVfile <- BVfile[BVfile$FMid %in% FMfile$FMid | BVfile$SAid %in% SAfile$SAid,]
@@ -567,7 +569,8 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
     {SDfile$SortOrder <- character(0)}
   if(nrow(VSfile)>0) {VSfile$SortOrder <- paste( inner_join(VSfile,SDfile, by ="SDid")[,c("SortOrder")], VSfile$VSid, sep = "-")} else
     {VSfile$SortOrder <- character(0)}
-  if(nrow(FTfile)>0) {FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")],FTfile$FTid, FTfile$VSid,"a", sep = "-")} else
+  #if(nrow(FTfile)>0) {FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")],FTfile$FTid, FTfile$VSid,"a", sep = "-")} else
+  if(nrow(FTfile)>0) {FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")],FTfile$FTid, sep = "-")} else
     {FTfile$SortOrder <- character(0)}
   if(nrow(FOfile)>0) {FOfile$SortOrder <- paste( inner_join(FOfile,FTfile, by ="FTid")[,c("SortOrder")], FOfile$FOid, sep = "-")} else
     {FOfile$SortOrder <- character(0)}
@@ -661,19 +664,19 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
 #' @return
 #' @export
 #'
-#' @examples generateComplexExchangeFile(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
+#' @examples generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
 generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
   
   # For testing
-  typeOfFile <- 'H1'
-  RDBESdata<-myRDBESData
-  yearToUse <- 2017
-  country <- 'IE'
-  outputFileName <- ""
-  numberOfSamples <- 10
-  cleanData <- TRUE
-  RDBESvalidationdata <- validationData
-  RDBEScodeLists <- allowedValues
+  # typeOfFile <- 'H1'
+  # RDBESdata<-myRDBESData
+  # yearToUse <- 2017
+  # country <- 'IE'
+  # outputFileName <- ""
+  # numberOfSamples <- 10
+  # cleanData <- TRUE
+  # RDBESvalidationdata <- validationData
+  # RDBEScodeLists <- allowedValues
   
   ## Step 0 - Check typeOfFile and generate a file name if we need to 
   validCSfileTypes <- c('H1')
@@ -792,7 +795,11 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
     if (nrow(myCSData[['SA']])>numberOfSamples ) {
       # Take a sample of the samples :-)
       #SAidsToUse <- sample(SAfile$SAid, size = numberOfSamples, replace = FALSE)
-      SAidsToUse <- sample(myCSData[['SA']]$SAid, size = numberOfSamples, replace = FALSE)
+      #SAidsToUse <- sample(myCSData[['SA']]$SAid, size = numberOfSamples, replace = FALSE)
+      
+      #Subset the SA data
+      SAidsToUse <- myCSData[['SA']][1:numberOfSamples,"SAid"]
+      
       #SAfile <- SAfile[SAfile$SAid %in% SAidsToUse,]
       
       # Need Sort out SA and FM first, then we'll deal with the other tables
@@ -846,59 +853,143 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   ## Step 2 - I now add a SortOrder field to each of our fitlered data frames
   ## this will allow me to generate the CS file in the correct row order without needing a slow for-loop
   # Even if the data frame is empty I add in a blank SortOrder column - that way I can guarantee it exists 
-  
-  ## I need the rows in the following order:
-  # DE, SD, VS, FT, FO, SS, SA, FM, BV
-  
   # IMPORTANT - I'm using inner_join from dply so we can maintain the ordering of the first data frame in the join
   # if the ordering isn't maintained then the exchange file will be output in the wrong order
-  if(nrow(DEfile)>0) {DEfile$SortOrder <- paste(DEfile$DEhierarchy,DEfile$DEyear,DEfile$DEstratum,sep="-")} else
-  {DEfile$SortOrder <- character(0)}
-  if(nrow(SDfile)>0) {SDfile$SortOrder <- paste( inner_join(SDfile,DEfile, by ="DEid")[,c("SortOrder")], SDfile$SDid, sep = "-")} else
-  {SDfile$SortOrder <- character(0)}
-  if(nrow(VSfile)>0) {VSfile$SortOrder <- paste( inner_join(VSfile,SDfile, by ="SDid")[,c("SortOrder")], VSfile$VSid, sep = "-")} else
-  {VSfile$SortOrder <- character(0)}
-  if(nrow(FTfile)>0) {FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")],FTfile$FTid, FTfile$VSid,"a", sep = "-")} else
-  {FTfile$SortOrder <- character(0)}
-  if(nrow(FOfile)>0) {FOfile$SortOrder <- paste( inner_join(FOfile,FTfile, by ="FTid")[,c("SortOrder")], FOfile$FOid, sep = "-")} else
-  {FOfile$SortOrder <- character(0)}
-  if(nrow(SSfile)>0) {SSfile$SortOrder <- paste( inner_join(SSfile,FOfile, by ="FOid")[,c("SortOrder")], SSfile$SSid, sep = "-")} else
-  {SSfile$SortOrder <- character(0)}
-  if(nrow(SAfile)>0) {SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, sep = "-")} else
-  {SAfile$SortOrder <- character(0)}
-  if(nrow(FMfile)>0) {FMfile$SortOrder <- paste( inner_join(FMfile,SAfile, by ="SAid")[,c("SortOrder")], FMfile$FMid, sep = "-")} else
-  {FMfile$SortOrder <- character(0)}
   # TODO For our data BV only follows SA not FM - need to check that the sort order will work if there is a mix of lower hierarchies
-  if(nrow(BVfile)>0) {BVfile$SortOrder <- paste( inner_join(BVfile,SAfile, by ="SAid")[,c("SortOrder")], BVfile$BVid, sep = "-")} else
-  {BVfile$SortOrder <- character(0)}
+  
+  previousRequiredTable <- NULL
+  
+  for (myRequiredTable in requiredTables){
+    
+    # Check if there are any rows in this table
+    if(nrow(myCSData[[myRequiredTable]])>0) {
+      
+      # Need to handle DE differently because the SortOrder doesn't just use the primary key
+      if (myRequiredTable == 'DE'){
+
+        myCSData[[myRequiredTable]]$SortOrder <- paste(myCSData[[myRequiredTable]]$DEhierarchy,myCSData[[myRequiredTable]]$DEyear,myCSData[[myRequiredTable]]$DEstratum,sep="-")
+
+      } 
+      # Need to handle BV differently because it can be linked to from either FM or SA
+      else if (myRequiredTable == 'BV') {
+
+        # Add the SortOrder field first
+        # Bit ugle but we'll call it SortOrder_BV to start with to avoid some issues - we'll name it propery in a minute
+        myCSData[[myRequiredTable]]$SortOrder_BV <- character(nrow(myCSData[[myRequiredTable]]))
+        currentPrimaryKey <- names(myCSData[[myRequiredTable]])[1]
+        
+        # Add SortOrder where there is a link to FM (rows where FMid is not NA)
+        if (nrow( myCSData[[myRequiredTable]][!is.na(myCSData[[myRequiredTable]]$FMid),] )>0){
+          
+          previousHierarchyTable <- myCSData[['FM']]
+          previousPrimaryKey <- names(previousHierarchyTable)[1]
+          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
+          myCSData[[myRequiredTable]][!is.na(myCSData[[myRequiredTable]]$FMid),"SortOrder_BV"] <- paste( inner_join(myCSData[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], myCSData[[myRequiredTable]][,currentPrimaryKey], sep = "-")
+        } 
+        
+        # Add SortOrder where there is a link to SA (rows where SAid is not NA)
+        if (nrow( myCSData[[myRequiredTable]][!is.na(myCSData[[myRequiredTable]]$SAid),] )>0){
+          
+          previousHierarchyTable <- myCSData[['SA']]
+          previousPrimaryKey <- names(previousHierarchyTable)[1]
+          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
+          myCSData[[myRequiredTable]][!is.na(myCSData[[myRequiredTable]]$SAid),"SortOrder_BV"] <- paste( inner_join(myCSData[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], myCSData[[myRequiredTable]][,currentPrimaryKey], sep = "-")
+          
+        }
+        
+        # Rename SortOrder_BV field to SortOrder
+        names(myCSData[[myRequiredTable]])[names(myCSData[[myRequiredTable]]) == "SortOrder_BV"] <- "SortOrder"
+        
+      }
+      # Else follow the general pattern
+      else {
+
+        previousHierarchyTable <- myCSData[[previousRequiredTable]]
+        ## Assume the primary key is the first field
+        previousPrimaryKey <- names(previousHierarchyTable)[1]
+        currentPrimaryKey <- names(myCSData[[myRequiredTable]])[1]
+        # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
+        myCSData[[myRequiredTable]]$SortOrder <- paste( inner_join(myCSData[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], myCSData[[myRequiredTable]][,currentPrimaryKey], sep = "-")
+      }
+    }      
+    # If there's no rows in the table we'll add an emtpy SortOrder column so it definitely exists
+    else  {
+      myCSData[[myRequiredTable]]$SortOrder <- character(0)
+    }
+    
+    previousRequiredTable <- myRequiredTable
+  }
+  
+  
+  # if(nrow(DEfile)>0) {DEfile$SortOrder <- paste(DEfile$DEhierarchy,DEfile$DEyear,DEfile$DEstratum,sep="-")} else
+  # {DEfile$SortOrder <- character(0)}
+  # if(nrow(SDfile)>0) {SDfile$SortOrder <- paste( inner_join(SDfile,DEfile, by ="DEid")[,c("SortOrder")], SDfile$SDid, sep = "-")} else
+  # {SDfile$SortOrder <- character(0)}
+  # if(nrow(VSfile)>0) {VSfile$SortOrder <- paste( inner_join(VSfile,SDfile, by ="SDid")[,c("SortOrder")], VSfile$VSid, sep = "-")} else
+  # {VSfile$SortOrder <- character(0)}
+  # if(nrow(FTfile)>0) {FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")],FTfile$FTid, FTfile$VSid,"a", sep = "-")} else
+  # {FTfile$SortOrder <- character(0)}
+  # if(nrow(FOfile)>0) {FOfile$SortOrder <- paste( inner_join(FOfile,FTfile, by ="FTid")[,c("SortOrder")], FOfile$FOid, sep = "-")} else
+  # {FOfile$SortOrder <- character(0)}
+  # if(nrow(SSfile)>0) {SSfile$SortOrder <- paste( inner_join(SSfile,FOfile, by ="FOid")[,c("SortOrder")], SSfile$SSid, sep = "-")} else
+  # {SSfile$SortOrder <- character(0)}
+  # if(nrow(SAfile)>0) {SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, sep = "-")} else
+  # {SAfile$SortOrder <- character(0)}
+  # if(nrow(FMfile)>0) {FMfile$SortOrder <- paste( inner_join(FMfile,SAfile, by ="SAid")[,c("SortOrder")], FMfile$FMid, sep = "-")} else
+  # {FMfile$SortOrder <- character(0)}
+  # # TODO For our data BV only follows SA not FM - need to check that the sort order will work if there is a mix of lower hierarchies
+  # if(nrow(BVfile)>0) {BVfile$SortOrder <- paste( inner_join(BVfile,SAfile, by ="SAid")[,c("SortOrder")], BVfile$BVid, sep = "-")} else
+  # {BVfile$SortOrder <- character(0)}
+  # 
   
   # Combine our SortOrder values
-  FileSortOrder <- c(
-    DEfile$SortOrder,
-    SDfile$SortOrder,
-    VSfile$SortOrder,
-    FTfile$SortOrder,
-    FOfile$SortOrder,
-    SSfile$SortOrder,
-    SAfile$SortOrder,
-    FMfile$SortOrder,
-    BVfile$SortOrder
-  )
+  # TODO Need to check this works correctly
+  for (myRequiredTable in requiredTables){
+    if (myRequiredTable == 'DE'){
+      FileSortOrder <- myCSData[[myRequiredTable]]$SortOrder
+    } else {
+      FileSortOrder <-c(FileSortOrder,myCSData[[myRequiredTable]]$SortOrder)
+    }
+  }
+  
+  # Combine our SortOrder values
+  # FileSortOrder <- c(
+  #   DEfile$SortOrder,
+  #   SDfile$SortOrder,
+  #   VSfile$SortOrder,
+  #   FTfile$SortOrder,
+  #   FOfile$SortOrder,
+  #   SSfile$SortOrder,
+  #   SAfile$SortOrder,
+  #   FMfile$SortOrder,
+  #   BVfile$SortOrder
+  # )
   
   ## STEP 3) Create a version of the output data for debugging
   
   # Here we create a version of the output data with all the ids and sorting columns in so I can check things are correct
-  csForChecking <- c(
-    do.call('paste',c(DEfile,sep=','))
-    ,do.call('paste',c(SDfile,sep=','))
-    ,do.call('paste',c(VSfile,sep=','))
-    ,do.call('paste',c(FTfile,sep=','))
-    ,do.call('paste',c(FOfile,sep=','))
-    ,do.call('paste',c(SSfile,sep=','))
-    ,do.call('paste',c(SAfile,sep=','))
-    ,do.call('paste',c(FMfile,sep=','))
-    ,do.call('paste',c(BVfile,sep=','))
-  )
+  
+  
+  for (myRequiredTable in requiredTables){
+    if (myRequiredTable == 'DE'){
+      csForChecking <- do.call('paste',c(myCSData[[myRequiredTable]],sep=','))
+    } else {
+      csForChecking <- c(csForChecking,do.call('paste',c(myCSData[[myRequiredTable]],sep=',')))
+    }
+  }
+  
+  # csForChecking <- c(
+  #   do.call('paste',c(DEfile,sep=','))
+  #   ,do.call('paste',c(SDfile,sep=','))
+  #   ,do.call('paste',c(VSfile,sep=','))
+  #   ,do.call('paste',c(FTfile,sep=','))
+  #   ,do.call('paste',c(FOfile,sep=','))
+  #   ,do.call('paste',c(SSfile,sep=','))
+  #   ,do.call('paste',c(SAfile,sep=','))
+  #   ,do.call('paste',c(FMfile,sep=','))
+  #   ,do.call('paste',c(BVfile,sep=','))
+  # )
+  # 
   
   # Sort the output into the correct order
   csForCheckingOrdered <- csForChecking[order(FileSortOrder)]
@@ -909,17 +1000,32 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   
   #names(VSfile)
   # Create the CS data with the sort columns and ids removed - this will then be used to generate the exchange file
-  cs <- c(
-    do.call('paste',c(select(DEfile,-c(DEid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(SDfile,-c(DEid,SDid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(VSfile,-c(VSid,SDid,VDid,TEid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(FTfile,-c(FTid, OSid, VSid, VDid, SDid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(FOfile,-c(FOid,FTid,SDid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(SSfile,-c(LEid,FOid,SSid,SLid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(SAfile,-c(SSid,SAid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(FMfile,-c(SAid,FMid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(BVfile,-c(SAid,FMid,BVid,SortOrder)),sep=','))
-  )
+  
+  for (myRequiredTable in requiredTables){
+    
+    # First remove the columns we don't want in the final output (SortOrder and any XXid columns)
+    colstoRemove <- c("SortOrder", names(myCSData[[myRequiredTable]])[grepl("^..id$",names(myCSData[[myRequiredTable]]))])
+    myData <- select(myCSData[[myRequiredTable]],-all_of(colstoRemove))
+    
+    # Now stick all the lines from each table together with commas seperating the values
+    if (myRequiredTable == 'DE'){
+      cs <- do.call('paste',c(myData,sep=','))
+    } else {
+      cs <- c(cs,do.call('paste',c(myData,sep=',')))
+    }
+  }
+  
+  # cs <- c(
+  #   do.call('paste',c(select(DEfile,-c(DEid,SortOrder)),sep=','))
+  #   ,do.call('paste',c(select(SDfile,-c(DEid,SDid,SortOrder)),sep=','))
+  #   ,do.call('paste',c(select(VSfile,-c(VSid,SDid,VDid,TEid,SortOrder)),sep=','))
+  #   ,do.call('paste',c(select(FTfile,-c(FTid, OSid, VSid, VDid, SDid,SortOrder)),sep=','))
+  #   ,do.call('paste',c(select(FOfile,-c(FOid,FTid,SDid,SortOrder)),sep=','))
+  #   ,do.call('paste',c(select(SSfile,-c(LEid,FOid,SSid,SLid,SortOrder)),sep=','))
+  #   ,do.call('paste',c(select(SAfile,-c(SSid,SAid,SortOrder)),sep=','))
+  #   ,do.call('paste',c(select(FMfile,-c(SAid,FMid,SortOrder)),sep=','))
+  #   ,do.call('paste',c(select(BVfile,-c(SAid,FMid,BVid,SortOrder)),sep=','))
+  # )
   
   # Sort the output into the correct order
   csOrdered <- cs[order(FileSortOrder)]

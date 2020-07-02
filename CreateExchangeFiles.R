@@ -5,6 +5,8 @@ source("RDBES_Functions.R")
 # IMPORTANT: Hack to stop write.csv changing numbers to scientific notation
 options(scipen=500) # big number of digits
 
+## STEP 1) LOAD OUR DATA
+
 # Load the validation data
 validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = './tableDefs/BaseTypes.xsd')
 #validationData <- getValidationData(downloadFromGitHub = TRUE, fileLocation = './tableDefs/BaseTypes.xsd')
@@ -12,6 +14,10 @@ validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = '
 # Load the reference data: either refresh from ICES or just use a local copy
 allowedValues <- loadReferenceData(downloadFromICES = FALSE)
 #allowedValues <- loadReferenceData(downloadFromICES = TRUE, validationData=validationData)
+
+# Load the lists of tables required for each hierarchy
+requiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLocation = './tableDefs')
+#requiredTables <- getTablesInHierarchies(downloadFromGitHub = TRUE, fileLocation = './tableDefs')
 
 # Load the RDBES data from the database - you will need to write your own database connection string in a format similar to this: 'driver=SQL Server;server=mysqlhost;database=mydbname;trusted_connectio
 myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
@@ -24,50 +30,49 @@ myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 #dbNames <- changeFieldNames(frameToRsename = myRDBESData[["BV"]], fieldNameMap = list_RDBES_Variables, typeOfChange = "RtoDB")
 #names(myRDBESData[["BV"]]) <- dbNames
 
+## STEP 2) VALIDATE OUR DATA AND CHECK ERRORS
+
 # Lets validate our data
 errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE)
 
-#errorsSS <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("SS"))
+# Can check errros from individual tables using e.g.
+#View(errors[errors$tableName == 'BV',])
 
-#View(errors[errors$tableName == 'DE',])
-#View(allowedValues[allowedValues$listName == 'tRS_UnitOfValue',])
+## STEP 3) GENERATE SIMPLE EXCHANGE FILES (CL,CE,SL,VD)
 
 # Create a CE output file
 generateSimpleExchangeFile(typeOfFile = 'CE', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-#generateCEFile(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-#generateCEFile(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)
 
 # Create a CL output file
 generateSimpleExchangeFile(typeOfFile = 'CL', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-#generateCLFile(yearToUse = 2017, country = 'IE',RDBESdata = myRDBESData, numberOfRows=20,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-#generateCLFile(yearToUse = 2017, country = 'IE',RDBESdata = myRDBESData)
 
 # Create a VD output file
 generateSimpleExchangeFile(typeOfFile = 'VD', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-#generateVDFile(yearToUse = 2017, country = 'IE',RDBESdata = myRDBESData, numberOfRows=20,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-#generateVDFile(yearToUse = 2017, country = 'IE',RDBESdata = myRDBESData)
 
 # Create a SL output file
 generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-#generateSLFile(yearToUse = 2017, country = 'IE',RDBESdata = myRDBESData, numberOfRows=20,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 
-# Create an H5 CS file
-#generateCSFile_H5(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=10,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-#generateCSFile_H5(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)
-# Save RData files
-#generateH5RDataFiles(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)
+## STEP 4) GENERATE COMPLEX EXCHANGE FILES (CS)
+
+#UGLY HACKS - these are temporary fixes for my data - they will be removed once correct values are added to reference lists
+
+# Need to change the value of DEsamplingScheme until the correct values are added to the ICES code list
+#myRDBESData[['DE']][myRDBESData[['DE']]$DEsamplingScheme == 'Ireland DCF Catch Sampling' | myRDBESData[['DE']]$DEsamplingScheme == 'Ireland DCF Catch Sampling (4S)','DEsamplingScheme'] <- 'National Routine'
+  
+# Temporarily change the value of FMmeasurementEquipment until ICES add the correct value
+#myRDBESData[['FM']][myRDBESData[['FM']]$FMmeasurementEquipment == 'Measured by hand with ruler','FMmeasurementEquipment'] <- 'Measured by hand with caliper'
+  
+# Truncate any decimal places from SAconversionFactorMesLive - shouldn't be required
+#myRDBESData[['SA']]$SAconversionFactorMesLive <- floor(myRDBESData[['SA']]$SAconversionFactorMesLive)
+  
 
 
 # Create an H1 CS file
-generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=10,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-
-generateCSFile_H1(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=10,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-generateCSFile_H1(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=1,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = requiredTables)
+#generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 
-generateCSFile_H1(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)
 
 # Save RData files
 generateH1RDataFiles(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)

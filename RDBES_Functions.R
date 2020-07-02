@@ -4,6 +4,7 @@ library(data.table)
 library(XML)
 library(icesVocab)
 library(RCurl)
+library(httr)
 
 # Location for our output files
 outputFolder <- "./output/"
@@ -195,459 +196,7 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
 }
 
 
-
-#' generateCSFile_H5 This function creates an RDBES exchange file for Hierarchy 5 CS data
-#'
-#' @param yearToUse The year we want to generate the CS H5 file for
-#' @param country The country to extract data for
-#' @param RDBESdata A named list containing our RDBES data
-#' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
-#' @param numberOfSamples Limit the output to this number of samples (just used for testing)
-#'
-#' @return
-#' @export
-#'
-#' @examples generateCSFile_H5(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
-generateCSFile_H5 <- function(yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL){
-  
-  # For testing
-  #RDBESdata<-myRDBESData
-  #yearToUse <- 2016
-  #country <- 'IE'
-  #outputFileName <- ""
-  #numberOfSamples <- 5
-
-  ## Step 0 - Generate a file name if we need to 
-  if (outputFileName == ""){
-    outputFileName <- paste(country,yearToUse,"H5.csv", sep ="_")
-  }
-  
-  # Create the output directory if we need do 
-  ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
-  
-  ## Step 1 - Filter the data
-  
-  # Get the data from our name list
-  DE <- RDBESdata[['DE']]
-  SD <- RDBESdata[['SD']]
-  OS <- RDBESdata[['OS']]
-  VD <- RDBESdata[['VD']]
-  FT <- RDBESdata[['FT']]
-  LE <- RDBESdata[['LE']]
-  SL <- RDBESdata[['SL']]
-  SS <- RDBESdata[['SS']]
-  SA <- RDBESdata[['SA']]
-  FM <- RDBESdata[['FM']]
-  BV <- RDBESdata[['BV']]
-
-  # Filter by year and country
-  DEfile <- DE[DE$DEyear == yearToUse & DE$DEhierarchy == 5,]
-  SDfile <- SD[SD$DEid %in% DEfile$DEid & SD$SDcountry == country,]
-  OSfile <- OS[OS$SDid %in% SDfile$SDid,]
-  FTfile <- FT[FT$OSid %in% OSfile$OSid,]
-  LEfile <- LE[LE$FTid %in% FTfile$FTid,]
-  SSfile <- SS[SS$LEid %in% LEfile$LEid,]
-  SAfile <- SA[SA$SSid %in% SSfile$SSid,]
-  FMfile <- FM[FM$SAid %in% SAfile$SAid,]
-  BVfile <- BV[BV$FMid %in% FMfile$FMid | BV$SAid %in% SAfile$SAid,]
-  
-  VDfile <- VD[VD$VDid %in% LEfile$VDid,]
-  SLfile <- SL[SL$SLlistName %in% SSfile$SSspeciesListName,]
-  
-
-  # If required, limit the number of samples we will output (normally just used during testing)
-  if (!is.null(numberOfSamples)){
-    # Take a sample of the samples :-)
-    SAidsToUse <- sample(SAfile$SAid, size = numberOfSamples, replace = FALSE)
-    SAfile <- SAfile[SAfile$SAid %in% SAidsToUse,]
-    FMfile <- FM[FM$SAid %in% SAfile$SAid,]
-    BVfile <- BV[BV$FMid %in% FMfile$FMid | BV$SAid %in% SAfile$SAid,]
-    SSfile <- SS[SS$SSid %in% SAfile$SSid,]
-    LEfile <- LE[LE$LEid %in% SSfile$LEid,]
-    FTfile <- FT[FT$FTid %in% LEfile$FTid,]
-    OSfile <- OS[OS$OSid %in% FTfile$OSid,]
-    SDfile <- SD[SD$SDid %in% OSfile$SDid,]
-    DEfile <- DE[DE$DEid %in% SDfile$DEid,]
-    VDfile <- VD[VD$VDid %in% LEfile$VDid,]
-    SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
-  
-  }
-  
-  ## TODO - hacks due to mistakes in the validator
-  
-  ## DE - this is hack because the validator isn't correctly checking for duplicates
-  # so I have had to alter the sampling scheme name
-  DEfile$DEsamplingScheme <- paste(DEfile$DEsamplingScheme, DEfile$DEstratum,sep="-")
-  
-  ## SL - this is a hack because the validator will only allow 1 SL line
-  SLfile <- head(SLfile,1)
-   
-  ## LE currently requires stat rectangle
-  LEfile$LErectangle <- "-9"
-  # Not allowed MIS or a blank target species
-  LEfile[is.na(LEfile$LEtargetSpecies),"LEtargetSpecies"] <- "MPD"
-  # Validation fails without a value for this
-  LEfile$LEreasonNotSampled <- "Other"
-  
-  # The only currently allowed value of sub-polygon is "NA"
-  LEfile$LEsubpolygon <- "ChangeMe"
-  LEfile$LEnationalCategory <- "ChangeMe"
-
-  # SA 
-  # Some values were too large
-  SAfile[SAfile$SAtotalWeightLive > 2000000000,"SAtotalWeightLive"] <- 2000000000
-  # not allowed blank unit types
-  SAfile[SAfile$SAunitType =="","SAunitType"] <- "Tray"
-   
-  ## BV hacks for mistakes in the validator
-  if (nrow(BVfile)>0){
-    BVfile$BVstratification <- 1
-    BVfile[BVfile$BVunitValue %in% c("year","MaturityScale","Sex"),"BVunitValue"] <- "mm"
-    BVfile$BVmeasurementEquipment <- "Measured by hand with caliper"
-    BVfile$BVunitScaleList <- "A"
-  }
-   
-  ## Step 2 - I now add a SortOrder field to each of our fitlered data frames
-  ## this will allow me to generate the CS file in the correct row order without needing a slow for-loop
-  
-  # IMPORTANT - I'm using inner_join from dply so we can maintain the ordering of the first data frame in the join
-  # if the ordering isn't maintained then the exchange file will be output in the wrong order
-  DEfile$SortOrder <- paste(DEfile$DEhierarchy,DEfile$DEyear,DEfile$DEstratum,sep="-")
-  SDfile$SortOrder <- paste( inner_join(SDfile,DEfile, by ="DEid")[,c("SortOrder")], SDfile$SDid, sep = "-")
-  OSfile$SortOrder <- paste( inner_join(OSfile,SDfile, by ="SDid")[,c("SortOrder")], OSfile$OSid, sep = "-")
-  FTfile$SortOrder <- paste( inner_join(FTfile,OSfile, by ="OSid")[,c("SortOrder")], FTfile$FTid, "b", sep = "-")
-  LEfile$SortOrder <- paste( inner_join(LEfile,FTfile, by ="FTid")[,c("SortOrder")], LEfile$LEid, sep = "-")
-  
-  # Need to have VD appear before LE in the output file so I need to do something different with the SortOrder value
-  # Also can't use the VD frame directly becasue it will hve the wrong number of rows (not every FT/LE has a unique VD)
-  VDfile2 <- inner_join(VDfile,LEfile, by ="VDid")
-  # Assuming there are no other 'a's or 'b's in the string we'll change 'b' to 'a' for the VD sort order
-  # this will make it appear before the FT line in the sorted output
-  VDfile2$SortOrder <- gsub('b','a',VDfile2$SortOrder)
-  
-  SSfile$SortOrder <- paste( inner_join(SSfile,LEfile, by ="LEid")[,c("SortOrder")], SSfile$SSid, sep = "-")
-  
-
-  SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, "d", sep = "-")
-  
-  # I now need SL to appear after SS so I need to do soemthing similar to VD here...
-  SLfile2 <- inner_join(SLfile,SSfile, by = c("SLlistName" = "SSspeciesListName"))
-  # Multiple columns called Sortorder so I need to change the name
-  names(SLfile2)[names(SLfile2)=="SortOrder"]<-"SortOrder_SS"
-  SLfile3 <- inner_join(SLfile2,SAfile,by="SSid")
-  # Assuming there are no other 'c's or 'd's in the string we'll change 'c' to 'd' for the SL sort order
-  # this will make it appear after the SS line in the sorted output
-  SLfile3$SortOrder <- gsub('d','c',SLfile3$SortOrder)
-  
-  
-  FMfile$SortOrder <- paste( inner_join(FMfile,SAfile, by ="SAid")[,c("SortOrder")], FMfile$FMid, sep = "-")
-  BVfile$SortOrder <- paste( inner_join(BVfile,FMfile, by ="FMid")[,c("SortOrder")], BVfile$BVid, sep = "-")
-
-  # Combine our SortOrder values
-  FileSortOrder <- c(
-    DEfile$SortOrder,
-    SDfile$SortOrder,
-    OSfile$SortOrder,
-    VDfile2$SortOrder,
-    FTfile$SortOrder,
-    LEfile$SortOrder,
-    SLfile3$SortOrder,
-    SSfile$SortOrder,
-    SAfile$SortOrder,
-    FMfile$SortOrder,
-    BVfile$SortOrder
-  )
-
-  ## STEP 3) Create a version of the output data for debugging
-  
-  # Here we create a version of the output data with all the ids and sorting columns in so I can check things are correct
-  csForChecking <- c(
-    do.call('paste',c(DEfile,sep=','))
-    ,do.call('paste',c(SDfile,sep=','))
-    ,do.call('paste',c(OSfile,sep=','))
-    ,do.call('paste',c(VDfile2,sep=','))
-    ,do.call('paste',c(FTfile,sep=','))
-    ,do.call('paste',c(LEfile,sep=','))
-    ,do.call('paste',c(SLfile3,sep=','))
-    ,do.call('paste',c(SSfile,sep=','))
-    ,do.call('paste',c(SAfile,sep=','))
-    ,do.call('paste',c(FMfile,sep=','))
-    ,do.call('paste',c(BVfile,sep=','))
-  )
-
-  # Sort the output into the correct order
-  csForCheckingOrdered <- csForChecking[order(FileSortOrder)]
-  
-  fwrite(list(csForCheckingOrdered), paste(outputFolder,outputFileName,"_debug", sep = ""),row.names=F,col.names=F,quote=F)
-
-  ## STEP 4) Create the real version of the output data
-  
-  
-  # Create the CS data with the sort columns and ids removed - this will then be used to generate the exchange file
-  cs <- c(
-    do.call('paste',c(select(DEfile,-c(DEid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(SDfile,-c(DEid,SDid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(OSfile,-c(SDid,OSid,SortOrder)),sep=','))
-    # Different pattern for VD
-    ,do.call('paste',c(select(VDfile2,c(VDrecordType,VDencryptedCode,VDhomePort,VDflagCountry,VDlength,VDlengthCategory,VDpower,VDsize,VDsizeUnit,VDtype)),sep=','))
-    ,do.call('paste',c(select(FTfile,-c(FTid, OSid, VSid, VDid, SDid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(LEfile,-c(OSid,FTid,VSid,VDid,SAid,LEid,SortOrder)),sep=','))
-    # Different patern for SL
-    ,do.call('paste',c(select(SLfile3,c(SLrecordType, SLlistName,SLyear, SLspeciesCode, SLcommercialSpecies, SLcatchFraction)),sep=','))
-    ,do.call('paste',c(select(SSfile,-c(LEid,FOid,SSid,SSspeciesListID,SortOrder)),sep=','))
-    ,do.call('paste',c(select(SAfile,-c(SAparentID,SSid,SAid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(FMfile,-c(SAid,FMid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(BVfile,-c(SAid,FMid,BVid,SortOrder)),sep=','))
-  )
-
-  # Sort the output into the correct order
-  csOrdered <- cs[order(FileSortOrder)]
-
-  # replace NA with blanks
-  csOrdered <- gsub('NA','',csOrdered)
-
-  # TODO - one of the code lists only has an allowed value of NA - we don't want this replaced with blanks so we do this hack...
-  # replace ChangeMe with NA
-  csOrdered <- gsub('ChangeMe','NA',csOrdered)
-
-  fwrite(list(csOrdered), paste(outputFolder,outputFileName, sep = ""),row.names=F,col.names=F,quote=F)
-  
-}
-
-
-#' generateCSFile_H1 This function creates an RDBES exchange file for Hierarchy 1 CS data
-#'
-#' @param yearToUse The year we want to generate the CS H5 file for
-#' @param country The country to extract data for
-#' @param RDBESdata A named list containing our RDBES data
-#' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
-#' @param numberOfSamples (Optional) Limit the output to this number of samples (just used for testing)
-#' @param cleanData (Optional) if TRUE then remove any invalid rows from the data before generating the upload files - warning data will potentially be lost from your upload file if you do this!
-#' @param RDBESvalidationdata (Optional) If you have selected to cleanData then you need to supply validation data (derived from BaseTypes.xsd)
-#' @param RDBEScodeLists (Optional) If you have selected to cleanData then you need to supply reference data (derived from ICES vocabulary server)
-#'
-#' @return
-#' @export
-#'
-#' @examples generateCSFile_H1(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
-generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
-  
-  # For testing
-  #RDBESdata<-myRDBESData
-  #yearToUse <- 2017
-  #country <- 'IE'
-  #outputFileName <- ""
-  #numberOfSamples <- 10
-  #cleanData <- TRUE
-  #RDBESvalidationdata <- validationData
-  #RDBEScodeLists <- allowedValues
-  
-  ## Step 0 - Generate a file name if we need to 
-  if (outputFileName == ""){
-    outputFileName <- paste(country,yearToUse,"H1.csv", sep ="_")
-  }
-  
-  # Create the output directory if we need do 
-  ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
-  
-  ## Step 1 - Filter the data
-  
-  # Get the data from our name list
-  DE <- RDBESdata[['DE']]
-  SD <- RDBESdata[['SD']]
-  VS <- RDBESdata[['VS']]
-  #VD <- RDBESdata[['VD']]
-  FT <- RDBESdata[['FT']]
-  FO <- RDBESdata[['FO']]
-  #SL <- RDBESdata[['SL']]
-  SS <- RDBESdata[['SS']]
-  SA <- RDBESdata[['SA']]
-  FM <- RDBESdata[['FM']]
-  BV <- RDBESdata[['BV']]
-  
-  # Filter by year and country
-  DEfile <- DE[DE$DEyear == yearToUse & DE$DEhierarchy == 1,]
-  SDfile <- SD[SD$DEid %in% DEfile$DEid & SD$SDcountry == country,]
-  VSfile <- VS[VS$SDid %in% SDfile$SDid,]
-  FTfile <- FT[FT$VSid %in% VSfile$VSid,]
-  FOfile <- FO[FO$FTid %in% FTfile$FTid,]
-  SSfile <- SS[SS$FOid %in% FOfile$FOid,]
-  SAfile <- SA[SA$SSid %in% SSfile$SSid,]
-  FMfile <- FM[FM$SAid %in% SAfile$SAid,]
-  BVfile <- BV[BV$FMid %in% FMfile$FMid | BV$SAid %in% SAfile$SAid,]
-  #VDfile <- VD[VD$VDid %in% VSfile$VDid,]
-  #SLfile <- SL[SL$SLlistName %in% SSfile$SSspeciesListName,]
-  
-
-  #UGLY HACKS
-  # Need to change the value of DEsamplingScheme until the correct values are added to the ICES code list
-  DEfile[DEfile$DEsamplingScheme == 'Ireland DCF Catch Sampling' | DEfile$DEsamplingScheme == 'Ireland DCF Catch Sampling (4S)','DEsamplingScheme'] <- 'National Routine'
-  
-  # Temporarily change the value of FMmeasurementEquipment until ICES add the correct value
-  FMfile[FMfile$FMmeasurementEquipment == 'Measured by hand with ruler','FMmeasurementEquipment'] <- 'Measured by hand with caliper'
-  
-  # Truncate any decimal places from SAconversionFactorMesLive - shouldn't be required
-  SAfile$SAconversionFactorMesLive <- floor(SAfile$SAconversionFactorMesLive)
-  
-  
-  # If we want to remove any invalid data before generating the upload files do this now
-  if(cleanData){
-    
-    rowsBefore <- nrow(DEfile)+nrow(SDfile)+nrow(VSfile)+nrow(FTfile)+nrow(FOfile)+nrow(SSfile)+nrow(SAfile)+nrow(FMfile)+nrow(BVfile)
-    print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
-    
-    # Validate 
-    myErrors <- validateTables(RDBESdata = list(DE=DEfile,SD=SDfile,VS=VSfile,FT=FTfile,FO=FOfile,SS=SSfile,SA=SAfile,FM=FMfile,BV=BVfile)
-                              ,RDBESvalidationdata = RDBESvalidationdata
-                              ,RDBEScodeLists = RDBEScodeLists
-                              ,shortOutput = FALSE
-                              ,framestoValidate = c('DE','SD','VS','FT','FO','SS','SA','FM','BV')
-                              )
-    
-    # UGLY FIX 
-    # Get rid of the errors associates with SAgsaSubarea having a value of NotApplicable
-    myErrors <- myErrors[!(grepl('gsaSubarea',myErrors$fieldName) & myErrors$problemType =='Code list problem' & grepl('NotApplicable', myErrors$problemDescription)),]
-    
-    # Remove any invalid rows 
-    DEfile <- removeInvalidRows(tableName = 'DE',dataToClean = DEfile,errorList = myErrors)
-    SDfile <- removeInvalidRows(tableName = 'SD',dataToClean = SDfile,errorList = myErrors)
-    VSfile <- removeInvalidRows(tableName = 'VS',dataToClean = VSfile,errorList = myErrors)
-    FTfile <- removeInvalidRows(tableName = 'FT',dataToClean = FTfile,errorList = myErrors)
-    FOfile <- removeInvalidRows(tableName = 'FO',dataToClean = FOfile,errorList = myErrors)
-    SSfile <- removeInvalidRows(tableName = 'SS',dataToClean = SSfile,errorList = myErrors)
-    SAfile <- removeInvalidRows(tableName = 'SA',dataToClean = SAfile,errorList = myErrors)
-    FMfile <- removeInvalidRows(tableName = 'FM',dataToClean = FMfile,errorList = myErrors)
-    BVfile <- removeInvalidRows(tableName = 'BV',dataToClean = BVfile,errorList = myErrors)
-    
-    
-    rowsAfter <- nrow(DEfile)+nrow(SDfile)+nrow(VSfile)+nrow(FTfile)+nrow(FOfile)+nrow(SSfile)+nrow(SAfile)+nrow(FMfile)+nrow(BVfile)
-    print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
-    
-    if (rowsAfter < rowsBefore){
-      missingRows <- rowsBefore - rowsAfter
-      warning(paste(missingRows,' invalid rows removed before trying to generate output files', sep = ""))
-    }
-    
-  }
-  
-  
-  # If required, limit the number of samples we will output (normally just used during testing)
-  if (!is.null(numberOfSamples)){
-    if (nrow(SAfile)>numberOfSamples ) {
-        # Take a sample of the samples :-)
-        #SAidsToUse <- sample(SAfile$SAid, size = numberOfSamples, replace = FALSE)
-        SAidsToUse <- SAfile[1:numberOfSamples,"SAid"]
-        
-        SAfile <- SAfile[SAfile$SAid %in% SAidsToUse,]
-        FMfile <- FMfile[FMfile$SAid %in% SAfile$SAid,]
-        BVfile <- BVfile[BVfile$FMid %in% FMfile$FMid | BVfile$SAid %in% SAfile$SAid,]
-        SSfile <- SSfile[SSfile$SSid %in% SAfile$SSid,]
-        FOfile <- FOfile[FOfile$FOid %in% SSfile$FOid,]
-        FTfile <- FTfile[FTfile$FTid %in% FOfile$FTid,]
-        VSfile <- VSfile[VSfile$VSid %in% FTfile$VSid,]
-        SDfile <- SDfile[SDfile$SDid %in% VSfile$SDid,]
-        DEfile <- DEfile[DEfile$DEid %in% SDfile$DEid,]
-        #SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
-        
-        print(paste("File truncated to data relating to ",numberOfSamples, " samples",sep=""))
-    }
-  }
-  
-  
-  ## Step 2 - I now add a SortOrder field to each of our fitlered data frames
-  ## this will allow me to generate the CS file in the correct row order without needing a slow for-loop
-  # Even if the data frame is empty I add in a blank SortOrder column - that way I can guarantee it exists 
-  
-  ## I need the rows in the following order:
-  # DE, SD, VS, FT, FO, SS, SA, FM, BV
-
-  # IMPORTANT - I'm using inner_join from dply so we can maintain the ordering of the first data frame in the join
-  # if the ordering isn't maintained then the exchange file will be output in the wrong order
-  if(nrow(DEfile)>0) {DEfile$SortOrder <- paste(DEfile$DEhierarchy,DEfile$DEyear,DEfile$DEstratum,sep="-")} else
-    {DEfile$SortOrder <- character(0)}
-  if(nrow(SDfile)>0) {SDfile$SortOrder <- paste( inner_join(SDfile,DEfile, by ="DEid")[,c("SortOrder")], SDfile$SDid, sep = "-")} else
-    {SDfile$SortOrder <- character(0)}
-  if(nrow(VSfile)>0) {VSfile$SortOrder <- paste( inner_join(VSfile,SDfile, by ="SDid")[,c("SortOrder")], VSfile$VSid, sep = "-")} else
-    {VSfile$SortOrder <- character(0)}
-  #if(nrow(FTfile)>0) {FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")],FTfile$FTid, FTfile$VSid,"a", sep = "-")} else
-  if(nrow(FTfile)>0) {FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")],FTfile$FTid, sep = "-")} else
-    {FTfile$SortOrder <- character(0)}
-  if(nrow(FOfile)>0) {FOfile$SortOrder <- paste( inner_join(FOfile,FTfile, by ="FTid")[,c("SortOrder")], FOfile$FOid, sep = "-")} else
-    {FOfile$SortOrder <- character(0)}
-  if(nrow(SSfile)>0) {SSfile$SortOrder <- paste( inner_join(SSfile,FOfile, by ="FOid")[,c("SortOrder")], SSfile$SSid, sep = "-")} else
-    {SSfile$SortOrder <- character(0)}
-  if(nrow(SAfile)>0) {SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, sep = "-")} else
-    {SAfile$SortOrder <- character(0)}
-  if(nrow(FMfile)>0) {FMfile$SortOrder <- paste( inner_join(FMfile,SAfile, by ="SAid")[,c("SortOrder")], FMfile$FMid, sep = "-")} else
-    {FMfile$SortOrder <- character(0)}
-  # TODO For our data BV only follows SA not FM - need to check that the sort order will work if there is a mix of lower hierarchies
-  if(nrow(BVfile)>0) {BVfile$SortOrder <- paste( inner_join(BVfile,SAfile, by ="SAid")[,c("SortOrder")], BVfile$BVid, sep = "-")} else
-    {BVfile$SortOrder <- character(0)}
-  
-  # Combine our SortOrder values
-  FileSortOrder <- c(
-    DEfile$SortOrder,
-    SDfile$SortOrder,
-    VSfile$SortOrder,
-    FTfile$SortOrder,
-    FOfile$SortOrder,
-    SSfile$SortOrder,
-    SAfile$SortOrder,
-    FMfile$SortOrder,
-    BVfile$SortOrder
-  )
-  
-  ## STEP 3) Create a version of the output data for debugging
-  
-  # Here we create a version of the output data with all the ids and sorting columns in so I can check things are correct
-  csForChecking <- c(
-     do.call('paste',c(DEfile,sep=','))
-    ,do.call('paste',c(SDfile,sep=','))
-    ,do.call('paste',c(VSfile,sep=','))
-    ,do.call('paste',c(FTfile,sep=','))
-    ,do.call('paste',c(FOfile,sep=','))
-    ,do.call('paste',c(SSfile,sep=','))
-    ,do.call('paste',c(SAfile,sep=','))
-    ,do.call('paste',c(FMfile,sep=','))
-    ,do.call('paste',c(BVfile,sep=','))
-  )
-  
-  # Sort the output into the correct order
-  csForCheckingOrdered <- csForChecking[order(FileSortOrder)]
-  
-  fwrite(list(csForCheckingOrdered), paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
-  
-  ## STEP 4) Create the real version of the output data
-  
-  #names(VSfile)
-  # Create the CS data with the sort columns and ids removed - this will then be used to generate the exchange file
-  cs <- c(
-    do.call('paste',c(select(DEfile,-c(DEid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(SDfile,-c(DEid,SDid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(VSfile,-c(VSid,SDid,VDid,TEid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(FTfile,-c(FTid, OSid, VSid, VDid, SDid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(FOfile,-c(FOid,FTid,SDid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(SSfile,-c(LEid,FOid,SSid,SLid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(SAfile,-c(SSid,SAid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(FMfile,-c(SAid,FMid,SortOrder)),sep=','))
-    ,do.call('paste',c(select(BVfile,-c(SAid,FMid,BVid,SortOrder)),sep=','))
-  )
-  
-  # Sort the output into the correct order
-  csOrdered <- cs[order(FileSortOrder)]
-  
-  # replace NA with blanks
-  csOrdered <- gsub('NA','',csOrdered)
-  
-  # UGLY FIX 
-  # Where there is no GSA sub-area value then we shoudl use the value "NA" - however the previous line will change all "NA"'s into blanks :-S 
-  # I needed to do soemthing a bit ugly so that we can submit NA for the actual GSA sub-area value
-  csOrdered <- gsub('NotApplicable','NA',csOrdered)
-  
-  fwrite(list(csOrdered), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
-  print(paste("Output file written to ",outputFileName,sep=""))
-  
-}
+# TODO - this function does not currently handle sub-sampling
 
 #' generateComplexExchangeFile This function creates an RDBES exchange file for CS data
 #'
@@ -660,12 +209,13 @@ generateCSFile_H1 <- function(yearToUse, country, RDBESdata, outputFileName="", 
 #' @param cleanData (Optional) if TRUE then remove any invalid rows from the data before generating the upload files - warning data will potentially be lost from your upload file if you do this!
 #' @param RDBESvalidationdata (Optional) If you have selected to cleanData then you need to supply validation data (derived from BaseTypes.xsd)
 #' @param RDBEScodeLists (Optional) If you have selected to cleanData then you need to supply reference data (derived from ICES vocabulary server)
+#' @param RequiredTables A list of the tables required for each hierachy
 #'
 #' @return
 #' @export
 #'
 #' @examples generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
-generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL){
+generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL, RequiredTables){
   
   # For testing
   # typeOfFile <- 'H1'
@@ -677,12 +227,13 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   # cleanData <- TRUE
   # RDBESvalidationdata <- validationData
   # RDBEScodeLists <- allowedValues
+  # RequiredTables = requiredTables
   
   ## Step 0 - Check typeOfFile and generate a file name if we need to 
   validCSfileTypes <- c('H1')
   
   if (!typeOfFile %in% c('H1')){
-    stop(paste("Method not implemented for ",typeOfFile, " yet - not going any further", sep =""))
+    warning(paste("Method not tested for ",typeOfFile, " yet", sep =""))
   }
   
   if (outputFileName == ""){
@@ -692,10 +243,14 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   # Create the output directory if we need do 
   ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
 
-  if(typeOfFile == 'H1'){
-    requiredTables <- c("DE", "SD", "VS", "FT", "FO", "SS", "SA", "FM", "BV")
-    upperHierarchy <- 1
-  }
+  # Find which tables we need for this file type
+  upperHierarchy <- substr(typeOfFile,2,nchar(typeOfFile))
+  requiredTables <- RequiredTables[[typeOfFile]]
+  
+  # if(typeOfFile == 'H1'){
+  #   requiredTables <- c("DE", "SD", "VS", "FT", "FO", "SS", "SA", "FM", "BV")
+  #   upperHierarchy <- 1
+  # }
     
   ## Step 1 - Filter the data
   
@@ -725,7 +280,7 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
     # all other tables can follow a general pattern of matching
     else {
       #previousHierarchyTable <- RDBESdata[[myRequiredTable]]
-      previousHierarchyTable <- RDBESdata[[previousRequiredTable]]
+      previousHierarchyTable <- myCSData[[previousRequiredTable]]
       ## Assume the primary key is the first field
       previousPrimaryKey <- names(previousHierarchyTable)[1]
       myData <- myData[myData[,previousPrimaryKey] %in% previousHierarchyTable[,previousPrimaryKey],]
@@ -736,20 +291,6 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   }
   
 
-  #UGLY HACKS
-  if (typeOfFile == 'H1'){
-  # Need to change the value of DEsamplingScheme until the correct values are added to the ICES code list
-  myCSData[['DE']][myCSData[['DE']]$DEsamplingScheme == 'Ireland DCF Catch Sampling' | myCSData[['DE']]$DEsamplingScheme == 'Ireland DCF Catch Sampling (4S)','DEsamplingScheme'] <- 'National Routine'
-  
-  # Temporarily change the value of FMmeasurementEquipment until ICES add the correct value
-  myCSData[['FM']][myCSData[['FM']]$FMmeasurementEquipment == 'Measured by hand with ruler','FMmeasurementEquipment'] <- 'Measured by hand with caliper'
-  
-  # Truncate any decimal places from SAconversionFactorMesLive - shouldn't be required
-  myCSData[['SA']]$SAconversionFactorMesLive <- floor(myCSData[['SA']]$SAconversionFactorMesLive)
-  
-  }
-  
-  
   # If we want to remove any invalid data before generating the upload files do this now
   if(cleanData){
     
@@ -793,14 +334,9 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   # If required, limit the number of samples we will output (normally just used during testing)
   if (!is.null(numberOfSamples)){
     if (nrow(myCSData[['SA']])>numberOfSamples ) {
-      # Take a sample of the samples :-)
-      #SAidsToUse <- sample(SAfile$SAid, size = numberOfSamples, replace = FALSE)
-      #SAidsToUse <- sample(myCSData[['SA']]$SAid, size = numberOfSamples, replace = FALSE)
-      
+
       #Subset the SA data
       SAidsToUse <- myCSData[['SA']][1:numberOfSamples,"SAid"]
-      
-      #SAfile <- SAfile[SAfile$SAid %in% SAidsToUse,]
       
       # Need Sort out SA and FM first, then we'll deal with the other tables
       myCSData[['SA']]<- myCSData[['SA']][myCSData[['SA']]$SAid %in% SAidsToUse,]
@@ -835,16 +371,6 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
         
       }
       
-      # FMfile <- FMfile[FMfile$SAid %in% SAfile$SAid,]
-      # BVfile <- BVfile[BVfile$FMid %in% FMfile$FMid | BVfile$SAid %in% SAfile$SAid,]
-      # SSfile <- SSfile[SSfile$SSid %in% SAfile$SSid,]
-      # FOfile <- FOfile[FOfile$FOid %in% SSfile$FOid,]
-      # FTfile <- FTfile[FTfile$FTid %in% FOfile$FTid,]
-      # VSfile <- VSfile[VSfile$VSid %in% FTfile$VSid,]
-      # SDfile <- SDfile[SDfile$SDid %in% VSfile$SDid,]
-      # DEfile <- DEfile[DEfile$DEid %in% SDfile$DEid,]
-      # #SLfile <- SLfile[SLfile$SLlistName %in% SSfile$SSspeciesListName,]
-      
       print(paste("File truncated to data relating to ",numberOfSamples, " samples",sep=""))
     }
   }
@@ -874,7 +400,7 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
       else if (myRequiredTable == 'BV') {
 
         # Add the SortOrder field first
-        # Bit ugle but we'll call it SortOrder_BV to start with to avoid some issues - we'll name it propery in a minute
+        # Bit ugly but we'll call it SortOrder_BV to start with to avoid some issues - we'll name it propery in a minute
         myCSData[[myRequiredTable]]$SortOrder_BV <- character(nrow(myCSData[[myRequiredTable]]))
         currentPrimaryKey <- names(myCSData[[myRequiredTable]])[1]
         
@@ -921,29 +447,8 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   }
   
   
-  # if(nrow(DEfile)>0) {DEfile$SortOrder <- paste(DEfile$DEhierarchy,DEfile$DEyear,DEfile$DEstratum,sep="-")} else
-  # {DEfile$SortOrder <- character(0)}
-  # if(nrow(SDfile)>0) {SDfile$SortOrder <- paste( inner_join(SDfile,DEfile, by ="DEid")[,c("SortOrder")], SDfile$SDid, sep = "-")} else
-  # {SDfile$SortOrder <- character(0)}
-  # if(nrow(VSfile)>0) {VSfile$SortOrder <- paste( inner_join(VSfile,SDfile, by ="SDid")[,c("SortOrder")], VSfile$VSid, sep = "-")} else
-  # {VSfile$SortOrder <- character(0)}
-  # if(nrow(FTfile)>0) {FTfile$SortOrder <- paste( inner_join(FTfile,VSfile, by ="VSid")[,c("SortOrder")],FTfile$FTid, FTfile$VSid,"a", sep = "-")} else
-  # {FTfile$SortOrder <- character(0)}
-  # if(nrow(FOfile)>0) {FOfile$SortOrder <- paste( inner_join(FOfile,FTfile, by ="FTid")[,c("SortOrder")], FOfile$FOid, sep = "-")} else
-  # {FOfile$SortOrder <- character(0)}
-  # if(nrow(SSfile)>0) {SSfile$SortOrder <- paste( inner_join(SSfile,FOfile, by ="FOid")[,c("SortOrder")], SSfile$SSid, sep = "-")} else
-  # {SSfile$SortOrder <- character(0)}
-  # if(nrow(SAfile)>0) {SAfile$SortOrder <- paste( inner_join(SAfile,SSfile, by ="SSid")[,c("SortOrder")], SAfile$SAid, sep = "-")} else
-  # {SAfile$SortOrder <- character(0)}
-  # if(nrow(FMfile)>0) {FMfile$SortOrder <- paste( inner_join(FMfile,SAfile, by ="SAid")[,c("SortOrder")], FMfile$FMid, sep = "-")} else
-  # {FMfile$SortOrder <- character(0)}
-  # # TODO For our data BV only follows SA not FM - need to check that the sort order will work if there is a mix of lower hierarchies
-  # if(nrow(BVfile)>0) {BVfile$SortOrder <- paste( inner_join(BVfile,SAfile, by ="SAid")[,c("SortOrder")], BVfile$BVid, sep = "-")} else
-  # {BVfile$SortOrder <- character(0)}
-  # 
-  
   # Combine our SortOrder values
-  # TODO Need to check this works correctly
+  # TODO Need to double-check this works correctly
   for (myRequiredTable in requiredTables){
     if (myRequiredTable == 'DE'){
       FileSortOrder <- myCSData[[myRequiredTable]]$SortOrder
@@ -952,24 +457,10 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
     }
   }
   
-  # Combine our SortOrder values
-  # FileSortOrder <- c(
-  #   DEfile$SortOrder,
-  #   SDfile$SortOrder,
-  #   VSfile$SortOrder,
-  #   FTfile$SortOrder,
-  #   FOfile$SortOrder,
-  #   SSfile$SortOrder,
-  #   SAfile$SortOrder,
-  #   FMfile$SortOrder,
-  #   BVfile$SortOrder
-  # )
-  
+
   ## STEP 3) Create a version of the output data for debugging
   
   # Here we create a version of the output data with all the ids and sorting columns in so I can check things are correct
-  
-  
   for (myRequiredTable in requiredTables){
     if (myRequiredTable == 'DE'){
       csForChecking <- do.call('paste',c(myCSData[[myRequiredTable]],sep=','))
@@ -978,19 +469,6 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
     }
   }
   
-  # csForChecking <- c(
-  #   do.call('paste',c(DEfile,sep=','))
-  #   ,do.call('paste',c(SDfile,sep=','))
-  #   ,do.call('paste',c(VSfile,sep=','))
-  #   ,do.call('paste',c(FTfile,sep=','))
-  #   ,do.call('paste',c(FOfile,sep=','))
-  #   ,do.call('paste',c(SSfile,sep=','))
-  #   ,do.call('paste',c(SAfile,sep=','))
-  #   ,do.call('paste',c(FMfile,sep=','))
-  #   ,do.call('paste',c(BVfile,sep=','))
-  # )
-  # 
-  
   # Sort the output into the correct order
   csForCheckingOrdered <- csForChecking[order(FileSortOrder)]
   
@@ -998,9 +476,7 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   
   ## STEP 4) Create the real version of the output data
   
-  #names(VSfile)
   # Create the CS data with the sort columns and ids removed - this will then be used to generate the exchange file
-  
   for (myRequiredTable in requiredTables){
     
     # First remove the columns we don't want in the final output (SortOrder and any XXid columns)
@@ -1014,18 +490,6 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
       cs <- c(cs,do.call('paste',c(myData,sep=',')))
     }
   }
-  
-  # cs <- c(
-  #   do.call('paste',c(select(DEfile,-c(DEid,SortOrder)),sep=','))
-  #   ,do.call('paste',c(select(SDfile,-c(DEid,SDid,SortOrder)),sep=','))
-  #   ,do.call('paste',c(select(VSfile,-c(VSid,SDid,VDid,TEid,SortOrder)),sep=','))
-  #   ,do.call('paste',c(select(FTfile,-c(FTid, OSid, VSid, VDid, SDid,SortOrder)),sep=','))
-  #   ,do.call('paste',c(select(FOfile,-c(FOid,FTid,SDid,SortOrder)),sep=','))
-  #   ,do.call('paste',c(select(SSfile,-c(LEid,FOid,SSid,SLid,SortOrder)),sep=','))
-  #   ,do.call('paste',c(select(SAfile,-c(SSid,SAid,SortOrder)),sep=','))
-  #   ,do.call('paste',c(select(FMfile,-c(SAid,FMid,SortOrder)),sep=','))
-  #   ,do.call('paste',c(select(BVfile,-c(SAid,FMid,BVid,SortOrder)),sep=','))
-  # )
   
   # Sort the output into the correct order
   csOrdered <- cs[order(FileSortOrder)]
@@ -1333,9 +797,10 @@ loadRDataFiles <- function(directoryToSearch, recursive = FALSE){
 getValidationData <- function(downloadFromGitHub = TRUE, fileLocation){
   
   # For testing
-  #downloadFromGitHub = TRUE
+  #downloadFromGitHub = FALSE
   #fileLocation <- './tableDefs/BaseTypes.xsd'
   
+  # STEP 1) Get the BaseTypes file (if required)
   if (downloadFromGitHub){
     # get the latest BaseTypes.xsd file from GitHub
     myBaseTypes <- getURL("https://raw.githubusercontent.com/ices-tools-dev/RDBES/master/XSD-files/BaseTypes.xsd")
@@ -1343,15 +808,17 @@ getValidationData <- function(downloadFromGitHub = TRUE, fileLocation){
     writeLines(myBaseTypes, fileLocation)
   }
   
-  # Parse the XML
+  # STEP 2) Parse the XML
   doc <- xmlTreeParse(fileLocation,useInternal= TRUE)
   myXML <- xmlToList(doc)
   
-  # Data frame to hold out validation info
+  # STEP 3) Get all the field names and their types for each table (stored as "complexType" entries)
+  
+  # Data frame to hold our validation info
   myValidationDF <- NULL
   
   # Get the infromation we want from the xsd file - hard-code to the current structure...
-  for (myElement in myXML){
+  for (myElement in myXML[names(myXML) == "complexType"]){
     if(names(myElement)[[1]]=="sequence"){
       for (mySubElement in myElement[[1]]){
         myMin <- mySubElement[[1]]
@@ -1368,10 +835,130 @@ getValidationData <- function(downloadFromGitHub = TRUE, fileLocation){
     }
   }
   
+  # STEP 4) Get the vaidation information for the thins like decimal ranges (stored as "simpleType")
+  
+  # Data frame to hold our validation info
+  myValidationSimpleTypes <- NULL
+  
+  # Get the infromation we want from the xsd file - hard-code to the current structure...
+  for (myElement in myXML[names(myXML) == "simpleType"]){
+    myName <- myElement$.attrs
+    myType <- myElement[[1]]$.attrs
+    myMin <- myElement[[1]]$minInclusive
+    if (is.null(myMin)) {myMin <- NA}
+    myMax <- myElement[[1]]$maxInclusive
+    if (is.null(myMax)) {myMax <- NA}
+    myfractionDigits <- myElement[[1]]$fractionDigits
+    if (is.null(myfractionDigits)) {myfractionDigits <- NA}
+    myLength <- myElement[[1]]$length
+    if (is.null(myLength)) {myLength <- NA}
+    myPattern <- myElement[[1]]$pattern
+    if (is.null(myPattern)) {myPattern <- NA}
+    myDF <- data.frame(name=myName,checkName=myName, description="simpleTypeCheck", minValue=myMin, maxValue=myMax, dataType=myType, fractionDigits = myfractionDigits, length = myLength, pattern = myPattern,  stringsAsFactors = FALSE)
+    if (is.null(myValidationSimpleTypes)){
+      myValidationSimpleTypes <- myDF
+    } else {
+      myValidationSimpleTypes <- rbind(myValidationSimpleTypes,myDF)
+    }
+    
+  }
+  
+  # STEP 5) Join our validation together and return it
+  myValidationDF <- left_join(myValidationDF,myValidationSimpleTypes,by=c("type" = "name"))
+  
+
+  myValidationDF[!is.na(myValidationDF$dataType),"type"] <- myValidationDF[!is.na(myValidationDF$dataType),"dataType"]
+  myValidationDF$dataType <- NULL
+  
   myValidationDF
   
   
+  
 }
+
+#' getTablesInHierarchies Used the H* xsd files to define which tables are required in the different hierachies
+#'
+#' @param downloadFromGitHub (Optional) Set to TRUE if you want to download the lastest xsd files from GitHub
+#' @param fileLocation The folder to read the files from.  If you are downloading from GitHub a copy of the latest files will be saved here.
+#'
+#' @return
+#' @export
+#'
+#' @examples
+getTablesInHierarchies <- function(downloadFromGitHub = TRUE, fileLocation){
+  
+  # For testing
+  #downloadFromGitHub = TRUE
+  #fileLocation <- './tableDefs/'
+  
+  # STEP 1) Get the BaseTypes file (if required)
+  if (downloadFromGitHub){
+    
+    myHierarchyFiles <- NULL
+    myResponse <- GET("https://api.github.com/repos/ices-tools-dev/RDBES/contents/XSD-files")
+    filesOnGitHub <- content(myResponse)
+    for (myFile in filesOnGitHub){
+      myGitHubFile <- data.frame(fileName = myFile$name, downloadURL = myFile$download_url)
+      if (is.null(myHierarchyFiles)){
+        myHierarchyFiles <- myGitHubFile 
+      } else {
+        myHierarchyFiles <- rbind(myHierarchyFiles,myGitHubFile)
+      }
+    }
+    # Sub-set to the files we are interested in
+    myHierarchyFiles <- myHierarchyFiles[grepl('^H.*xsd$',myHierarchyFiles$fileName),]
+    
+    # Download our files
+    for (i in 1:nrow(myHierarchyFiles)){
+      anHierarchyFile <- getURL(myHierarchyFiles[i,'downloadURL'])
+      # save the file locally
+      writeLines(anHierarchyFile, paste(fileLocation,myHierarchyFiles[i,'fileName'], sep = ""))
+    }
+    
+  }
+  
+  # Read all the H.*xsd files
+  filesToRead <- list.files(path = fileLocation, pattern = "^H.*xsd$", recursive = FALSE, full.names = FALSE)  
+  
+  
+  myHierarchyTables <- list()
+  for(fileToParse in filesToRead){
+    
+    #fileToParse <-"H1.xsd"
+    fileToParse <- paste(fileLocation,fileToParse,sep="")
+    
+    # STEP 2) Parse the XML
+    doc <- xmlTreeParse(fileToParse,useInternal= TRUE)
+    myXML <- xmlToList(doc)
+    
+    myResults <- NULL
+    hierachyName <- NULL
+    
+    for (myElement in myXML[names(myXML) == "complexType"]){
+      myAttr <- myElement$.attrs
+      names(myAttr) <- NULL
+      
+      if (grepl('^H.*',myAttr)){
+        hierachyName <- myAttr
+      }
+      if (nchar(myAttr)==2 & !grepl('^H.*',myAttr)){
+        #print(myElement$.attrs)
+        if (is.null(myResults)){
+          myResults <- c(myAttr)
+        } else {
+          myResults <- c(myResults,myAttr)
+        }
+      }
+    }
+    
+    # Add to our list of results
+    myHierarchyTables[[hierachyName]] <- myResults
+  }
+  
+  myHierarchyTables
+  
+}
+
 
 
 #' logValidationError Internal utility function to log errors into an error data frame
@@ -1424,7 +1011,7 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
   # RDBEScodeLists <- allowedValues
   # shortOutput <- TRUE
   # #framestoValidate <- c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","TE","VD","VS","CL","CE" )
-  # framestoValidate <- c("BV","DE","XX")
+  # framestoValidate <- c("BV")
   
   # To hold the output
   errorList <- data.frame(tableName=character(0)
@@ -1445,6 +1032,8 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
   
   # for each data frame in our list
   for (dfToCheck in RDBESdata){
+    
+    #dfToCheck <- RDBESdata[[1]]
     
     # Clear out any errors from any earlier checking
     newErrors <- NULL
@@ -1470,7 +1059,7 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
 
     # Now we'll check each field in our current data frame
     for (i in 1:length(names(dfToCheck))) {
-      
+      #i <- 15
       myFieldName <- names(dfToCheck)[[i]]
       myFieldType <- fieldsAndTypes[fieldsAndTypes$fieldName == myFieldName,]
       
@@ -1557,6 +1146,14 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
 }
 
 
+#' validateMissingTables Internal function used by validateTables
+#'
+#' @param RDBESdataToCheck 
+#' @param framesToCheck 
+#'
+#' @return
+#'
+#' @examples
 validateMissingTables <- function(RDBESdataToCheck,framesToCheck){
   
   errorsToReturn <- NULL
@@ -1577,6 +1174,15 @@ validateMissingTables <- function(RDBESdataToCheck,framesToCheck){
 }
 
 
+#' validateMissingFields Internal function used by validateTables
+#'
+#' @param RDBESdataToCheck 
+#' @param RDBESvalidationdata 
+#' @param tableToCheck 
+#'
+#' @return
+#'
+#' @examples
 validateMissingFields <- function(RDBESdataToCheck,RDBESvalidationdata,tableToCheck){
 
   errorsToReturn <- NULL
@@ -1606,6 +1212,15 @@ validateMissingFields <- function(RDBESdataToCheck,RDBESvalidationdata,tableToCh
 
 
 
+#' validateFieldOrder Internal function used by validateTables
+#'
+#' @param RDBESdataToCheck 
+#' @param RDBESvalidationdata 
+#' @param tableToCheck 
+#'
+#' @return
+#'
+#' @examples
 validateFieldOrder <- function(RDBESdataToCheck,RDBESvalidationdata,tableToCheck){
   
   errorsToReturn <- NULL
@@ -1637,6 +1252,15 @@ validateFieldOrder <- function(RDBESdataToCheck,RDBESvalidationdata,tableToCheck
 }
 
 
+#' validateNAvalues Internal function used by validateTables
+#'
+#' @param fieldToCheck 
+#' @param dataToCheck 
+#' @param fieldTypeToCheck 
+#'
+#' @return
+#'
+#' @examples
 validateNAvalues <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
   
   errorsToReturn <- NULL
@@ -1662,11 +1286,33 @@ validateNAvalues <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
 
 
 
+#' validateSimpleTypes Internal function used by validateTables
+#'
+#' @param fieldToCheck 
+#' @param dataToCheck 
+#' @param fieldTypeToCheck 
+#'
+#' @return
+#'
+#' @examples
 validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
   
+  #fieldToCheck<-myFieldName
+  #dataToCheck<-dfToCheckNotNA
+  #fieldTypeToCheck<-myFieldType
+
   errorsToReturn <- NULL
   
   myTypeToCheck <- fieldTypeToCheck$type
+  #print(fieldTypeToCheck)
+  
+  # Do we have any simpleTypeChecks defined for this field?
+  simpleTypeCheckDefined <- FALSE
+  if (!is.na(fieldTypeToCheck$description)){
+    if (fieldTypeToCheck$description == "simpleTypeCheck"){
+      simpleTypeCheckDefined <- TRUE
+    } 
+  }
   
   ## simple type, so check data type 
   # Ints
@@ -1688,23 +1334,59 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
     myNonDecValues <- dataToCheck[!is.numeric(dataToCheck[,fieldToCheck]),]
     if (nrow(myNonDecValues)>0){
       #Log the error
-      errorList <- logValidationError(errorList = NULL
+      errorsToReturn <- logValidationError(errorList = NULL
                                       ,tableName = substr(fieldToCheck,1,2)
                                       ,rowID = myNonDecValues[,1]
                                       ,fieldName = fieldToCheck
                                       ,problemType = "Data type check"
                                       ,problemDescription = paste("Data type problem (decimal);",paste(substr(fieldToCheck,1,2),"id", sep=""),":", myNonDecValues[,1], " ;Column:",fieldToCheck, ";Unallowed value:",myNonDecValues[,fieldToCheck], sep = " "))
     }
+    # Now see if we need to do any simpleTypeChecks on our decimal (e.g. range or precision)
+    if (simpleTypeCheckDefined){
+      # Precision check
+      if(!is.na(fieldTypeToCheck$fractionDigits)){
+        #print("Precision check")
+        # Convert values to strings and see which numbers have decimal places
+        dataWithDPs <- dataToCheck[regexpr('.', as.character(dataToCheck[,fieldToCheck]), fixed = TRUE) > 0,]
+        # See how many characters are found after the decimal place
+        if (nrow(dataWithDPs)>0){
+          dataWithDPs$numberOfDps <- nchar(substr(as.character(dataWithDPs[,fieldToCheck]), regexpr('.', as.character(dataWithDPs[,fieldToCheck]), fixed = TRUE) + 1, nchar(as.character(dataWithDPs[,fieldToCheck]))))
+          dataWithTooManyDps <- dataWithDPs[dataWithDPs$numberOfDps > fieldTypeToCheck$fractionDigits,]
+          if (nrow(dataWithTooManyDps)>0){
+            #Log the error
+            errorsToReturn <- logValidationError(errorList = NULL
+                                            ,tableName = substr(fieldToCheck,1,2)
+                                            ,rowID = dataWithTooManyDps[,1]
+                                            ,fieldName = fieldToCheck
+                                            ,problemType = "Precision check"
+                                            ,problemDescription = paste("Decimal precision problem;",paste(substr(fieldToCheck,1,2),"id", sep=""),":", dataWithTooManyDps[,1], " ;Column:",fieldToCheck, ";Unallowed value:",dataWithTooManyDps[,fieldToCheck], sep = " "))
+          }
+        }
+      }
+    }  
+
+      
     # String
   } else if (myTypeToCheck == "xs:string"){
     # Everythign can be converted to a string so no problems here!
   }
   
+  # TODO - i might be losing some errors if we have some non-deicmal values and soem precisions errors - need to fix this
   errorsToReturn
   
 }
 
 
+#' validateAgainstCodeList Internal function used by validateTables
+#'
+#' @param fieldToCheck 
+#' @param dataToCheck 
+#' @param fieldTypeToCheck 
+#' @param codeLists 
+#'
+#' @return
+#'
+#' @examples
 validateAgainstCodeList <- function(fieldToCheck,dataToCheck,fieldTypeToCheck,codeLists){
 
   errorsToReturn <- NULL
@@ -1892,4 +1574,5 @@ refreshReferenceDataFromICES <- function(codeListsToRefresh){
 #'   myDF
 #'   
 #' }
+
 

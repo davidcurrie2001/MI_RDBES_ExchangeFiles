@@ -897,6 +897,7 @@ getTablesInHierarchies <- function(downloadFromGitHub = TRUE, fileLocation){
     myHierarchyFiles <- NULL
     myResponse <- GET("https://api.github.com/repos/ices-tools-dev/RDBES/contents/XSD-files")
     filesOnGitHub <- content(myResponse)
+    print(paste("Downloading ",length(filesOnGitHub), " files from GitHub", sep =""))
     for (myFile in filesOnGitHub){
       myGitHubFile <- data.frame(fileName = myFile$name, downloadURL = myFile$download_url)
       if (is.null(myHierarchyFiles)){
@@ -1237,7 +1238,7 @@ validateFieldOrder <- function(RDBESdataToCheck,RDBESvalidationdata,tableToCheck
   myDFNamesToCheck <- myDFNames[!grepl("^..id$",myDFNames$fieldName) & !grepl("^..recordType$",myDFNames$fieldName),]
   
   # If the values aren't the same (including the same order) then log an error
-  if (!identical(missingFieldsCheck$name,myDFNamesToCheck)){
+  if (!identical(toupper(missingFieldsCheck$name),toupper(myDFNamesToCheck))){
     #Log the error
     errorsToReturn <- logValidationError(errorList = NULL
                                          ,tableName = tableToCheck
@@ -1314,19 +1315,64 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
     } 
   }
   
-  ## simple type, so check data type 
+  # See if we need to do any range checks first
+  if (simpleTypeCheckDefined){
+    myNumericValues <- dataToCheck[is.numeric(dataToCheck[,fieldToCheck]),]
+    myNumericValues <- myNumericValues[!is.na(myNumericValues[,fieldToCheck]),]
+    
+    # Range checks are only relvent for numeric values
+    if (nrow(myNumericValues)>0){
+      
+      # If min value check
+      if(!is.na(fieldTypeToCheck$minValue)){
+        minValueNumber <- as.numeric(fieldTypeToCheck$minValue)
+        valueTooSmall <- myNumericValues[myNumericValues[,fieldToCheck] < minValueNumber,]
+        # If we have soem values that are too small - log an error
+        if (nrow(valueTooSmall)){
+          #Log the error
+          someErrors <- logValidationError(errorList = NULL
+                                           ,tableName = substr(fieldToCheck,1,2)
+                                           ,rowID = valueTooSmall[,1]
+                                           ,fieldName = fieldToCheck
+                                           ,problemType = "Min value check"
+                                           ,problemDescription = paste("Value is below minimum allowed (",minValueNumber,");",paste(substr(fieldToCheck,1,2),"id", sep=""),":", valueTooSmall[,1], " ;Column:",fieldToCheck, ";Unallowed value:",valueTooSmall[,fieldToCheck], sep = " "))
+          errorsToReturn <- rbind(errorsToReturn,someErrors)
+        }
+      } 
+      # Max value check
+      if (!is.na(fieldTypeToCheck$maxValue)) {
+        maxValueNumber <- as.numeric(fieldTypeToCheck$maxValue)
+        valueTooBig <- myNumericValues[myNumericValues[,fieldToCheck] > maxValueNumber,]
+        # If we have soem values that are too big - log an error
+        if (nrow(valueTooBig)){
+          #Log the error
+          someErrors <- logValidationError(errorList = NULL
+                                           ,tableName = substr(fieldToCheck,1,2)
+                                           ,rowID = valueTooBig[,1]
+                                           ,fieldName = fieldToCheck
+                                           ,problemType = "Max value check"
+                                           ,problemDescription = paste("Value is above maximum allowed (",maxValueNumber,");",paste(substr(fieldToCheck,1,2),"id", sep=""),":", valueTooBig[,1], " ;Column:",fieldToCheck, ";Unallowed value:",valueTooBig[,fieldToCheck], sep = " "))
+          errorsToReturn <- rbind(errorsToReturn,someErrors)
+        }
+      }
+    }
+  }
+  
+  
+  ## Now check the actual data type 
   # Ints
   if (myTypeToCheck == "xs:int"){
     # Check for any non integer values
     myNonIntValues <- dataToCheck[!is.integer(dataToCheck[,fieldToCheck]),]
     if (nrow(myNonIntValues)>0){
       #Log the error
-      errorsToReturn <- logValidationError(errorList = NULL
+      someErrors <- logValidationError(errorList = NULL
                                       ,tableName = substr(fieldToCheck,1,2)
                                       ,rowID = myNonIntValues[,1]
                                       ,fieldName = fieldToCheck
                                       ,problemType = "Data type check"
                                       ,problemDescription = paste("Data type problem (int);",paste(substr(fieldToCheck,1,2),"id", sep=""),":", myNonIntValues[,1], " ;Column:",fieldToCheck, ";Unallowed value:",myNonIntValues[,fieldToCheck], sep = " "))
+      errorsToReturn <- rbind(errorsToReturn,someErrors)
     }
     # Decimal
   } else if (myTypeToCheck == "xs:decimal"){
@@ -1334,32 +1380,38 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
     myNonDecValues <- dataToCheck[!is.numeric(dataToCheck[,fieldToCheck]),]
     if (nrow(myNonDecValues)>0){
       #Log the error
-      errorsToReturn <- logValidationError(errorList = NULL
+      someErrors <- logValidationError(errorList = NULL
                                       ,tableName = substr(fieldToCheck,1,2)
                                       ,rowID = myNonDecValues[,1]
                                       ,fieldName = fieldToCheck
                                       ,problemType = "Data type check"
                                       ,problemDescription = paste("Data type problem (decimal);",paste(substr(fieldToCheck,1,2),"id", sep=""),":", myNonDecValues[,1], " ;Column:",fieldToCheck, ";Unallowed value:",myNonDecValues[,fieldToCheck], sep = " "))
+      errorsToReturn <- rbind(errorsToReturn,someErrors)
     }
-    # Now see if we need to do any simpleTypeChecks on our decimal (e.g. range or precision)
+    # Now see if we need to do any simpleTypeChecks on our decimal (e.g. precision)
     if (simpleTypeCheckDefined){
-      # Precision check
+      
+      # If Precision check
       if(!is.na(fieldTypeToCheck$fractionDigits)){
-        #print("Precision check")
+
         # Convert values to strings and see which numbers have decimal places
-        dataWithDPs <- dataToCheck[regexpr('.', as.character(dataToCheck[,fieldToCheck]), fixed = TRUE) > 0,]
+        myDecValues <- dataToCheck[is.numeric(dataToCheck[,fieldToCheck]),]
+        dataWithDPs <- myDecValues[regexpr('.', as.character(myDecValues[,fieldToCheck]), fixed = TRUE) > 0,]
         # See how many characters are found after the decimal place
         if (nrow(dataWithDPs)>0){
           dataWithDPs$numberOfDps <- nchar(substr(as.character(dataWithDPs[,fieldToCheck]), regexpr('.', as.character(dataWithDPs[,fieldToCheck]), fixed = TRUE) + 1, nchar(as.character(dataWithDPs[,fieldToCheck]))))
-          dataWithTooManyDps <- dataWithDPs[dataWithDPs$numberOfDps > fieldTypeToCheck$fractionDigits,]
+          dataWithDPs <- dataWithDPs[!is.na(dataWithDPs$numberOfDps),]
+          dataWithTooManyDps <- dataWithDPs[dataWithDPs$numberOfDps > as.numeric(fieldTypeToCheck$fractionDigits),]
+          # If we have too many numbers after the decimal place
           if (nrow(dataWithTooManyDps)>0){
             #Log the error
-            errorsToReturn <- logValidationError(errorList = NULL
+            someErrors <- logValidationError(errorList = NULL
                                             ,tableName = substr(fieldToCheck,1,2)
                                             ,rowID = dataWithTooManyDps[,1]
                                             ,fieldName = fieldToCheck
                                             ,problemType = "Precision check"
-                                            ,problemDescription = paste("Decimal precision problem;",paste(substr(fieldToCheck,1,2),"id", sep=""),":", dataWithTooManyDps[,1], " ;Column:",fieldToCheck, ";Unallowed value:",dataWithTooManyDps[,fieldToCheck], sep = " "))
+                                            ,problemDescription = paste("Decimal precision problem (",fieldTypeToCheck$fractionDigits,"decimal places allowed);",paste(substr(fieldToCheck,1,2),"id", sep=""),":", dataWithTooManyDps[,1], " ;Column:",fieldToCheck, ";Unallowed value:",dataWithTooManyDps[,fieldToCheck], sep = " "))
+            errorsToReturn <- rbind(errorsToReturn,someErrors)
           }
         }
       }
@@ -1368,10 +1420,30 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
       
     # String
   } else if (myTypeToCheck == "xs:string"){
-    # Everythign can be converted to a string so no problems here!
+
+    # We only need to check strings if there simpleTypeChecks defined
+    if (simpleTypeCheckDefined){
+      # Length check
+      if (!is.na(fieldTypeToCheck$length)) {
+
+        maxlengthNumber <- as.numeric(fieldTypeToCheck$length)
+        myStringDataToCheck <- dataToCheck[!is.na(dataToCheck[,fieldToCheck]),]
+        stringTooLong <- myStringDataToCheck[nchar(myStringDataToCheck[,fieldToCheck]) > maxlengthNumber,]
+        # If we have soem strings that are too long 
+        if (nrow(stringTooLong)){
+          #Log the error
+          someErrors <- logValidationError(errorList = NULL
+                                           ,tableName = substr(fieldToCheck,1,2)
+                                           ,rowID = stringTooLong[,1]
+                                           ,fieldName = fieldToCheck
+                                           ,problemType = "String length check"
+                                           ,problemDescription = paste("String is longer than maximum allowed (",maxlengthNumber,");",paste(substr(fieldToCheck,1,2),"id", sep=""),":", stringTooLong[,1], " ;Column:",fieldToCheck, ";Unallowed value:",stringTooLong[,fieldToCheck], sep = " "))
+          errorsToReturn <- rbind(errorsToReturn,someErrors)
+        }
+      }
+    }
   }
   
-  # TODO - i might be losing some errors if we have some non-deicmal values and soem precisions errors - need to fix this
   errorsToReturn
   
 }

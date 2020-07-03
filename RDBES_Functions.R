@@ -253,43 +253,45 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   # }
     
   ## Step 1 - Filter the data
-  
-  myCSData <- list()
-  myData <- NULL
-  previousRequiredTable <- NULL
-  
-  # Get the data for each required table - filter by year, country, and upper hierarchy
-  for (myRequiredTable in requiredTables){
-    myData <- RDBESdata[[myRequiredTable]]
+
+  myCSData <- filterCSData(RDBESdata = RDBESdata , RequiredTables = requiredTables, YearToFilterBy = yearToUse, CountryToFilterBy = country, UpperHierarchyToFilterBy = upperHierarchy)
     
-    # Need to filter DE by year and upper hieararchy
-    if (myRequiredTable == 'DE'){
-      myData <- myData[myData$DEyear == yearToUse & myData$DEhierarchy == upperHierarchy,]
-      myCSData[[myRequiredTable]] = myData
-    } 
-    # Need to filter SD by country
-    else if (myRequiredTable == 'SD'){
-      myData <- myData[myData$DEid %in% myCSData[[previousRequiredTable]]$DEid & myData$SDcountry == country,]
-      myCSData[[myRequiredTable]] = myData
-    } 
-    # BVid can either be in FM or SA
-    else if (myRequiredTable == 'BV'){
-      myData <- myData[myData$FMid %in% myCSData[['FM']]$FMid | myData$SAid %in% myCSData[['SA']]$SAid,]
-     myCSData[[myRequiredTable]] = myData
-    } 
-    # all other tables can follow a general pattern of matching
-    else {
-      #previousHierarchyTable <- RDBESdata[[myRequiredTable]]
-      previousHierarchyTable <- myCSData[[previousRequiredTable]]
-      ## Assume the primary key is the first field
-      previousPrimaryKey <- names(previousHierarchyTable)[1]
-      myData <- myData[myData[,previousPrimaryKey] %in% previousHierarchyTable[,previousPrimaryKey],]
-      myCSData[[myRequiredTable]] = myData
-    }
-    
-    previousRequiredTable <- myRequiredTable
-  }
-  
+  # myCSData <- list()
+  # myData <- NULL
+  # previousRequiredTable <- NULL
+  # 
+  # # Get the data for each required table - filter by year, country, and upper hierarchy
+  # for (myRequiredTable in requiredTables){
+  #   myData <- RDBESdata[[myRequiredTable]]
+  #   
+  #   # Need to filter DE by year and upper hieararchy
+  #   if (myRequiredTable == 'DE'){
+  #     myData <- myData[myData$DEyear == yearToUse & myData$DEhierarchy == upperHierarchy,]
+  #     myCSData[[myRequiredTable]] = myData
+  #   } 
+  #   # Need to filter SD by country
+  #   else if (myRequiredTable == 'SD'){
+  #     myData <- myData[myData$DEid %in% myCSData[[previousRequiredTable]]$DEid & myData$SDcountry == country,]
+  #     myCSData[[myRequiredTable]] = myData
+  #   } 
+  #   # BVid can either be in FM or SA
+  #   else if (myRequiredTable == 'BV'){
+  #     myData <- myData[myData$FMid %in% myCSData[['FM']]$FMid | myData$SAid %in% myCSData[['SA']]$SAid,]
+  #    myCSData[[myRequiredTable]] = myData
+  #   } 
+  #   # all other tables can follow a general pattern of matching
+  #   else {
+  #     #previousHierarchyTable <- RDBESdata[[myRequiredTable]]
+  #     previousHierarchyTable <- myCSData[[previousRequiredTable]]
+  #     ## Assume the primary key is the first field
+  #     previousPrimaryKey <- names(previousHierarchyTable)[1]
+  #     myData <- myData[myData[,previousPrimaryKey] %in% previousHierarchyTable[,previousPrimaryKey],]
+  #     myCSData[[myRequiredTable]] = myData
+  #   }
+  #   
+  #   previousRequiredTable <- myRequiredTable
+  # }
+  # 
 
   # If we want to remove any invalid data before generating the upload files do this now
   if(cleanData){
@@ -396,6 +398,20 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
         myCSData[[myRequiredTable]]$SortOrder <- paste(myCSData[[myRequiredTable]]$DEhierarchy,myCSData[[myRequiredTable]]$DEyear,myCSData[[myRequiredTable]]$DEstratum,sep="-")
 
       } 
+      # Need to handle SA differently because there can be sub-samples
+      else if (myRequiredTable == 'SA'){
+
+        # We will use SAsequenceNumber in the SortOrder - this shoudl ensure all samples and sub-samples end-up in the correct order
+        # TODO this needs checking
+
+        previousHierarchyTable <- myCSData[[previousRequiredTable]]
+        ## Assume the primary key is the first field
+        previousPrimaryKey <- names(previousHierarchyTable)[1]
+        currentPrimaryKey <- names(myCSData[[myRequiredTable]])[1]
+        # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
+        myCSData[[myRequiredTable]]$SortOrder <- paste( inner_join(myCSData[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], myCSData[[myRequiredTable]][,"SAsequenceNumber"], sep = "-")
+
+      }
       # Need to handle BV differently because it can be linked to from either FM or SA
       else if (myRequiredTable == 'BV') {
 
@@ -504,6 +520,120 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   
   fwrite(list(csOrdered), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   print(paste("Output file written to ",outputFileName,sep=""))
+  
+}
+
+
+#' filterCSData Filter the CS data to sub-set by year, country, and hierarchy
+#'
+#' @param RDBESdata 
+#' @param RequiredTables 
+#' @param YearToFilterBy 
+#' @param CountryToFilterBy 
+#' @param UpperHierarchyToFilterBy 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+filterCSData <- function(RDBESdata, RequiredTables, YearToFilterBy, CountryToFilterBy, UpperHierarchyToFilterBy){
+  
+  myCSData <- list()
+  myData <- NULL
+  previousRequiredTable <- NULL
+  
+  # Get the data for each required table - filter by year, country, and upper hierarchy
+  for (myRequiredTable in RequiredTables){
+    myData <- RDBESdata[[myRequiredTable]]
+    
+    # Need to filter DE by year and upper hieararchy
+    if (myRequiredTable == 'DE'){
+      myData <- myData[myData$DEyear == YearToFilterBy & myData$DEhierarchy == UpperHierarchyToFilterBy,]
+      myCSData[[myRequiredTable]] = myData
+    } 
+    # Need to filter SD by country
+    else if (myRequiredTable == 'SD'){
+      myData <- myData[myData$DEid %in% myCSData[[previousRequiredTable]]$DEid & myData$SDcountry == CountryToFilterBy,]
+      myCSData[[myRequiredTable]] = myData
+    }
+    # Need to handle samples and sub-samples for SA
+    else if (myRequiredTable == 'SA'){
+      
+      #Lets deal with Samples first
+      previousHierarchyTable <- myCSData[[previousRequiredTable]]
+      ## Assume the primary key is the first field
+      previousPrimaryKey <- names(previousHierarchyTable)[1]
+      mySampleData <- myData[myData[,previousPrimaryKey] %in% previousHierarchyTable[,previousPrimaryKey],]
+      
+      # Now handle any sub-samples
+      mySubSampleData <- myData[!is.na(myData$SAparentSequenceNumber),]
+      
+      # Use a recursive function to fetch the top level sequence number of our sub-samples
+      mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
+      
+      # Only include sub-samples if their top level sequence numebr is in our filtered sample data
+      mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% mySampleData$SAsequenceNumber,]
+      
+      # Get rid of the column we added earlier
+      mySubSampleData$topLevelSequenceNumber <- NULL
+      
+      
+      # Stick our samples and sub-samples together
+      myData <- rbind(mySampleData, mySubSampleData)
+      
+      myCSData[[myRequiredTable]] = myData
+      
+    }
+    # BVid can either be in FM or SA
+    else if (myRequiredTable == 'BV'){
+      myData <- myData[myData$FMid %in% myCSData[['FM']]$FMid | myData$SAid %in% myCSData[['SA']]$SAid,]
+      myCSData[[myRequiredTable]] = myData
+    } 
+    # all other tables can follow a general pattern of matching
+    else {
+      #previousHierarchyTable <- RDBESdata[[myRequiredTable]]
+      previousHierarchyTable <- myCSData[[previousRequiredTable]]
+      ## Assume the primary key is the first field
+      previousPrimaryKey <- names(previousHierarchyTable)[1]
+      myData <- myData[myData[,previousPrimaryKey] %in% previousHierarchyTable[,previousPrimaryKey],]
+      myCSData[[myRequiredTable]] = myData
+    }
+    
+    previousRequiredTable <- myRequiredTable
+  }
+  
+  
+  myCSData
+  
+}
+
+#' getTopLevelSequenceNumber Recursive function to get the top level SAsequenceNumber of a series of sameples and sub-samples
+#'
+#' @param SAdata 
+#' @param SAsequenceNumber 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+getTopLevelSequenceNumber <- function(SAdata,SAsequenceNumber ){
+  #print(SAsequenceNumber)
+  dataToCheck <- SAdata[SAdata$SAsequenceNumber == SAsequenceNumber,]
+  
+  # If we have mutiple matches we probably don't have unique SAsequenceNumber values
+  if (nrow(dataToCheck) > 1){
+    warning("There is a problem with non-unique SAsequenceNumber values- check your data")
+    # Just use the first match
+    dataToCheck <- dataToCheck[1,]
+  }
+  
+  if (nrow(dataToCheck) == 0) {
+    return (NA)
+  } else if (is.na(dataToCheck$SAparentSequenceNumber)) {
+    return (SAsequenceNumber)
+  } else {
+    return (getTopLevelSequenceNumber(SAdata = SAdata,SAsequenceNumber = dataToCheck$SAparentSequenceNumber))
+  }
   
 }
 

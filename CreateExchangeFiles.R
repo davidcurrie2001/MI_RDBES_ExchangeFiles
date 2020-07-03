@@ -16,24 +16,21 @@ allowedValues <- loadReferenceData(downloadFromICES = FALSE)
 #allowedValues <- loadReferenceData(downloadFromICES = TRUE, validationData=validationData)
 
 # Load the lists of tables required for each hierarchy
-requiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLocation = './tableDefs')
-#requiredTables <- getTablesInHierarchies(downloadFromGitHub = TRUE, fileLocation = './tableDefs')
+requiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLocation = './tableDefs/')
+#requiredTables <- getTablesInHierarchies(downloadFromGitHub = TRUE, fileLocation = './tableDefs/')
 
 # Load the RDBES data from the database - you will need to write your own database connection string in a format similar to this: 'driver=SQL Server;server=mysqlhost;database=mydbname;trusted_connectio
 myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 
-# Load the column name mapping file
-#load(file="./output/List_RDBES_Variables_v1.17.Rdata")
-# Example of how to change from DB names to R names and vice versa
-#rNames <- changeFieldNames(frameToRename = myRDBESData[["BV"]], fieldNameMap = list_RDBES_Variables, typeOfChange = "DBtoR")
-#names(myRDBESData[["BV"]]) <- rNames
-#dbNames <- changeFieldNames(frameToRsename = myRDBESData[["BV"]], fieldNameMap = list_RDBES_Variables, typeOfChange = "RtoDB")
-#names(myRDBESData[["BV"]]) <- dbNames
 
 ## STEP 2) VALIDATE OUR DATA AND CHECK ERRORS
 
 # Lets validate our data
-errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE)
+errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
+
+# UGLY FIX 
+# Get rid of the errors associates with XXgsaSubarea having a value of NotApplicable - I fix these during the export anyway - can remove this once ICES code list is updated
+errors <- errors[!(grepl('gsaSubarea',errors$fieldName) & errors$problemType =='Code list problem'),]
 
 # Can check errros from individual tables using e.g.
 #View(errors[errors$tableName == 'BV',])
@@ -69,10 +66,20 @@ generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = 2017, country = 'IE', 
 
 
 # Create an H1 CS file
-generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=1,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = requiredTables)
+generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=20,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = requiredTables)
 #generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 
+
+## These functions aren't updated yet
+
+# Load the column name mapping file
+#load(file="./output/List_RDBES_Variables_v1.17.Rdata")
+# Example of how to change from DB names to R names and vice versa
+#rNames <- changeFieldNames(frameToRename = myRDBESData[["BV"]], fieldNameMap = list_RDBES_Variables, typeOfChange = "DBtoR")
+#names(myRDBESData[["BV"]]) <- rNames
+#dbNames <- changeFieldNames(frameToRsename = myRDBESData[["BV"]], fieldNameMap = list_RDBES_Variables, typeOfChange = "RtoDB")
+#names(myRDBESData[["BV"]]) <- dbNames
 
 # Save RData files
 generateH1RDataFiles(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)

@@ -1012,7 +1012,7 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
   # RDBEScodeLists <- allowedValues
   # shortOutput <- TRUE
   # #framestoValidate <- c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","TE","VD","VS","CL","CE" )
-  # framestoValidate <- c("BV")
+  # framestoValidate <- c("CE")
   
   # To hold the output
   errorList <- data.frame(tableName=character(0)
@@ -1124,13 +1124,17 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
     # Sort the errors
     errorList <- errorList[order(errorList$tableName, errorList$fieldName, errorList$problemType, errorList$rowID),]
     # Get the row number within a group
-    numberedErrorList <- errorList %>% group_by(errorList$tableName, errorList$fieldName, errorList$problemType) %>% mutate(rowNum = row_number())
-    
+    numberedErrorList <- errorList %>% group_by(errorList$tableName, errorList$fieldName, errorList$problemType) %>% mutate(rowNum = row_number()) %>% mutate(maxRowNum = max(rowNum))
+
     # Generate our extra rows that will show there were more errors present
-    myExtraRows <- numberedErrorList[numberedErrorList$rowNum == 2,fieldsToKeep]
+    myExtraRows <- numberedErrorList[numberedErrorList$rowNum == 2,c(fieldsToKeep,'maxRowNum')]
     if(nrow(myExtraRows)>0) {
+      countOfOtherRows <- as.numeric(myExtraRows$maxRowNum)
+      countOfOtherRows <- countOfOtherRows - 1
       myExtraRows$rowID <- NA
-      myExtraRows$problemDescription <- "Multiple similar error error rows removed for clarity"
+      myExtraRows$problemDescription <- paste(countOfOtherRows," similar error rows removed for clarity", sep = "")
+      # Get rid of our maxRowNum field
+      myExtraRows <- myExtraRows[,fieldsToKeep]
     }
     
     # Combine the first row within each group with the extra rows
@@ -1273,7 +1277,7 @@ validateNAvalues <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
     # if we are not allowed to have empty values here then log an error
     if (ifelse(is.na(fieldTypeToCheck$min),0,fieldTypeToCheck$min) >0){
       #Log the error
-      errorsToReturn <- logValidationError(errorList = NA
+      errorsToReturn <- logValidationError(errorList = NULL
                                       ,tableName = substr(fieldToCheck,1,2)
                                       ,rowID = myValuesNA[,1]
                                       ,fieldName = fieldToCheck
@@ -1302,6 +1306,8 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
   #dataToCheck<-dfToCheckNotNA
   #fieldTypeToCheck<-myFieldType
 
+  # TODO - this methd has got a bit long and shoudl be re-factored for clarity
+  
   errorsToReturn <- NULL
   
   myTypeToCheck <- fieldTypeToCheck$type
@@ -1363,7 +1369,9 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
   # Ints
   if (myTypeToCheck == "xs:int"){
     # Check for any non integer values
-    myNonIntValues <- dataToCheck[!is.integer(dataToCheck[,fieldToCheck]),]
+    #myNonIntValues <- dataToCheck[!is.integer(dataToCheck[,fieldToCheck]),]
+    # The above function only checks whether the value is stored as an integer, not whether it is an integer :-S so need to do this instead
+    myNonIntValues <- dataToCheck[!as.numeric(dataToCheck[,fieldToCheck])%%1==0,]
     if (nrow(myNonIntValues)>0){
       #Log the error
       someErrors <- logValidationError(errorList = NULL
@@ -1441,6 +1449,28 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
           errorsToReturn <- rbind(errorsToReturn,someErrors)
         }
       }
+      
+      # String Pattern check
+      if (!is.na(fieldTypeToCheck$pattern)) {
+        
+        myStringDataToCheck <- dataToCheck[!is.na(dataToCheck[,fieldToCheck]),]
+        # Check the field agaisnt the pattern using grepl
+        patternNotMatched <- myStringDataToCheck[!grepl(fieldTypeToCheck$pattern,myStringDataToCheck[,fieldToCheck]),]
+        
+        # If we have soem strings that don't match the pattern 
+        if (nrow(patternNotMatched)){
+          #Log the error
+          someErrors <- logValidationError(errorList = NULL
+                                           ,tableName = substr(fieldToCheck,1,2)
+                                           ,rowID = patternNotMatched[,1]
+                                           ,fieldName = fieldToCheck
+                                           ,problemType = "String pattern check"
+                                           ,problemDescription = paste("String does no match required pattern (",fieldTypeToCheck$pattern,");",paste(substr(fieldToCheck,1,2),"id", sep=""),":", patternNotMatched[,1], " ;Column:",fieldToCheck, ";Unallowed value:",patternNotMatched[,fieldToCheck], sep = " "))
+          errorsToReturn <- rbind(errorsToReturn,someErrors)
+        }
+        
+      }
+        
     }
   }
   

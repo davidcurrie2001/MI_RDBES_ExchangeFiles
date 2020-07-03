@@ -336,7 +336,9 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   # If required, limit the number of samples we will output (normally just used during testing)
   if (!is.null(numberOfSamples)){
     if (nrow(myCSData[['SA']])>numberOfSamples ) {
-
+      
+      # TODO - need to handle sub-samples properly
+      
       #Subset the SA data
       SAidsToUse <- myCSData[['SA']][1:numberOfSamples,"SAid"]
       

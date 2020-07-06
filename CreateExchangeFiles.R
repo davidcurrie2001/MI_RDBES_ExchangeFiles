@@ -28,10 +28,6 @@ myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 # Lets validate our data
 errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
 
-# UGLY FIX 
-# Get rid of the errors associates with XXgsaSubarea having a value of NotApplicable - I fix these during the export anyway - can remove this once ICES code list is updated
-errors <- errors[!(grepl('gsaSubarea',errors$fieldName) & errors$problemType =='Code list problem'),]
-
 # Can check errros from individual tables using e.g.
 #View(errors[errors$tableName == 'BV',])
 
@@ -53,23 +49,16 @@ generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = 2017, country = 'IE', 
 ## STEP 4) GENERATE COMPLEX EXCHANGE FILES (CS)
 
 #UGLY HACKS - these are temporary fixes for my data - they will be removed once correct values are added to reference lists
-
-# Need to change the value of DEsamplingScheme until the correct values are added to the ICES code list
-#myRDBESData[['DE']][myRDBESData[['DE']]$DEsamplingScheme == 'Ireland DCF Catch Sampling' | myRDBESData[['DE']]$DEsamplingScheme == 'Ireland DCF Catch Sampling (4S)','DEsamplingScheme'] <- 'National Routine'
-  
-# Temporarily change the value of FMmeasurementEquipment until ICES add the correct value
-#myRDBESData[['FM']][myRDBESData[['FM']]$FMmeasurementEquipment == 'Measured by hand with ruler','FMmeasurementEquipment'] <- 'Measured by hand with caliper'
-  
-# Truncate any decimal places from SAconversionFactorMesLive - shouldn't be required
-#myRDBESData[['SA']]$SAconversionFactorMesLive <- floor(myRDBESData[['SA']]$SAconversionFactorMesLive)
-  
-
+# Temporary fix
+myRDBESData[['SA']]$SAspeciesCodeFAO <- NA
 
 # Create an H1 CS file
 generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=20,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = requiredTables)
 #generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
-
+# Save RData files for H1
+saveRDataFilesForCS(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, RequiredTables = requiredTables)
+#loadRDataFiles(directoryToSearch="./output/H1")
 
 ## These functions aren't updated yet
 
@@ -81,10 +70,3 @@ generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE',
 #dbNames <- changeFieldNames(frameToRsename = myRDBESData[["BV"]], fieldNameMap = list_RDBES_Variables, typeOfChange = "RtoDB")
 #names(myRDBESData[["BV"]]) <- dbNames
 
-# Save RData files
-generateH1RDataFiles(yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData)
-
-
-# Load RData files
-#loadRDataFiles(directoryToSearch="./output/H5")
-#loadRDataFiles(directoryToSearch="./output/H1")

@@ -138,10 +138,6 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
     # Validate
     myErrors <- validateTables(RDBESdata = RDBESdataForFile, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, shortOutput = FALSE,framestoValidate = c(typeOfFile))
     
-    # UGLY FIX 
-    # Get rid of the errors associates with CLgsaSubarea having a value of NotApplicable
-    myErrors <- myErrors[!(grepl('gsaSubarea',myErrors$fieldName) & myErrors$problemType =='Code list problem' & grepl('NotApplicable', myErrors$problemDescription)),]
-    
     # Remove any invalid rows 
     myDataForFile <- removeInvalidRows(tableName = typeOfFile,dataToClean = myDataForFile,errorList = myErrors)
     
@@ -165,7 +161,7 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
   }
   
   # We now write out the data frame with ids and column names included to make debugging easier
-  fwrite(myDataForFile, paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=T,quote=F)
+  fwrite(myDataForFile, paste(outputFolder, "debug_", outputFileName,sep="") ,row.names=F,col.names=T,quote=F)
   
   # Now we'll get rid of the id values because we won't want them in our final output file
   if (typeOfFile == 'CE'){
@@ -184,19 +180,12 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
   # replace NA with blanks
   myFinalData <- gsub('NA','',myFinalData)
   
-  # UGLY FIX 
-  # Where there is no GSA sub-area value then we shoudl use the value "NA" - however the previous line will change all "NA"'s into blanks :-S 
-  # I needed to do soemthing a bit ugly so that we can submit NA for the actual GSA sub-area value
-  myFinalData <- gsub('NotApplicable','NA',myFinalData)
-  
   # Write out the file
   fwrite(list(myFinalData), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   print(paste("Output file written to ",outputFileName,sep=""))
   
 }
 
-
-# TODO - this function does not currently handle sub-sampling
 
 #' generateComplexExchangeFile This function creates an RDBES exchange file for CS data
 #'
@@ -247,52 +236,10 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   upperHierarchy <- substr(typeOfFile,2,nchar(typeOfFile))
   requiredTables <- RequiredTables[[typeOfFile]]
   
-  # if(typeOfFile == 'H1'){
-  #   requiredTables <- c("DE", "SD", "VS", "FT", "FO", "SS", "SA", "FM", "BV")
-  #   upperHierarchy <- 1
-  # }
-    
   ## Step 1 - Filter the data
-
   myCSData <- filterCSData(RDBESdata = RDBESdata , RequiredTables = requiredTables, YearToFilterBy = yearToUse, CountryToFilterBy = country, UpperHierarchyToFilterBy = upperHierarchy)
     
-  # myCSData <- list()
-  # myData <- NULL
-  # previousRequiredTable <- NULL
-  # 
-  # # Get the data for each required table - filter by year, country, and upper hierarchy
-  # for (myRequiredTable in requiredTables){
-  #   myData <- RDBESdata[[myRequiredTable]]
-  #   
-  #   # Need to filter DE by year and upper hieararchy
-  #   if (myRequiredTable == 'DE'){
-  #     myData <- myData[myData$DEyear == yearToUse & myData$DEhierarchy == upperHierarchy,]
-  #     myCSData[[myRequiredTable]] = myData
-  #   } 
-  #   # Need to filter SD by country
-  #   else if (myRequiredTable == 'SD'){
-  #     myData <- myData[myData$DEid %in% myCSData[[previousRequiredTable]]$DEid & myData$SDcountry == country,]
-  #     myCSData[[myRequiredTable]] = myData
-  #   } 
-  #   # BVid can either be in FM or SA
-  #   else if (myRequiredTable == 'BV'){
-  #     myData <- myData[myData$FMid %in% myCSData[['FM']]$FMid | myData$SAid %in% myCSData[['SA']]$SAid,]
-  #    myCSData[[myRequiredTable]] = myData
-  #   } 
-  #   # all other tables can follow a general pattern of matching
-  #   else {
-  #     #previousHierarchyTable <- RDBESdata[[myRequiredTable]]
-  #     previousHierarchyTable <- myCSData[[previousRequiredTable]]
-  #     ## Assume the primary key is the first field
-  #     previousPrimaryKey <- names(previousHierarchyTable)[1]
-  #     myData <- myData[myData[,previousPrimaryKey] %in% previousHierarchyTable[,previousPrimaryKey],]
-  #     myCSData[[myRequiredTable]] = myData
-  #   }
-  #   
-  #   previousRequiredTable <- myRequiredTable
-  # }
-  # 
-
+  
   # If we want to remove any invalid data before generating the upload files do this now
   if(cleanData){
     
@@ -310,14 +257,13 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
                                ,framestoValidate = requiredTables
     )
     
-    # UGLY FIX 
-    # Get rid of the errors associates with SAgsaSubarea having a value of NotApplicable
-    myErrors <- myErrors[!(grepl('gsaSubarea',myErrors$fieldName) & myErrors$problemType =='Code list problem' & grepl('NotApplicable', myErrors$problemDescription)),]
-    
     # Remove any invalid rows 
     for (myRequiredTable in requiredTables){
       myCSData[[myRequiredTable]]<- removeInvalidRows(tableName = myRequiredTable,dataToClean = myCSData[[myRequiredTable]],errorList = myErrors)
     }
+    
+    # Filter the data again to ensure we don't have any orphan rows in our output
+    myCSData <- filterCSData(RDBESdata = myCSData , RequiredTables = requiredTables, YearToFilterBy = yearToUse, CountryToFilterBy = country, UpperHierarchyToFilterBy = upperHierarchy)
     
     rowsAfter <- 0
     for (myRequiredTable in requiredTables){
@@ -335,17 +281,39 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   
   # If required, limit the number of samples we will output (normally just used during testing)
   if (!is.null(numberOfSamples)){
-    if (nrow(myCSData[['SA']])>numberOfSamples ) {
+    # Get our samples (not including sub-samples)
+    NotSubSamples <- myCSData[['SA']][is.na(myCSData[['SA']]$SAparentSequenceNumber),]
+    
+    #if (nrow(myCSData[['SA']])>numberOfSamples ) {
+    if (nrow(NotSubSamples)>numberOfSamples ) {
       
-      # TODO - need to handle sub-samples properly
-      
-      #Subset the SA data
-      SAidsToUse <- myCSData[['SA']][1:numberOfSamples,"SAid"]
+      #Subset the data to get the SAid values we are interested it
+      #SAidsToUse <- myCSData[['SA']][1:numberOfSamples,"SAid"]
+      SAidsToUse <- NotSubSamples[1:numberOfSamples,"SAid"]
       
       # Need Sort out SA and FM first, then we'll deal with the other tables
+      
+      # SA : Top level samples not including sub-samplea
       myCSData[['SA']]<- myCSData[['SA']][myCSData[['SA']]$SAid %in% SAidsToUse,]
+      # Now handle any sub-samples
+      mySubSampleData <- myCSData[['SA']][!is.na(myCSData[['SA']]$SAparentSequenceNumber),]
+      
+      # If we have any sub-samples see if we need to include them
+      if (nrow(mySubSampleData) > 0){
+        # Use a recursive function to fetch the top level sequence number of our sub-samples
+        mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
+        # Only include sub-samples if their top level sequence numebr is in our filtered sample data
+        mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% myCSData[['SA']]$SAsequenceNumber,]
+        # Remove the column we added
+        mySubSampleData$topLevelSequenceNumber <- NULL
+        # Combine our samples and sub-samples together
+        myCSData[['SA']] <- rbind(myCSData[['SA']],mySubSampleData)
+      }
+      
+      # FM
       myCSData[['FM']]<- myCSData[['FM']][myCSData[['FM']]$SAid %in% myCSData[['SA']]$SAid,]
 
+      # Now deal with all the other tables
       myData <- NULL
       previousRequiredTable <- NULL
       
@@ -382,88 +350,7 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   
   ## Step 2 - I now add a SortOrder field to each of our fitlered data frames
   ## this will allow me to generate the CS file in the correct row order without needing a slow for-loop
-  # Even if the data frame is empty I add in a blank SortOrder column - that way I can guarantee it exists 
-  # IMPORTANT - I'm using inner_join from dply so we can maintain the ordering of the first data frame in the join
-  # if the ordering isn't maintained then the exchange file will be output in the wrong order
-  # TODO For our data BV only follows SA not FM - need to check that the sort order will work if there is a mix of lower hierarchies
-  
-  previousRequiredTable <- NULL
-  
-  for (myRequiredTable in requiredTables){
-    
-    # Check if there are any rows in this table
-    if(nrow(myCSData[[myRequiredTable]])>0) {
-      
-      # Need to handle DE differently because the SortOrder doesn't just use the primary key
-      if (myRequiredTable == 'DE'){
-
-        myCSData[[myRequiredTable]]$SortOrder <- paste(myCSData[[myRequiredTable]]$DEhierarchy,myCSData[[myRequiredTable]]$DEyear,myCSData[[myRequiredTable]]$DEstratum,sep="-")
-
-      } 
-      # Need to handle SA differently because there can be sub-samples
-      else if (myRequiredTable == 'SA'){
-
-        # We will use SAsequenceNumber in the SortOrder - this shoudl ensure all samples and sub-samples end-up in the correct order
-        # TODO this needs checking
-
-        previousHierarchyTable <- myCSData[[previousRequiredTable]]
-        ## Assume the primary key is the first field
-        previousPrimaryKey <- names(previousHierarchyTable)[1]
-        currentPrimaryKey <- names(myCSData[[myRequiredTable]])[1]
-        # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
-        myCSData[[myRequiredTable]]$SortOrder <- paste( inner_join(myCSData[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], myCSData[[myRequiredTable]][,"SAsequenceNumber"], sep = "-")
-
-      }
-      # Need to handle BV differently because it can be linked to from either FM or SA
-      else if (myRequiredTable == 'BV') {
-
-        # Add the SortOrder field first
-        # Bit ugly but we'll call it SortOrder_BV to start with to avoid some issues - we'll name it propery in a minute
-        myCSData[[myRequiredTable]]$SortOrder_BV <- character(nrow(myCSData[[myRequiredTable]]))
-        currentPrimaryKey <- names(myCSData[[myRequiredTable]])[1]
-        
-        # Add SortOrder where there is a link to FM (rows where FMid is not NA)
-        if (nrow( myCSData[[myRequiredTable]][!is.na(myCSData[[myRequiredTable]]$FMid),] )>0){
-          
-          previousHierarchyTable <- myCSData[['FM']]
-          previousPrimaryKey <- names(previousHierarchyTable)[1]
-          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
-          myCSData[[myRequiredTable]][!is.na(myCSData[[myRequiredTable]]$FMid),"SortOrder_BV"] <- paste( inner_join(myCSData[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], myCSData[[myRequiredTable]][,currentPrimaryKey], sep = "-")
-        } 
-        
-        # Add SortOrder where there is a link to SA (rows where SAid is not NA)
-        if (nrow( myCSData[[myRequiredTable]][!is.na(myCSData[[myRequiredTable]]$SAid),] )>0){
-          
-          previousHierarchyTable <- myCSData[['SA']]
-          previousPrimaryKey <- names(previousHierarchyTable)[1]
-          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
-          myCSData[[myRequiredTable]][!is.na(myCSData[[myRequiredTable]]$SAid),"SortOrder_BV"] <- paste( inner_join(myCSData[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], myCSData[[myRequiredTable]][,currentPrimaryKey], sep = "-")
-          
-        }
-        
-        # Rename SortOrder_BV field to SortOrder
-        names(myCSData[[myRequiredTable]])[names(myCSData[[myRequiredTable]]) == "SortOrder_BV"] <- "SortOrder"
-        
-      }
-      # Else follow the general pattern
-      else {
-
-        previousHierarchyTable <- myCSData[[previousRequiredTable]]
-        ## Assume the primary key is the first field
-        previousPrimaryKey <- names(previousHierarchyTable)[1]
-        currentPrimaryKey <- names(myCSData[[myRequiredTable]])[1]
-        # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
-        myCSData[[myRequiredTable]]$SortOrder <- paste( inner_join(myCSData[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], myCSData[[myRequiredTable]][,currentPrimaryKey], sep = "-")
-      }
-    }      
-    # If there's no rows in the table we'll add an emtpy SortOrder column so it definitely exists
-    else  {
-      myCSData[[myRequiredTable]]$SortOrder <- character(0)
-    }
-    
-    previousRequiredTable <- myRequiredTable
-  }
-  
+  myCSData <- generateSortOrder(RDBESdataToSort = myCSData, RequiredTables = requiredTables)
   
   # Combine our SortOrder values
   # TODO Need to double-check this works correctly
@@ -490,7 +377,7 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   # Sort the output into the correct order
   csForCheckingOrdered <- csForChecking[order(FileSortOrder)]
   
-  fwrite(list(csForCheckingOrdered), paste(outputFolder, outputFileName,"_debug",sep="") ,row.names=F,col.names=F,quote=F)
+  fwrite(list(csForCheckingOrdered), paste(outputFolder,"debug_", outputFileName,sep="") ,row.names=F,col.names=F,quote=F)
   
   ## STEP 4) Create the real version of the output data
   
@@ -514,11 +401,6 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   
   # replace NA with blanks
   csOrdered <- gsub('NA','',csOrdered)
-  
-  # UGLY FIX 
-  # Where there is no GSA sub-area value then we shoudl use the value "NA" - however the previous line will change all "NA"'s into blanks :-S 
-  # I needed to do soemthing a bit ugly so that we can submit NA for the actual GSA sub-area value
-  csOrdered <- gsub('NotApplicable','NA',csOrdered)
   
   fwrite(list(csOrdered), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   print(paste("Output file written to ",outputFileName,sep=""))
@@ -578,7 +460,6 @@ filterCSData <- function(RDBESdata, RequiredTables, YearToFilterBy, CountryToFil
       
       # Get rid of the column we added earlier
       mySubSampleData$topLevelSequenceNumber <- NULL
-      
       
       # Stick our samples and sub-samples together
       myData <- rbind(mySampleData, mySubSampleData)
@@ -640,201 +521,138 @@ getTopLevelSequenceNumber <- function(SAdata,SAsequenceNumber ){
 }
 
 
-#' generateH5RDataFiles Generates RData files containing the relevent data frames for hierarchy 5.  Each data frame is stored in a seperate RData file.  Data is filtered by country and year (optional)
+#' generateSortOrder Adds a SortOrder field to each frame in our list of data frames.  When the data is sorted by this column it shoudl be in the correct order to generate a CS exchange file.  Even if the data frame is empty I add in a blank SortOrder column - that way I can guarantee it exists
 #'
-#' @param yearToUse (Optional) Year to extract the data for
-#' @param country Country code to extract the data for (2 letter ISO code)
-#' @param RDBESdata A list containing the RDBES data frames
-#'
-#' @return
-#' @export
-#'
-#' @examples generateH5RDataFiles(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
-generateH5RDataFiles <- function(yearToUse = NULL, country, RDBESdata){
-  
-  # For testing
-  #RDBESdata<-myRDBESData
-  #yearToUse <- 2016
-  #country <- 'IE'
-  
-  subfolder <- 'H5/'
-  
-  ## Step 0
-  # Create the output directory if we need do 
-  ifelse(!dir.exists(file.path(paste0(outputFolder,subfolder))), dir.create(file.path(paste0(outputFolder,subfolder))), FALSE)
-  
-  ## Step 1 - Filter the data
-  
-  # Get the data from our name list
-  DE <- RDBESdata[['DE']]
-  SD <- RDBESdata[['SD']]
-  OS <- RDBESdata[['OS']]
-  VD <- RDBESdata[['VD']]
-  FT <- RDBESdata[['FT']]
-  LE <- RDBESdata[['LE']]
-  SL <- RDBESdata[['SL']]
-  SS <- RDBESdata[['SS']]
-  SA <- RDBESdata[['SA']]
-  FM <- RDBESdata[['FM']]
-  BV <- RDBESdata[['BV']]
-  
-  # Filter by year and country
-  DE <- DE[DE$DEyear == yearToUse & DE$DEhierarchy == 5,]
-  SD <- SD[SD$DEid %in% DE$DEid & SD$SDcountry == country,]
-  OS <- OS[OS$SDid %in% SD$SDid,]
-  FT <- FT[FT$OSid %in% OS$OSid,]
-  LE <- LE[LE$FTid %in% FT$FTid,]
-  SS <- SS[SS$LEid %in% LE$LEid,]
-  SA <- SA[SA$SSid %in% SS$SSid,]
-  FM <- FM[FM$SAid %in% SA$SAid,]
-  BV <- BV[BV$FMid %in% FM$FMid | BV$SAid %in% SA$SAid,]
-  
-  VD <- VD[VD$VDid %in% LE$VDid,]
-  SL <- SL[SL$SLlistName %in% SS$SSspeciesListName,]
-  
-  # Anonymise the vessels
-  VD$VDpower <- NA
-  VD$VDsize <-NA
-  
-  listOfFrames <- list("DE"=DE, "SD"=SD, "OS"=OS, "FT"=FT, "LE"=LE, "SS"=SS, "SA"=SA, "FM"=FM, "BV"=BV, "VD"=VD, "SL"=SL)
-  
-  newNames <- lapply(listOfFrames, function(x)  changeFieldNames(frameToRename = x, fieldNameMap = list_RDBES_Variables, typeOfChange = "DBtoR"))
-  
-  # Change the field names of the entries in our list of data frames
-  for (myFrame in  names(listOfFrames)){
-    names(listOfFrames[[myFrame]]) <- newNames[[myFrame]]
-  }
-  
-  #names(listOfFrames[["BV"]])
-  #newNames[['BV']]
-  #names(BV)
-  
-  # The stupid save function can only save whole objects so we need to convert the members in a list
-  # back into single objects
-  DE <- listOfFrames[['DE']]
-  SD <- listOfFrames[['SD']]
-  OS <- listOfFrames[['OS']]
-  VD <- listOfFrames[['VD']]
-  FT <- listOfFrames[['FT']]
-  LE <- listOfFrames[['LE']]
-  SL <- listOfFrames[['SL']]
-  SS <- listOfFrames[['SS']]
-  SA <- listOfFrames[['SA']]
-  FM <- listOfFrames[['FM']]
-  BV <- listOfFrames[['BV']]
-  
-  
-  save(DE, file = paste0(outputFolder,subfolder,"DE", ".RData"))
-  save(SD, file = paste0(outputFolder,subfolder,"SD", ".RData"))
-  save(OS, file = paste0(outputFolder,subfolder,"OS", ".RData"))
-  save(FT, file = paste0(outputFolder,subfolder,"FT", ".RData"))
-  save(LE, file = paste0(outputFolder,subfolder,"LE", ".RData"))
-  save(SS, file = paste0(outputFolder,subfolder,"SS", ".RData"))
-  save(SA, file = paste0(outputFolder,subfolder,"SA", ".RData"))
-  save(FM, file = paste0(outputFolder,subfolder,"FM", ".RData"))
-  save(BV, file = paste0(outputFolder,subfolder,"BV", ".RData"))
-  save(VD, file = paste0(outputFolder,subfolder,"VD", ".RData"))
-  save(SL, file = paste0(outputFolder,subfolder,"SL", ".RData"))
-  
-
-}
-
-#' generateH1RDataFiles Generates RData files containing the relevent data frames for hierarchy 1.  Each data frame is stored in a seperate RData file.  Data is filtered by country and year (optional)
-#'
-#' @param yearToUse (Optional) Year to extract the data for
-#' @param country Country code to extract the data for (2 letter ISO code)
-#' @param RDBESdata A list containing the RDBES data frames
+#' @param RDBESdataToSort 
+#' @param RequiredTables 
 #'
 #' @return
 #' @export
 #'
-#' @examples generateH1RDataFiles(yearToUse = 2016, country = 'IE', RDBESdata = myRDBESData)
-generateH1RDataFiles <- function(yearToUse = NULL, country, RDBESdata){
+#' @examples
+generateSortOrder <- function(RDBESdataToSort, RequiredTables){
   
-  # For testing
-  #RDBESdata<-myRDBESData
-  #yearToUse <- 2016
-  #country <- 'IE'
+
+  # IMPORTANT - I'm using inner_join from dply so we can maintain the ordering of the first data frame in the join
+  # if the ordering isn't maintained then the exchange file will be output in the wrong order
   
-  subfolder <- 'H1/'
+  # TODO For our data BV only follows SA not FM - need to check that the sort order will work if there is a mix of lower hierarchies
+  
+  previousRequiredTable <- NULL
+  
+  for (myRequiredTable in RequiredTables){
+    
+    # Check if there are any rows in this table
+    if(nrow(RDBESdataToSort[[myRequiredTable]])>0) {
+      
+      # Need to handle DE differently because the SortOrder doesn't just use the primary key
+      if (myRequiredTable == 'DE'){
+        
+        RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste(RDBESdataToSort[[myRequiredTable]]$DEhierarchy,RDBESdataToSort[[myRequiredTable]]$DEyear,RDBESdataToSort[[myRequiredTable]]$DEstratum,sep="-")
+        
+      } 
+      # Need to handle SA differently because there can be sub-samples
+      else if (myRequiredTable == 'SA'){
+        
+        # We will use SAsequenceNumber in the SortOrder - this shoudl ensure all samples and sub-samples end-up in the correct order
+        # TODO this needs checking
+        
+        previousHierarchyTable <- RDBESdataToSort[[previousRequiredTable]]
+        ## Assume the primary key is the first field
+        previousPrimaryKey <- names(previousHierarchyTable)[1]
+        currentPrimaryKey <- names(RDBESdataToSort[[myRequiredTable]])[1]
+        # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
+        RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste( inner_join(RDBESdataToSort[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][,"SAsequenceNumber"], sep = "-")
+        
+      }
+      # Need to handle BV differently because it can be linked to from either FM or SA
+      else if (myRequiredTable == 'BV') {
+        
+        # Add the SortOrder field first
+        # Bit ugly but we'll call it SortOrder_BV to start with to avoid some issues - we'll name it propery in a minute
+        RDBESdataToSort[[myRequiredTable]]$SortOrder_BV <- character(nrow(RDBESdataToSort[[myRequiredTable]]))
+        currentPrimaryKey <- names(RDBESdataToSort[[myRequiredTable]])[1]
+        
+        # Add SortOrder where there is a link to FM (rows where FMid is not NA)
+        if (nrow( RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),] )>0){
+          
+          previousHierarchyTable <- myCSData[['FM']]
+          previousPrimaryKey <- names(previousHierarchyTable)[1]
+          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
+          RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),"SortOrder_BV"] <- paste( inner_join(RDBESdataToSort[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][,currentPrimaryKey], sep = "-")
+        } 
+        
+        # Add SortOrder where there is a link to SA (rows where SAid is not NA)
+        if (nrow( RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),] )>0){
+          
+          previousHierarchyTable <- RDBESdataToSort[['SA']]
+          previousPrimaryKey <- names(previousHierarchyTable)[1]
+          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
+          RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),"SortOrder_BV"] <- paste( inner_join(RDBESdataToSort[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][,currentPrimaryKey], sep = "-")
+          
+        }
+        
+        # Rename SortOrder_BV field to SortOrder
+        names(RDBESdataToSort[[myRequiredTable]])[names(RDBESdataToSort[[myRequiredTable]]) == "SortOrder_BV"] <- "SortOrder"
+        
+      }
+      # Else follow the general pattern
+      else {
+        
+        previousHierarchyTable <- RDBESdataToSort[[previousRequiredTable]]
+        ## Assume the primary key is the first field
+        previousPrimaryKey <- names(previousHierarchyTable)[1]
+        currentPrimaryKey <- names(RDBESdataToSort[[myRequiredTable]])[1]
+        # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
+        RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste( inner_join(RDBESdataToSort[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][,currentPrimaryKey], sep = "-")
+      }
+    }      
+    # If there's no rows in the table we'll add an emtpy SortOrder column so it definitely exists
+    else  {
+      RDBESdataToSort[[myRequiredTable]]$SortOrder <- character(0)
+    }
+    
+    previousRequiredTable <- myRequiredTable
+  }
+  
+  RDBESdataToSort
+  
+}
+
+
+#' saveRDataFilesForCS Saves RData files containing the relevent data frames for a CS upper hierarchy.  Each data frame is stored in a seperate RData file.  Data is filtered by country and year 
+#'
+#' @param typeOfFile 
+#' @param yearToUse 
+#' @param country 
+#' @param RDBESdata 
+#' @param RequiredTables 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+saveRDataFilesForCS <- function(typeOfFile, yearToUse, country, RDBESdata, RequiredTables){
+  
+  # Find which tables we need for this file type
+  upperHierarchy <- substr(typeOfFile,2,nchar(typeOfFile))
+  requiredTables <- RequiredTables[[typeOfFile]]
   
   ## Step 0
   # Create the output directory if we need do 
-  ifelse(!dir.exists(file.path(paste0(outputFolder,subfolder))), dir.create(file.path(paste0(outputFolder,subfolder))), FALSE)
+  ifelse(!dir.exists(file.path(paste0(outputFolder,typeOfFile))), dir.create(file.path(paste0(outputFolder,typeOfFile))), FALSE)
   
   ## Step 1 - Filter the data
-  
-  DE <- RDBESdata[['DE']]
-  SD <- RDBESdata[['SD']]
-  VS <- RDBESdata[['VS']]
-  VD <- RDBESdata[['VD']]
-  FT <- RDBESdata[['FT']]
-  FO <- RDBESdata[['FO']]
-  SL <- RDBESdata[['SL']]
-  SS <- RDBESdata[['SS']]
-  SA <- RDBESdata[['SA']]
-  FM <- RDBESdata[['FM']]
-  BV <- RDBESdata[['BV']]
-  
-  # Filter by year and country
-  DE <- DE[DE$DEyear == yearToUse & DE$DEhierarchy == 1,]
-  SD <- SD[SD$DEid %in% DE$DEid & SD$SDcountry == country,]
-  VS <- VS[VS$SDid %in% SD$SDid,]
-  FT <- FT[FT$VSid %in% VS$VSid,]
-  FO <- FO[FO$FTid %in% FT$FTid,]
-  SS <- SS[SS$FOid %in% FO$FOid,]
-  SA <- SA[SA$SSid %in% SS$SSid,]
-  FM <- FM[FM$SAid %in% SA$SAid,]
-  BV <- BV[BV$FMid %in% FM$FMid | BV$SAid %in% SA$SAid,]
-  VD <- VD[VD$VDid %in% VS$VDid,]
-  SL <- SL[SL$SLlistName %in% SS$SSspeciesListName,]
-  
-  # Anonymise the vessels
-  #VD$VDpower <- NA
-  #VD$VDsize <-NA
-  
-  listOfFrames <- list("DE"=DE, "SD"=SD, "VS"=VS, "FT"=FT, "FO"=FO, "SS"=SS, "SA"=SA, "FM"=FM, "BV"=BV, "VD"=VD, "SL"=SL)
-  
-  newNames <- lapply(listOfFrames, function(x)  changeFieldNames(frameToRename = x, fieldNameMap = list_RDBES_Variables, typeOfChange = "DBtoR"))
-  
-  # Change the field names of the entries in our list of data frames
-  for (myFrame in  names(listOfFrames)){
-    names(listOfFrames[[myFrame]]) <- newNames[[myFrame]]
+  myCSData <- filterCSData(RDBESdata = RDBESdata , RequiredTables = requiredTables, YearToFilterBy = yearToUse, CountryToFilterBy = country, UpperHierarchyToFilterBy = upperHierarchy)
+
+  ## Step 2 Save the data
+  for (myRequiredTable in requiredTables){
+    frameToSave <- RDBESdata[[myRequiredTable]]
+    save(frameToSave, file = paste0(outputFolder,typeOfFile,"/",myRequiredTable, ".RData"))
   }
-
-  #names(listOfFrames[["BV"]])
-  #newNames[['BV']]
-  #names(BV)
-  
-  # The stupid save function can only save whole objects so we need to convert the members in a list
-  # back into single objects
-  DE <- listOfFrames[['DE']]
-  SD <- listOfFrames[['SD']]
-  VS <- listOfFrames[['VS']]
-  VD <- listOfFrames[['VD']]
-  FT <- listOfFrames[['FT']]
-  FO <- listOfFrames[['FO']]
-  SL <- listOfFrames[['SL']]
-  SS <- listOfFrames[['SS']]
-  SA <- listOfFrames[['SA']]
-  FM <- listOfFrames[['FM']]
-  BV <- listOfFrames[['BV']]
-  
-
-  save(DE, file = paste0(outputFolder,subfolder,"DE", ".RData"))
-  save(SD, file = paste0(outputFolder,subfolder,"SD", ".RData"))
-  save(VS, file = paste0(outputFolder,subfolder,"VS", ".RData"))
-  save(FT, file = paste0(outputFolder,subfolder,"FT", ".RData"))
-  save(FO, file = paste0(outputFolder,subfolder,"FO", ".RData"))
-  save(SS, file = paste0(outputFolder,subfolder,"SS", ".RData"))
-  save(SA, file = paste0(outputFolder,subfolder,"SA", ".RData"))
-  save(FM, file = paste0(outputFolder,subfolder,"FM", ".RData"))
-  save(BV, file = paste0(outputFolder,subfolder,"BV", ".RData"))
-  save(VD, file = paste0(outputFolder,subfolder,"VD", ".RData"))
-  save(SL, file = paste0(outputFolder,subfolder,"SL", ".RData"))
-  
   
 }
+
 
 
 
@@ -1752,61 +1570,5 @@ refreshReferenceDataFromICES <- function(codeListsToRefresh){
 
 
 
-#' #' loadReferenceDataFromXSD Searches a directory (recursively if desired) and then attempts to extract the allowed values from any .xsd files it finds there. The results are returned as a large data frame.
-#' #'
-#' #' @param directoryToSearch The directory to search
-#' #' @param recursive TRUE to search recursively
-#' #'
-#' #' @return
-#' #' @export
-#' #'
-#' #' @examples allowedValues <- loadReferenceDataFromXSD(directoryToSearch = "./referenceData/", recursive = TRUE)
-#' loadReferenceDataFromXSD <- function(directoryToSearch, recursive){
-#'   
-#'   # For testing
-#'   #directoryToSearch <- "./referenceData/"
-#'   #recursive <- FALSE
-#'   
-#'   filesToRead <- list.files(path = directoryToSearch, pattern = "*.xsd", recursive = recursive, full.names = TRUE)
-#'   
-#'   # This returns a list of data frames - 1 data frame for each file
-#'   myResults <- lapply(filesToRead, function(x) getAllowedValues(x) )
-#'   
-#'   # rbind all the data frames into a single data frame
-#'   myResults <- do.call("rbind", myResults)
-#'   
-#' }
-
-#' #' getAllowedValues Reads an XSD file from the ICES RDBES and extracts the list name and the allwoed values into a data frame.  NOTE: This doesn't currently do any error checking and assumes the structure of the XSD files is always the same - this might not be the case!
-#' #'
-#' #' @param fileName - the name of the file to read (including path)
-#' #'
-#' #' @return
-#' #' @export
-#' #'
-#' #' @examples getAllowedValues("./referenceData/RS_BiologicalMeasurementType.xsd")
-#' getAllowedValues<-function(fileName){
-#'   
-#'   # For testing
-#'   #fileName <- "./referenceData/EDMO.xsd"
-#'   
-#'   # Parse the XML
-#'   doc <- xmlTreeParse(fileName,useInternal= TRUE)
-#'   myXML <- xmlToList(doc)
-#'   
-#'   # Get the list name (assumes this is always defined within a simpleType)
-#'   listName <- as.character(myXML$simpleType$.attrs)
-#'   
-#'   # get the allowed values (assumes these are always defined as restictions within a simpleType)
-#'   myValues <- lapply(myXML$simpleType$restriction, function(x) { as.character(x[[1]]) })
-#'   # Don't want the attrs included in our allowed values so lets remove them
-#'   myValues[[".attrs"]]<-NULL
-#'   
-#'   # Put the results in a data frame
-#'   myDF <- data.frame(listName = listName, fileName = fileName, allowedValues = unlist(myValues), stringsAsFactors=FALSE)
-#'   
-#'   myDF
-#'   
-#' }
 
 

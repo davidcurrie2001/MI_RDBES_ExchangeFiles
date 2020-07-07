@@ -65,8 +65,6 @@ loadRDBESData <- function(connectionString){
                        ,BV = myBV
                        ,SL = mySL
                        ,VD = myVD
-                       #,Locodes = myLocodes
-                       #,Aphiaids = myAphiaIds
   )
   
   return(myRDBESData)
@@ -164,15 +162,19 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
   fwrite(myDataForFile, paste(outputFolder, "debug_", outputFileName,sep="") ,row.names=F,col.names=T,quote=F)
   
   # Now we'll get rid of the id values because we won't want them in our final output file
-  if (typeOfFile == 'CE'){
-    myDataForFile <- select(myDataForFile,-c(CEid))
-  } else if (typeOfFile == 'CL'){
-    myDataForFile <- select(myDataForFile,-c(CLid))
-  } else if (typeOfFile == 'VD') {
-    myDataForFile <- select(myDataForFile,-c(VDid))
-  } else if (typeOfFile == 'SL') {
-    myDataForFile <- select(myDataForFile,-c(SLid))
-  }
+  # if (typeOfFile == 'CE'){
+  #   myDataForFile <- select(myDataForFile,-c(CEid))
+  # } else if (typeOfFile == 'CL'){
+  #   myDataForFile <- select(myDataForFile,-c(CLid))
+  # } else if (typeOfFile == 'VD') {
+  #   myDataForFile <- select(myDataForFile,-c(VDid))
+  # } else if (typeOfFile == 'SL') {
+  #   myDataForFile <- select(myDataForFile,-c(SLid))
+  # }
+  
+  # Get rid of the XXid fields from our data - not included in the final output file
+  colstoRemove <- names(myDataForFile)[grepl("^..id$",names(myDataForFile))]
+  myDataForFile <- select(myDataForFile,-all_of(colstoRemove))
   
   # Get all the values from ceFile and list them out
   myFinalData <- do.call('paste',c(myDataForFile,sep=','))
@@ -377,6 +379,7 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   # Sort the output into the correct order
   csForCheckingOrdered <- csForChecking[order(FileSortOrder)]
   
+  # Write out a file with the row ids left in - used for debugging and checking the output
   fwrite(list(csForCheckingOrdered), paste(outputFolder,"debug_", outputFileName,sep="") ,row.names=F,col.names=F,quote=F)
   
   ## STEP 4) Create the real version of the output data
@@ -978,98 +981,24 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
   newErrors <- validateMissingTables(RDBESdataToCheck=RDBESdata,framesToCheck=framestoValidate)
   errorList <- rbind(errorList,newErrors)
   
-  # Remove any NAs from ths lis of tables (these are the tables we don't have)
+  # Remove any NAs from the list of tables (these are the tables we don't have)
   RDBESdata <- RDBESdata[!is.na(names(RDBESdata))]
   
-  # for each data frame in our list
+  # CHECK 2) see if we have any SA rows with inconsistent lower hierachy data
+  newErrors <- validateLowerHierarchy(RDBESdataToCheck=RDBESdata)
+  errorList <- rbind(errorList,newErrors)
+  
+  # Now we'll check each data frame in our list
   for (dfToCheck in RDBESdata){
     
-    #dfToCheck <- RDBESdata[[1]]
-    
-    # Clear out any errors from any earlier checking
-    newErrors <- NULL
-    
-    # Get the field names as a data frame
-    myDF <- data.frame(fieldName = names(dfToCheck), stringsAsFactors = FALSE)
-    # Join the field names to the field type data frame
-    fieldsAndTypes <- left_join(myDF,RDBESvalidationdata,by=c("fieldName" = "name"))
-    # Assume the id is always the first field - might be better to check the field names instead
-    myIDField <- names(dfToCheck)[[1]]
-    myTableName <- substr(myIDField,1,2)
-    print(paste("Validating ",myTableName,sep=""))
-    
-    # Check 2: Check if we are missing any fields
-    newErrors <- validateMissingFields(RDBESdataToCheck=dfToCheck,RDBESvalidationdata=RDBESvalidationdata, tableToCheck=myTableName )
+    # Validate the CS data frame
+    newErrors <- validateCSdataFrame(RDBESdataFrameToCheck=dfToCheck,RDBESvalidationdata=RDBESvalidationdata)
     errorList <- rbind(errorList,newErrors)
     
-    # CHECK 3: See if the fields are in the right order
-    newErrors <- validateFieldOrder(RDBESdataToCheck=dfToCheck,RDBESvalidationdata=RDBESvalidationdata, tableToCheck=myTableName )
-    errorList <- rbind(errorList,newErrors)
-    
-    
-
-    # Now we'll check each field in our current data frame
-    for (i in 1:length(names(dfToCheck))) {
-      #i <- 15
-      myFieldName <- names(dfToCheck)[[i]]
-      myFieldType <- fieldsAndTypes[fieldsAndTypes$fieldName == myFieldName,]
-      
-      ## Check 3) NA values
-      newErrors <- validateNAvalues(fieldToCheck=myFieldName,dataToCheck=dfToCheck,fieldTypeToCheck=myFieldType)
-      errorList <- rbind(errorList,newErrors)
-      
-      # Now that we have passed the NA check point lets get rid of any NA values so 
-      # we don't need to worry about them again
-      dfToCheckNotNA <- dfToCheck[!is.na(dfToCheck[,myFieldName]),]
-      
-        # Check 4 Do we know what type this field should be?
-        # If not, there's nothing much else we can do so skip to the end and log the error
-        
-        # Check if we know what types this field should have
-        if (!is.na(myFieldType$type)){
-          myType <- myFieldType$type
-          
-          # We only want to carry on with further checks if we actually have some non-NA rows  
-          # otherwise we can get validation errors where a field in the data frame is technically the wrong data type 
-          # but if there is no data in the field the online RDBES validator won't know or care about that....
-          if (nrow(dfToCheckNotNA) >0) {
-          
-            # IF simple type
-            if (length(grep("xs:",myType)) > 0) {
-              
-              # CHeck 5 For simple data types we'll see if we have the right format data
-              newErrors <- validateSimpleTypes(fieldToCheck=myFieldName,dataToCheck=dfToCheckNotNA,fieldTypeToCheck=myFieldType)
-              errorList <- rbind(errorList,newErrors)
-  
-              # ELSE code list
-            } else {
-              
-              # Check 6 If we're dealing with code lists we need to see if we have allowed values
-              newErrors <- validateAgainstCodeList(fieldToCheck=myFieldName,dataToCheck=dfToCheckNotNA,fieldTypeToCheck=myFieldType, codeLists = allowedValues)
-              errorList <- rbind(errorList,newErrors)
-                
-            } # ENDIF simple type / code list 
-          } # No non-NA rows
-          
-      # ELSE could not find validation inforation on this field so log an error
-     } else {
-       
-        # id and recordType fields don't have validation information so don't bother recording an error for those types of fields
-        if (length(grep("^..id$",myFieldName)) == 0 & length(grep("^..recordType$",myFieldName)) == 0){
-          errorList <- logValidationError(errorList = errorList
-                                          ,tableName = myTableName
-                                          ,rowID = NA
-                                          ,fieldName = myFieldName
-                                          ,problemType = "Code list missing"
-                                          ,problemDescription = paste("Could not find validation information for ", myFieldName, sep = " "))
-        }
-      } #EndIF validation infromation exists / does not exist
-    } # Endfor each field in frame
-  } # Endfor each frame in RDBES data list
+  } 
   
   # If we want shorter output we won't show every error  - just the first of each type
   if (shortOutput){
-    
     fieldsToKeep <- names(errorList)
     # Sort the errors
     errorList <- errorList[order(errorList$tableName, errorList$fieldName, errorList$problemType, errorList$rowID),]
@@ -1116,7 +1045,7 @@ validateMissingTables <- function(RDBESdataToCheck,framesToCheck){
   missingTables <-framesToCheck[!framesToCheck %in% names(RDBESdataToCheck)]
   
   if (length(missingTables)>0){
-    errorsToReturn <- logValidationError(errorList = NULL
+    errorsToReturn <- logValidationError(errorListToAppendTo = NULL
                                     ,tableName = missingTables
                                     ,rowID = NA
                                     ,fieldName = NA
@@ -1127,6 +1056,134 @@ validateMissingTables <- function(RDBESdataToCheck,framesToCheck){
   errorsToReturn
 
 }
+
+#' validateCSdataFrame Internal function used to validate a CS data drame
+#'
+#' @param RDBESdataFrameToCheck 
+#' @param RDBESvalidationdata 
+#'
+#' @return
+#'
+#' @examples
+validateCSdataFrame <- function(RDBESdataFrameToCheck,RDBESvalidationdata){
+  
+  errorsToReturn <- NULL
+  
+  dfToCheck <- RDBESdataFrameToCheck
+  
+  # Clear out any errors from any earlier checking
+  newErrors <- NULL
+  
+  # Get the field names as a data frame
+  myDF <- data.frame(fieldName = names(dfToCheck), stringsAsFactors = FALSE)
+  # Join the field names to the field type data frame
+  fieldsAndTypes <- left_join(myDF,RDBESvalidationdata,by=c("fieldName" = "name"))
+  # Assume the id is always the first field - might be better to check the field names instead
+  myIDField <- names(dfToCheck)[[1]]
+  myTableName <- substr(myIDField,1,2)
+  print(paste("Validating ",myTableName,sep=""))
+  
+  # Check 2: Check if we are missing any fields
+  newErrors <- validateMissingFields(RDBESdataToCheck=dfToCheck,RDBESvalidationdata=RDBESvalidationdata, tableToCheck=myTableName )
+  errorsToReturn <- rbind(errorsToReturn,newErrors)
+  
+  # CHECK 3: See if the fields are in the right order
+  newErrors <- validateFieldOrder(RDBESdataToCheck=dfToCheck,RDBESvalidationdata=RDBESvalidationdata, tableToCheck=myTableName )
+  errorsToReturn <- rbind(errorsToReturn,newErrors)
+  
+  # Now we'll check each field in our current data frame
+  for (i in 1:length(names(dfToCheck))) {
+    #i <- 15
+    
+    # Get the current field and its validation infromation
+    myFieldName <- names(dfToCheck)[[i]]
+    #print(myFieldName)
+    myFieldType <- fieldsAndTypes[fieldsAndTypes$fieldName == myFieldName,]
+
+    
+    #Validate the field
+    newErrors <- validateCSdataFrameField(fieldToCheck=myFieldName,dataToCheck=dfToCheck,fieldTypeToCheck=myFieldType)
+    errorsToReturn <- rbind(errorsToReturn,newErrors)
+    
+  }
+  
+  errorsToReturn
+  
+}
+
+#' validateCSdataFrameField Internal function used to validate a field within a CS data frame
+#'
+#' @param fieldToCheck 
+#' @param dataToCheck 
+#' @param fieldTypeToCheck 
+#'
+#' @return
+#'
+#' @examples
+validateCSdataFrameField <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
+  
+  errorsToReturn <- NULL
+  
+  myFieldName <- fieldToCheck
+  dfToCheck <- dataToCheck
+  myFieldType <- fieldTypeToCheck
+  
+  ## Check 3) NA values
+  newErrors <- validateNAvalues(fieldToCheck=myFieldName,dataToCheck=dfToCheck,fieldTypeToCheck=myFieldType)
+  errorsToReturn <- rbind(errorsToReturn,newErrors)
+  
+  # Now that we have passed the NA check point lets get rid of any NA values so 
+  # we don't need to worry about them again
+  dfToCheckNotNA <- dfToCheck[!is.na(dfToCheck[,myFieldName]),]
+  
+  # Check 4 Do we know what type this field should be?
+  # If not, there's nothing much else we can do so skip to the end and log the error
+  
+  # Check if we know what types this field should have
+  if (!is.na(myFieldType$type)){
+    myType <- myFieldType$type
+    
+    # We only want to carry on with further checks if we actually have some non-NA rows  
+    # otherwise we can get validation errors where a field in the data frame is technically the wrong data type 
+    # but if there is no data in the field the online RDBES validator won't know or care about that....
+    if (nrow(dfToCheckNotNA) >0) {
+      
+      # IF simple type
+      if (length(grep("xs:",myType)) > 0) {
+        
+        # CHeck 5 For simple data types we'll see if we have the right format data
+        newErrors <- validateSimpleTypes(fieldToCheck=myFieldName,dataToCheck=dfToCheckNotNA,fieldTypeToCheck=myFieldType)
+        errorsToReturn <- rbind(errorsToReturn,newErrors)
+        
+        # ELSE code list
+      } else {
+        
+        # Check 6 If we're dealing with code lists we need to see if we have allowed values
+        newErrors <- validateAgainstCodeList(fieldToCheck=myFieldName,dataToCheck=dfToCheckNotNA,fieldTypeToCheck=myFieldType, codeLists = allowedValues)
+        errorsToReturn <- rbind(errorsToReturn,newErrors)
+        
+      } # ENDIF simple type / code list 
+    } # No non-NA rows
+    
+    # ELSE could not find validation information on this field so log an error
+  } else {
+    
+    # id and recordType fields don't have validation information so don't bother recording an error for those types of fields
+    if (length(grep("^..id$",myFieldName)) == 0 & length(grep("^..recordType$",myFieldName)) == 0){
+      newErrors <- logValidationError(errorListToAppendTo = NULL
+                                      ,tableName = substr(myFieldName,1,2)
+                                      ,rowID = NA
+                                      ,fieldName = myFieldName
+                                      ,problemType = "Code list missing"
+                                      ,problemDescription = paste("Could not find validation information for ", myFieldName, sep = " "))
+      errorsToReturn <- rbind(errorsToReturn,newErrors)
+    }
+  } #EndIF validation infromation exists / does not exist
+  
+  errorsToReturn
+  
+}
+
 
 
 #' validateMissingFields Internal function used by validateTables
@@ -1152,7 +1209,7 @@ validateMissingFields <- function(RDBESdataToCheck,RDBESvalidationdata,tableToCh
   # If we have some missing fields lets log them as an error
   if (nrow(missingFields) > 0){
     #Log the error
-    errorsToReturn <- logValidationError(errorList = NULL
+    errorsToReturn <- logValidationError(errorListToAppendTo = NULL
                                     ,tableName = tableToCheck
                                     ,rowID = NA
                                     ,fieldName = missingFields$name
@@ -1163,7 +1220,6 @@ validateMissingFields <- function(RDBESdataToCheck,RDBESvalidationdata,tableToCh
   errorsToReturn
 
 }
-
 
 
 
@@ -1194,7 +1250,7 @@ validateFieldOrder <- function(RDBESdataToCheck,RDBESvalidationdata,tableToCheck
   # If the values aren't the same (including the same order) then log an error
   if (!identical(toupper(missingFieldsCheck$name),toupper(myDFNamesToCheck))){
     #Log the error
-    errorsToReturn <- logValidationError(errorList = NULL
+    errorsToReturn <- logValidationError(errorListToAppendTo = NULL
                                          ,tableName = tableToCheck
                                          ,rowID = NA
                                          ,fieldName = NA
@@ -1206,6 +1262,122 @@ validateFieldOrder <- function(RDBESdataToCheck,RDBESvalidationdata,tableToCheck
   
 }
 
+#' validateLowerHierarchy Internal function to check if the values of SAlowerHierarchy are consistent with the FM/BV data available
+#'
+#' @param RDBESdataToCheck 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+validateLowerHierarchy <- function(RDBESdataToCheck){
+  
+  # For testing
+  #RDBESdataToCheck <- myRDBESData
+  
+  errorsToReturn <- NULL
+  
+  # We need to check the SA, FM, and BV tables 
+  SAdataToCheck <- RDBESdataToCheck[['SA']]
+  FMdataToCheck <- RDBESdataToCheck[['FM']]
+  BVdataToCheck <- RDBESdataToCheck[['BV']]
+  
+  if (is.null(SAdataToCheck) | is.null(FMdataToCheck) | is.null(BVdataToCheck)){
+    print("Either SA, or FM, or BV don't exist in the data to validate - so we are not running the validateLowerHierarchy check")
+  } 
+  # Check the lower hierarchy sample
+  else {
+  
+    # Split data by lower hierarchy
+    lowerA <- SAdataToCheck[SAdataToCheck$SAlowerHierarchy == 'A',]
+    lowerB <- SAdataToCheck[SAdataToCheck$SAlowerHierarchy == 'B',]
+    lowerC <- SAdataToCheck[SAdataToCheck$SAlowerHierarchy == 'C',]
+    lowerD <- SAdataToCheck[SAdataToCheck$SAlowerHierarchy == 'D',]
+  
+    # A: Check that samples with lower hierarchy B only have FM rows associated with them
+    if (nrow(lowerA)>0){
+      # If there are any A SA rows WITH links to BV OR WITHOUT links to FM
+      if (nrow(lowerA[lowerA$SAid %in% BVdataToCheck$SAid,])> 0 | nrow(lowerA[!lowerA$SAid %in% FMdataToCheck$SAid,])> 0){
+        
+        problemSAFM <- lowerA[!lowerA$SAid %in% FMdataToCheck$SAid,]
+        problemSABV <- lowerA[lowerA$SAid %in% BVdataToCheck$SAid,]
+        problemSA <- rbind(problemSAFM,problemSABV)
+        
+        someErrors <- logValidationError(errorListToAppendTo = NULL
+                                         ,tableName = 'SA'
+                                         ,rowID = problemSA[,1]
+                                         ,fieldName = 'SAlowerHierarchy'
+                                         ,problemType = "Lower hierarchy A check"
+                                         ,problemDescription = 'Sample is either incorrectly linked to BV or not linked to FM')
+        errorsToReturn <- rbind(errorsToReturn,someErrors)
+      }
+    }
+    
+    
+    # B: Check that samples with lower hierarchy B only have FM rows associated with them
+    if (nrow(lowerB)>0){
+      # If there are any B SA rows WITH links to BV OR WITHOUT links to FM
+      if (nrow(lowerB[lowerB$SAid %in% BVdataToCheck$SAid,])> 0 | nrow(lowerB[!lowerB$SAid %in% FMdataToCheck$SAid,])> 0){
+        
+        problemSAFM <- lowerB[!lowerB$SAid %in% FMdataToCheck$SAid,]
+        problemSABV <- lowerB[lowerB$SAid %in% BVdataToCheck$SAid,]
+        problemSA <- rbind(problemSAFM,problemSABV)
+        
+        someErrors <- logValidationError(errorListToAppendTo = NULL
+                                         ,tableName = 'SA'
+                                         ,rowID = problemSA[,1]
+                                         ,fieldName = 'SAlowerHierarchy'
+                                         ,problemType = "Lower hierarchy B check"
+                                         ,problemDescription = 'Sample is either incorrectly linked to BV or not linked to FM')
+        errorsToReturn <- rbind(errorsToReturn,someErrors)
+      }
+    }
+    
+      
+    # C: Check that samples with lower hierarchy C only have BV rows associated with them
+    if (nrow(lowerC)>0){
+      # If there are any C SA rows WITHOUT links to BV OR WITH links to FM
+      if (nrow(lowerC[!lowerC$SAid %in% BVdataToCheck$SAid,])> 0 | nrow(lowerC[lowerC$SAid %in% FMdataToCheck$SAid,])> 0){
+        
+        problemSAFM <- lowerC[lowerC$SAid %in% FMdataToCheck$SAid,]
+        problemSABV <- lowerC[!lowerC$SAid %in% BVdataToCheck$SAid,]
+        problemSA <- rbind(problemSAFM,problemSABV)
+        
+        someErrors <- logValidationError(errorListToAppendTo = NULL
+                                         ,tableName = 'SA'
+                                         ,rowID = problemSA[,1]
+                                         ,fieldName = 'SAlowerHierarchy'
+                                         ,problemType = "Lower hierarchy C check"
+                                         ,problemDescription = 'Sample is either not linked to BV or incorrectly linked to FM')
+        errorsToReturn <- rbind(errorsToReturn,someErrors)
+      }
+    }
+    
+    
+    # D: Check that samples with lower hierarchy D have no FM or BV rows assoicated with them
+    if (nrow(lowerD)>0){
+      if (nrow(lowerD[lowerD$SAid %in% BVdataToCheck$SAid,])> 0 | nrow(lowerD[lowerD$SAid %in% FMdataToCheck$SAid,])> 0){
+        
+        problemSAFM <- lowerD[lowerD$SAid %in% FMdataToCheck$SAid,]
+        problemSABV <- lowerD[lowerD$SAid %in% BVdataToCheck$SAid,]
+        problemSA <- rbind(problemSAFM,problemSABV)
+        
+        someErrors <- logValidationError(errorListToAppendTo = NULL
+                              ,tableName = 'SA'
+                              ,rowID = problemSA[,1]
+                              ,fieldName = 'SAlowerHierarchy'
+                              ,problemType = "Lower hierarchy D check"
+                              ,problemDescription = 'Sample is linked to either FM or BV data')
+        errorsToReturn <- rbind(errorsToReturn,someErrors)
+      }
+    }
+  
+  }
+  
+  errorsToReturn
+  
+  
+}
 
 #' validateNAvalues Internal function used by validateTables
 #'
@@ -1227,7 +1399,7 @@ validateNAvalues <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
     # if we are not allowed to have empty values here then log an error
     if (ifelse(is.na(fieldTypeToCheck$min),0,fieldTypeToCheck$min) >0){
       #Log the error
-      errorsToReturn <- logValidationError(errorList = NULL
+      errorsToReturn <- logValidationError(errorListToAppendTo = NULL
                                       ,tableName = substr(fieldToCheck,1,2)
                                       ,rowID = myValuesNA[,1]
                                       ,fieldName = fieldToCheck
@@ -1286,7 +1458,7 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
         # If we have soem values that are too small - log an error
         if (nrow(valueTooSmall)){
           #Log the error
-          someErrors <- logValidationError(errorList = NULL
+          someErrors <- logValidationError(errorListToAppendTo = NULL
                                            ,tableName = substr(fieldToCheck,1,2)
                                            ,rowID = valueTooSmall[,1]
                                            ,fieldName = fieldToCheck
@@ -1302,7 +1474,7 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
         # If we have soem values that are too big - log an error
         if (nrow(valueTooBig)){
           #Log the error
-          someErrors <- logValidationError(errorList = NULL
+          someErrors <- logValidationError(errorListToAppendTo = NULL
                                            ,tableName = substr(fieldToCheck,1,2)
                                            ,rowID = valueTooBig[,1]
                                            ,fieldName = fieldToCheck
@@ -1324,7 +1496,7 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
     myNonIntValues <- dataToCheck[!as.numeric(dataToCheck[,fieldToCheck])%%1==0,]
     if (nrow(myNonIntValues)>0){
       #Log the error
-      someErrors <- logValidationError(errorList = NULL
+      someErrors <- logValidationError(errorListToAppendTo = NULL
                                       ,tableName = substr(fieldToCheck,1,2)
                                       ,rowID = myNonIntValues[,1]
                                       ,fieldName = fieldToCheck
@@ -1338,7 +1510,7 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
     myNonDecValues <- dataToCheck[!is.numeric(dataToCheck[,fieldToCheck]),]
     if (nrow(myNonDecValues)>0){
       #Log the error
-      someErrors <- logValidationError(errorList = NULL
+      someErrors <- logValidationError(errorListToAppendTo = NULL
                                       ,tableName = substr(fieldToCheck,1,2)
                                       ,rowID = myNonDecValues[,1]
                                       ,fieldName = fieldToCheck
@@ -1363,7 +1535,7 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
           # If we have too many numbers after the decimal place
           if (nrow(dataWithTooManyDps)>0){
             #Log the error
-            someErrors <- logValidationError(errorList = NULL
+            someErrors <- logValidationError(errorListToAppendTo = NULL
                                             ,tableName = substr(fieldToCheck,1,2)
                                             ,rowID = dataWithTooManyDps[,1]
                                             ,fieldName = fieldToCheck
@@ -1390,7 +1562,7 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
         # If we have soem strings that are too long 
         if (nrow(stringTooLong)){
           #Log the error
-          someErrors <- logValidationError(errorList = NULL
+          someErrors <- logValidationError(errorListToAppendTo = NULL
                                            ,tableName = substr(fieldToCheck,1,2)
                                            ,rowID = stringTooLong[,1]
                                            ,fieldName = fieldToCheck
@@ -1410,7 +1582,7 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
         # If we have soem strings that don't match the pattern 
         if (nrow(patternNotMatched)){
           #Log the error
-          someErrors <- logValidationError(errorList = NULL
+          someErrors <- logValidationError(errorListToAppendTo = NULL
                                            ,tableName = substr(fieldToCheck,1,2)
                                            ,rowID = patternNotMatched[,1]
                                            ,fieldName = fieldToCheck
@@ -1454,7 +1626,7 @@ validateAgainstCodeList <- function(fieldToCheck,dataToCheck,fieldTypeToCheck,co
     # If we have soem values that aren't in the allowed list flag them as errors
     if (nrow(myResults)>0){
       #Log the error
-      errorsToReturn <- logValidationError(errorList = NULL
+      errorsToReturn <- logValidationError(errorListToAppendTo = NULL
                                       ,tableName = substr(fieldToCheck,1,2)
                                       ,rowID = myResults[,1]
                                       ,fieldName = fieldToCheck
@@ -1464,7 +1636,7 @@ validateAgainstCodeList <- function(fieldToCheck,dataToCheck,fieldTypeToCheck,co
     # ELSE if we didn't find a list of allowed values then log that as an error
   } else {
     #Log the error
-    errorsToReturn <- logValidationError(errorList = NULL
+    errorsToReturn <- logValidationError(errorListToAppendTo = NULL
                                     ,tableName = substr(fieldToCheck,1,2)
                                     ,rowID = NA
                                     ,fieldName = fieldToCheck
@@ -1475,6 +1647,7 @@ validateAgainstCodeList <- function(fieldToCheck,dataToCheck,fieldTypeToCheck,co
   errorsToReturn
   
 }
+
 
 
 

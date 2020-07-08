@@ -425,12 +425,20 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
 #' @examples
 filterCSData <- function(RDBESdata, RequiredTables, YearToFilterBy, CountryToFilterBy, UpperHierarchyToFilterBy){
   
+  # For testing
+  # RDBESdata <- myRDBESData
+  # RequiredTables <- requiredTables
+  # YearToFilterBy <- 2017
+  # CountryToFilterBy <- 'IE'
+  # UpperHierarchyToFilterBy <- 1
+  
   myCSData <- list()
   myData <- NULL
   previousRequiredTable <- NULL
   
   # Get the data for each required table - filter by year, country, and upper hierarchy
   for (myRequiredTable in RequiredTables){
+
     myData <- RDBESdata[[myRequiredTable]]
     
     # Need to filter DE by year and upper hieararchy

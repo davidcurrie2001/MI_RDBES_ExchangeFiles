@@ -29,7 +29,7 @@ myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
 
 # Can check errros from individual tables using e.g.
-#View(errors[errors$tableName == 'BV',])
+#View(errors[errors$tableName == 'FO',])
 
 ## STEP 3) GENERATE SIMPLE EXCHANGE FILES (CL,CE,SL,VD)
 
@@ -49,7 +49,8 @@ generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = 2017, country = 'IE', 
 ## STEP 4) GENERATE COMPLEX EXCHANGE FILES (CS)
 
 #UGLY HACKS - these are temporary fixes for my data - they will be removed once correct values are added to reference lists
-# Temporary fix
+# Temporary fixes
+myRDBESData[['FO']][myRDBESData[['FO']]$FOgear == 'OTQ',"FOgear"] <- "OTB"
 myRDBESData[['SA']]$SAspeciesCodeFAO <- NA
 
 # Create an H1 CS file

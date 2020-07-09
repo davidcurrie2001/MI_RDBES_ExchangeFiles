@@ -5,6 +5,7 @@ library(XML)
 library(icesVocab)
 library(RCurl)
 library(httr)
+library(readxl)
 
 # Location for our output files
 outputFolder <- "./output/"
@@ -664,7 +665,67 @@ saveRDataFilesForCS <- function(typeOfFile, yearToUse, country, RDBESdata, Requi
   
 }
 
+getDataModelSpreadsheets <- function(downloadFromGitHub= TRUE, fileLocation){
+  
+  # For testing
+  downloadFromGitHub = TRUE
+  fileLocation <- './tableDefs/'
+  
+  
+  if (downloadFromGitHub){
+    
+    myDataModelFiles <- NULL
+    myResponse <- GET("https://api.github.com/repos/ices-tools-dev/RDBES/contents/Documents")
+    filesOnGitHub <- content(myResponse)
 
+    for (myFile in filesOnGitHub){
+      myGitHubFile <- data.frame(fileName = myFile$name, downloadURL = myFile$download_url)
+      if (is.null(myDataModelFiles)){
+        myDataModelFiles <- myGitHubFile 
+      } else {
+        myDataModelFiles <- rbind(myDataModelFiles,myGitHubFile)
+      }
+    }
+    # Sub-set to the files we are interested in
+    myDataModelFiles <- myDataModelFiles[grepl('^.*Data Model.*xlsx$',myDataModelFiles$fileName),]
+    
+    print(paste("Downloading ",nrow(myDataModelFiles), " files from GitHub", sep =""))
+        
+    # Download our files
+    for (i in 1:nrow(myDataModelFiles)){
+      aDataModelFile <- getBinaryURL(myDataModelFiles[i,'downloadURL'])
+      # save the file locally
+      myFile = file(paste(fileLocation,myDataModelFiles[i,'fileName'], sep = ""), "wb")
+      writeBin(aDataModelFile, myFile)
+      aDataModelFile <- NA
+    }
+
+  }
+  
+  # Get the CE and CL infromation first
+  myCECLFile <- myDataModelFiles[grepl('^.*CL CE.*xlsx$',myDataModelFiles$fileName),]
+  myCECLFileLocation <- paste(fileLocation,myCECLFile[1,'fileName'], sep = "")
+  myCECLFileSheets <- excel_sheets(myCECLFileLocation)
+
+  dataModelCE <- read_excel(myCECLFileLocation,sheet = myCECLFileSheets[grepl(".*CE.*",myCECLFileSheets)])
+  dataModelCL <- read_excel(myCECLFileLocation,sheet = myCECLFileSheets[grepl(".*CL.*",myCECLFileSheets)])
+  
+  # Now try CS
+  myCSFile <- myDataModelFiles[myDataModelFiles$fileName == "RDBES Data Model.xlsx",]
+  myCSFileLocation <- paste(fileLocation,myCSFile[1,'fileName'], sep = "")
+  myCSFileSheets <- excel_sheets(myCSFileLocation)
+  
+  dataModelCS <- list()
+  # Skip the first sheet
+  #for (i in 2:length(myCSFileSheets)) {
+  for (i in 2:4) {
+    print(paste("Loading ", myCSFileSheets[i], sep = ""))
+    myDataModel <- read_excel(myCSFileLocation,sheet = myCSFileSheets[i])
+    
+    dataModelCS[[myCSFileSheets[i]]] <- myDataModel
+
+  }
+}
 
 
 #' changeFieldNames Change the field names of an RDBES data either from database names to R names or vice versa
@@ -858,7 +919,7 @@ getTablesInHierarchies <- function(downloadFromGitHub = TRUE, fileLocation){
     myHierarchyFiles <- NULL
     myResponse <- GET("https://api.github.com/repos/ices-tools-dev/RDBES/contents/XSD-files")
     filesOnGitHub <- content(myResponse)
-    print(paste("Downloading ",length(filesOnGitHub), " files from GitHub", sep =""))
+
     for (myFile in filesOnGitHub){
       myGitHubFile <- data.frame(fileName = myFile$name, downloadURL = myFile$download_url)
       if (is.null(myHierarchyFiles)){
@@ -869,7 +930,9 @@ getTablesInHierarchies <- function(downloadFromGitHub = TRUE, fileLocation){
     }
     # Sub-set to the files we are interested in
     myHierarchyFiles <- myHierarchyFiles[grepl('^H.*xsd$',myHierarchyFiles$fileName),]
-    
+
+    print(paste("Downloading ",nrow(myHierarchyFiles), " files from GitHub", sep =""))
+        
     # Download our files
     for (i in 1:nrow(myHierarchyFiles)){
       anHierarchyFile <- getURL(myHierarchyFiles[i,'downloadURL'])
@@ -1513,7 +1576,7 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
       errorsToReturn <- rbind(errorsToReturn,someErrors)
     }
     # Decimal
-  } else if (myTypeToCheck == "xs:decimal"){
+  } else if (myTypeToCheck == "xs:decimal" | myTypeToCheck == "xs:long"){
     # Check for any non numeric values
     myNonDecValues <- dataToCheck[!is.numeric(dataToCheck[,fieldToCheck]),]
     if (nrow(myNonDecValues)>0){
@@ -1523,7 +1586,7 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
                                       ,rowID = myNonDecValues[,1]
                                       ,fieldName = fieldToCheck
                                       ,problemType = "Data type check"
-                                      ,problemDescription = paste("Data type problem (decimal);",paste(substr(fieldToCheck,1,2),"id", sep=""),":", myNonDecValues[,1], " ;Column:",fieldToCheck, ";Unallowed value:",myNonDecValues[,fieldToCheck], sep = " "))
+                                      ,problemDescription = paste("Data type problem (decimal/long);",paste(substr(fieldToCheck,1,2),"id", sep=""),":", myNonDecValues[,1], " ;Column:",fieldToCheck, ";Unallowed value:",myNonDecValues[,fieldToCheck], sep = " "))
       errorsToReturn <- rbind(errorsToReturn,someErrors)
     }
     # Now see if we need to do any simpleTypeChecks on our decimal (e.g. precision)

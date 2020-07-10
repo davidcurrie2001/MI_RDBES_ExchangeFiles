@@ -61,13 +61,13 @@ generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE',
 saveRDataFilesForCS(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, RequiredTables = requiredTables)
 #loadRDataFiles(directoryToSearch="./output/H1")
 
-## These functions aren't updated yet
 
-# Load the column name mapping file
-#load(file="./output/List_RDBES_Variables_v1.17.Rdata")
-# Example of how to change from DB names to R names and vice versa
-#rNames <- changeFieldNames(frameToRename = myRDBESData[["BV"]], fieldNameMap = list_RDBES_Variables, typeOfChange = "DBtoR")
-#names(myRDBESData[["BV"]]) <- rNames
-#dbNames <- changeFieldNames(frameToRsename = myRDBESData[["BV"]], fieldNameMap = list_RDBES_Variables, typeOfChange = "RtoDB")
-#names(myRDBESData[["BV"]]) <- dbNames
+
+## If you want to you can switch between using the database field names or the shorter R names for the different columns in our data 
+
+#fieldNameMapping <- getFieldNameMapping(downloadFromGitHub= TRUE, fileLocation = './tableDefs/')
+fieldNameMapping <- getFieldNameMapping(downloadFromGitHub= FALSE, fileLocation = './tableDefs/')
+
+myChangedRDBESData <- changeFieldNames(RDBESdata = myRDBESData, fieldNameMap = fieldNameMapping, typeOfChange = "DBtoR")
+
 

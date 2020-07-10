@@ -665,17 +665,28 @@ saveRDataFilesForCS <- function(typeOfFile, yearToUse, country, RDBESdata, Requi
   
 }
 
-getDataModelSpreadsheets <- function(downloadFromGitHub= TRUE, fileLocation){
+#' getFieldNameMapping Get a data frame that maps between database names and the shorter R names
+#'
+#' @param downloadFromGitHub TRUE if you want to download the latest data model spreadsheets from GitHub
+#' @param gitHubDirectory (Optional) Default value is "https://api.github.com/repos/ices-tools-dev/RDBES/contents/Documents"
+#' @param fileLocation The location you want to save and read the data model spredsheet from
+#'
+#' @return
+#' @export
+#'
+#' @examples
+getFieldNameMapping <- function(downloadFromGitHub= TRUE, gitHubDirectory = "https://api.github.com/repos/ices-tools-dev/RDBES/contents/Documents",  fileLocation){
   
   # For testing
-  downloadFromGitHub = TRUE
-  fileLocation <- './tableDefs/'
+  #downloadFromGitHub = TRUE
+  #fileLocation <- './tableDefs/'
+  #gitHubDirectory <- "https://api.github.com/repos/ices-tools-dev/RDBES/contents/Documents"
   
   
   if (downloadFromGitHub){
     
     myDataModelFiles <- NULL
-    myResponse <- GET("https://api.github.com/repos/ices-tools-dev/RDBES/contents/Documents")
+    myResponse <- GET(gitHubDirectory)
     filesOnGitHub <- content(myResponse)
 
     for (myFile in filesOnGitHub){
@@ -695,40 +706,98 @@ getDataModelSpreadsheets <- function(downloadFromGitHub= TRUE, fileLocation){
     for (i in 1:nrow(myDataModelFiles)){
       aDataModelFile <- getBinaryURL(myDataModelFiles[i,'downloadURL'])
       # save the file locally
-      myFile = file(paste(fileLocation,myDataModelFiles[i,'fileName'], sep = ""), "wb")
-      writeBin(aDataModelFile, myFile)
+      myFileConnection = file(paste(fileLocation,myDataModelFiles[i,'fileName'], sep = ""), "wb")
+      writeBin(aDataModelFile, myFileConnection)
       aDataModelFile <- NA
+      close(myFileConnection)
     }
-
-  }
-  
-  # Get the CE and CL infromation first
-  myCECLFile <- myDataModelFiles[grepl('^.*CL CE.*xlsx$',myDataModelFiles$fileName),]
-  myCECLFileLocation <- paste(fileLocation,myCECLFile[1,'fileName'], sep = "")
-  myCECLFileSheets <- excel_sheets(myCECLFileLocation)
-
-  dataModelCE <- read_excel(myCECLFileLocation,sheet = myCECLFileSheets[grepl(".*CE.*",myCECLFileSheets)])
-  dataModelCL <- read_excel(myCECLFileLocation,sheet = myCECLFileSheets[grepl(".*CL.*",myCECLFileSheets)])
-  
-  # Now try CS
-  myCSFile <- myDataModelFiles[myDataModelFiles$fileName == "RDBES Data Model.xlsx",]
-  myCSFileLocation <- paste(fileLocation,myCSFile[1,'fileName'], sep = "")
-  myCSFileSheets <- excel_sheets(myCSFileLocation)
-  
-  dataModelCS <- list()
-  # Skip the first sheet
-  #for (i in 2:length(myCSFileSheets)) {
-  for (i in 2:4) {
-    print(paste("Loading ", myCSFileSheets[i], sep = ""))
-    myDataModel <- read_excel(myCSFileLocation,sheet = myCSFileSheets[i])
     
-    dataModelCS[[myCSFileSheets[i]]] <- myDataModel
+    print("Finished downloading")
 
   }
+  
+  # Now we'll read the spreadsheets
+  # (Need to find the names of the files again in case we haven't dowloaded them in this function call)
+  
+  filesToRead <- list.files(path = fileLocation, pattern = "*.xlsx", recursive = FALSE, full.names = FALSE)
+  
+  dataModel <- list()
+  
+  # get the contents of each relevent worksheet in our spreadsheets
+  for (myfile in filesToRead){
+    
+    myFileLocation <- paste(fileLocation,myfile, sep = "")
+    myFileSheets <- excel_sheets(myFileLocation)
+    
+    # CE CL
+    if (grepl('^.*CL CE.*xlsx$',myfile)){
+    
+      print("Loading CL CE names")
+      # Add the sheets to the dataModel list
+      dataModel[['CE']] <- read_excel(myFileLocation,sheet = myFileSheets[grepl(".*CE.*",myFileSheets)])
+      dataModel[['CL']] <- read_excel(myFileLocation,sheet = myFileSheets[grepl(".*CL.*",myFileSheets)])
+    } 
+    # VD SL
+    else if (grepl('^.*VD SL.*xlsx$',myfile)){
+      
+      print("Loading VD SL names")
+      # Add the sheets to the dataModel list
+      dataModel[['VD']] <- read_excel(myFileLocation,sheet = myFileSheets[grepl(".*Vessel.*",myFileSheets)])
+      dataModel[['SL']] <- read_excel(myFileLocation,sheet = myFileSheets[grepl(".*Species.*",myFileSheets)])
+      
+    } 
+    # CS
+    else if (myfile == "RDBES Data Model.xlsx"){
+      
+      for (aFileSheet in myFileSheets) {
+        if (!grepl(".*Model.*",aFileSheet)){
+          print(paste("Loading ", aFileSheet, " names", sep = ""))
+          myDataModel <- read_excel(myFileLocation,sheet = aFileSheet)
+          dataModel[[aFileSheet]] <- myDataModel
+        }
+        
+      }
+    }
+  }
+  
+  # Put the field names and R names from each entry in the list into a single data frame
+  
+  myNameMappings <- NULL
+  
+  for (i in 1:length(dataModel)){
+
+    myDataModelEntry <- dataModel[[i]]
+    validColumnNames <- names(myDataModelEntry)[names(myDataModelEntry) %in% c("Field Name","R Name")]
+    
+    if (length(validColumnNames == 2)) {
+      aNameMapping <- myDataModelEntry[,c("Field Name","R Name")]
+      
+      # Add in the Table Name - based on the first 2 letters of the first entry
+      if (nrow(aNameMapping)>0) {
+        tableName <- substr(aNameMapping[1,1],1,2)
+      } else {
+        tableName <- NA
+      }
+      aNameMapping$TableName <- tableName
+      
+      myNameMappings <- rbind(myNameMappings,aNameMapping)
+    } else {
+      print(paste("Not including ",names(dataModel)[i], " in mapping due to invalid column names",sep=""))
+    }
+    
+  }
+  
+  # Remove any NAs
+  if (!is.null(myNameMappings)){
+    myNameMappings <- myNameMappings[!is.na(myNameMappings[,"Field Name"]) & !is.na(myNameMappings[,"R Name"]),]
+  }
+  
+  myNameMappings
+  
 }
 
 
-#' changeFieldNames Change the field names of an RDBES data either from database names to R names or vice versa
+#' changeFieldNamesForFrame Change the field names of an RDBES data frame either from database names to R names or vice versa
 #'
 #' @param frameToRename The RDBES data frame we want to rename
 #' @param fieldNameMap The data frame holding our names mappings
@@ -738,47 +807,76 @@ getDataModelSpreadsheets <- function(downloadFromGitHub= TRUE, fileLocation){
 #' @export
 #'
 #' @examples changeFieldNames(frameToRename = x, fieldNameMap = list_RDBES_Variables, typeOfChange = "DBtoR")
-changeFieldNames <- function(frameToRename, fieldNameMap, typeOfChange){
+changeFieldNamesForFrame <- function(frameToRename, fieldNameMap, typeOfChange){
   
   # For testing
   #frameToRename <- myRDBESData[["BV"]]
-  #fieldNameMap <- list_RDBES_Variables
+  #fieldNameMap <- fieldNameMapping
   #typeOfChange <- "DBtoR"
   
-  if (!typeOfChange %in% c("RtoDB", "DBtoR")) stop("typeOfChange paramter shoudl be either RtoDB or DBtoR")
+  if (!typeOfChange %in% c("RtoDB", "DBtoR")) stop("typeOfChange parameter should be either RtoDB or DBtoR")
+
+  # Get the current column names into a data frame
+  myDF <- data.frame(name = names(frameToRename), stringsAsFactors = FALSE)
+  
+  # Assume the first entry is always the primary key of the table and extract the table name
+  myTableName <- substr(myDF[1,"name"],1,2)
+    
   # IF change DB to R
   if (typeOfChange == "DBtoR"){
     
-    # Get the current column names into a data frame
-    myDF <- data.frame(name = names(frameToRename), stringsAsFactors = FALSE)
-    
-    # Assume the first entry is always the primary key of the table and extract the table name
-    myTableName <- substr(myDF[1,"name"],1,2)
-    
     # Left join our current names against the replacement names (match to DB names)
-    myMapping <- left_join(myDF,list_RDBES_Variables[fieldNameMap$Table==myTableName,c("Field.Name","R.Name")], by=c("name" = "Field.Name"))
+    myMapping <- left_join(myDF,fieldNameMap[fieldNameMap$TableName==myTableName,c("Field Name","R Name")], by=c("name" = "Field Name"))
     
     # Make sure we don't have any NAs in the list of names we'll use
-    myMapping$R.Name <- ifelse(is.na(myMapping$R.Name),myMapping$name,myMapping$R.Name)
+    myMapping[,"R Name"] <- ifelse(is.na(myMapping[,"R Name"]),myMapping$name,myMapping[,"R Name"])
     
     # set the new names
-    myNewNames <- myMapping$R.Name
+    myNewNames <- myMapping[,"R Name"]
     
   } else if (typeOfChange == "RtoDB"){
     
     # Left join our current names against the replacement names (match to R names)
-    myMapping <- left_join(myDF,list_RDBES_Variables[fieldNameMap$Table==myTableName,c("Field.Name","R.Name")], by=c("name" = "R.Name"))
+    myMapping <- left_join(myDF,fieldNameMap[fieldNameMap$TableName==myTableName,c("Field Name","R Name")], by=c("name" = "R Name"))
     
     # Make sure we don't have any NAs in the list of names we'll use
-    myMapping$Field.Name <- ifelse(is.na(myMapping$Field.Name),myMapping$name,myMapping$Field.Name)
+    myMapping[,"Field Name"] <- ifelse(is.na(myMapping[,"Field Name"]),myMapping$name,myMapping[,"Field Name"])
     
     # set the new names
-    myNewNames <- myMapping$Field.Name
+    myNewNames <- myMapping[,"Field Name"]
     
   }
   
-  # return the new names
-  myNewNames
+  # Change the names of our data frame
+  names(frameToRename) <- myNewNames
+  
+  # return the data frame with the new names
+  frameToRename
+  
+}
+
+#' changeFieldNames  Change the field names of our RDBES data either from database names to R names or vice versa
+#'
+#' @param RDBESdata The RDBES data we want to rename
+#' @param fieldNameMap The data frame holding our names mappings
+#' @param typeOfChange Either RtoDB or DBtoR
+#'
+#' @return
+#' @export
+#'
+#' @examples
+changeFieldNames <- function(RDBESdata, fieldNameMap, typeOfChange){
+  
+  if (!typeOfChange %in% c("RtoDB", "DBtoR")) stop("typeOfChange parameter should be either RtoDB or DBtoR")
+  
+  for (i in 1:length(RDBESdata)){
+    
+    #myFrame <- RDBESdata[[i]]
+    RDBESdata[[i]] <- changeFieldNamesForFrame(frameToRename = RDBESdata[[i]], fieldNameMap = fieldNameMap, typeOfChange = typeOfChange)
+    
+  }
+  
+  RDBESdata
   
 }
 
@@ -810,13 +908,15 @@ loadRDataFiles <- function(directoryToSearch, recursive = FALSE){
 
 #' getValidationData Gets the base types xsd so we know what data type each field should be and what the code list is
 #'
+#' @param downloadFromGitHub (Optional) Set to TRUE to download the latest version from GitHub
+#' @param gitHubFileLocation (Optional) Default value is "https://raw.githubusercontent.com/ices-tools-dev/RDBES/master/XSD-files/BaseTypes.xsd"
 #' @param fileLocation Location of the base types xsd file
 #'
 #' @return
 #' @export
 #'
 #' @examples validationData <- getValidationData(fileLocation = './tableDefs/BaseTypes.xsd')
-getValidationData <- function(downloadFromGitHub = TRUE, fileLocation){
+getValidationData <- function(downloadFromGitHub = TRUE,gitHubFileLocation = "https://raw.githubusercontent.com/ices-tools-dev/RDBES/master/XSD-files/BaseTypes.xsd", fileLocation){
   
   # For testing
   #downloadFromGitHub = FALSE
@@ -825,7 +925,7 @@ getValidationData <- function(downloadFromGitHub = TRUE, fileLocation){
   # STEP 1) Get the BaseTypes file (if required)
   if (downloadFromGitHub){
     # get the latest BaseTypes.xsd file from GitHub
-    myBaseTypes <- getURL("https://raw.githubusercontent.com/ices-tools-dev/RDBES/master/XSD-files/BaseTypes.xsd")
+    myBaseTypes <- getURL(gitHubFileLocation)
     # save the file locally
     writeLines(myBaseTypes, fileLocation)
   }
@@ -901,13 +1001,14 @@ getValidationData <- function(downloadFromGitHub = TRUE, fileLocation){
 #' getTablesInHierarchies Used the H* xsd files to define which tables are required in the different hierachies
 #'
 #' @param downloadFromGitHub (Optional) Set to TRUE if you want to download the lastest xsd files from GitHub
+#' @param gitHubFileLocation (Optional) Default value is "https://api.github.com/repos/ices-tools-dev/RDBES/contents/XSD-files"
 #' @param fileLocation The folder to read the files from.  If you are downloading from GitHub a copy of the latest files will be saved here.
 #'
 #' @return
 #' @export
 #'
 #' @examples
-getTablesInHierarchies <- function(downloadFromGitHub = TRUE, fileLocation){
+getTablesInHierarchies <- function(downloadFromGitHub = TRUE,gitHubFileLocation = "https://api.github.com/repos/ices-tools-dev/RDBES/contents/XSD-files", fileLocation){
   
   # For testing
   #downloadFromGitHub = TRUE
@@ -917,7 +1018,7 @@ getTablesInHierarchies <- function(downloadFromGitHub = TRUE, fileLocation){
   if (downloadFromGitHub){
     
     myHierarchyFiles <- NULL
-    myResponse <- GET("https://api.github.com/repos/ices-tools-dev/RDBES/contents/XSD-files")
+    myResponse <- GET(gitHubFileLocation)
     filesOnGitHub <- content(myResponse)
 
     for (myFile in filesOnGitHub){

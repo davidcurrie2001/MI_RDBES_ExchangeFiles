@@ -51,3 +51,5 @@ connectionString.RDS
 #*.xsd
 
 *.RData
+
+readme.txt

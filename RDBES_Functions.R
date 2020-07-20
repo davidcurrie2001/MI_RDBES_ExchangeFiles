@@ -162,17 +162,7 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
   # We now write out the data frame with ids and column names included to make debugging easier
   fwrite(myDataForFile, paste(outputFolder, "debug_", outputFileName,sep="") ,row.names=F,col.names=T,quote=F)
   
-  # Now we'll get rid of the id values because we won't want them in our final output file
-  # if (typeOfFile == 'CE'){
-  #   myDataForFile <- select(myDataForFile,-c(CEid))
-  # } else if (typeOfFile == 'CL'){
-  #   myDataForFile <- select(myDataForFile,-c(CLid))
-  # } else if (typeOfFile == 'VD') {
-  #   myDataForFile <- select(myDataForFile,-c(VDid))
-  # } else if (typeOfFile == 'SL') {
-  #   myDataForFile <- select(myDataForFile,-c(SLid))
-  # }
-  
+
   # Get rid of the XXid fields from our data - not included in the final output file
   colstoRemove <- names(myDataForFile)[grepl("^..id$",names(myDataForFile))]
   myDataForFile <- select(myDataForFile,-all_of(colstoRemove))
@@ -210,7 +200,7 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
 generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL, RequiredTables){
   
   # For testing
-  # typeOfFile <- 'H1'
+  # typeOfFile <- 'H5'
   # RDBESdata<-myRDBESData
   # yearToUse <- 2017
   # country <- 'IE'
@@ -222,9 +212,9 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   # RequiredTables = requiredTables
   
   ## Step 0 - Check typeOfFile and generate a file name if we need to 
-  validCSfileTypes <- c('H1')
+  testedCSfileTypes <- c('H1','H5')
   
-  if (!typeOfFile %in% c('H1')){
+  if (!typeOfFile %in% testedCSfileTypes){
     warning(paste("Method not tested for ",typeOfFile, " yet", sep =""))
   }
   
@@ -544,7 +534,10 @@ getTopLevelSequenceNumber <- function(SAdata,SAsequenceNumber ){
 #' @examples
 generateSortOrder <- function(RDBESdataToSort, RequiredTables){
   
-
+  # For testing
+  #RDBESdataToSort <- myCSData
+  #RequiredTables <- requiredTables
+  
   # IMPORTANT - I'm using inner_join from dply so we can maintain the ordering of the first data frame in the join
   # if the ordering isn't maintained then the exchange file will be output in the wrong order
   
@@ -553,6 +546,9 @@ generateSortOrder <- function(RDBESdataToSort, RequiredTables){
   previousRequiredTable <- NULL
   
   for (myRequiredTable in RequiredTables){
+    
+    # For testing
+    #myRequiredTable <- RequiredTables[[9]]
     
     # Check if there are any rows in this table
     if(nrow(RDBESdataToSort[[myRequiredTable]])>0) {
@@ -588,10 +584,10 @@ generateSortOrder <- function(RDBESdataToSort, RequiredTables){
         # Add SortOrder where there is a link to FM (rows where FMid is not NA)
         if (nrow( RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),] )>0){
           
-          previousHierarchyTable <- myCSData[['FM']]
+          previousHierarchyTable <- RDBESdataToSort[['FM']]
           previousPrimaryKey <- names(previousHierarchyTable)[1]
-          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
-          RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),"SortOrder_BV"] <- paste( inner_join(RDBESdataToSort[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][,currentPrimaryKey], sep = "-")
+          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key (just for the BV rows that have an FMid)
+          RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),"SortOrder_BV"] <- paste( inner_join(RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),currentPrimaryKey], sep = "-")
         } 
         
         # Add SortOrder where there is a link to SA (rows where SAid is not NA)
@@ -599,8 +595,8 @@ generateSortOrder <- function(RDBESdataToSort, RequiredTables){
           
           previousHierarchyTable <- RDBESdataToSort[['SA']]
           previousPrimaryKey <- names(previousHierarchyTable)[1]
-          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
-          RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),"SortOrder_BV"] <- paste( inner_join(RDBESdataToSort[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][,currentPrimaryKey], sep = "-")
+          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key (just for BV rows that have an SAid)
+          RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),"SortOrder_BV"] <- paste( inner_join(RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),currentPrimaryKey], sep = "-")
           
         }
         
@@ -618,9 +614,8 @@ generateSortOrder <- function(RDBESdataToSort, RequiredTables){
         # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
         RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste( inner_join(RDBESdataToSort[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][,currentPrimaryKey], sep = "-")
       }
-    }      
     # If there's no rows in the table we'll add an emtpy SortOrder column so it definitely exists
-    else  {
+    } else  {
       RDBESdataToSort[[myRequiredTable]]$SortOrder <- character(0)
     }
     

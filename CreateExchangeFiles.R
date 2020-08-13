@@ -2,6 +2,7 @@
 # Load our functions
 source("RDBES_Functions.R")
 
+
 # IMPORTANT: Hack to stop write.csv changing numbers to scientific notation
 options(scipen=500) # big number of digits
 
@@ -20,7 +21,7 @@ requiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLocatio
 #requiredTables <- getTablesInHierarchies(downloadFromGitHub = TRUE, fileLocation = './tableDefs/')
 
 # Load the RDBES data from the database - you can either write your own database connection string in a format similar to this: 'driver=SQL Server;server=mysqlhost;database=mydbname;trusted_connection=true' or just manually create a named list of data fames in the correct format
-# IMPORTANT - if you are just going to use your own list of data frames make sure you don't have factors in them - my code assumes the data frames were creates using stringsAsFactors = FALSE
+# IMPORTANT - if you are just going to use your own list of data frames make sure you don't have factors in them - my code assumes the data frames were created using stringsAsFactors = FALSE
 myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 
 
@@ -33,7 +34,6 @@ myRDBESData[['FO']][myRDBESData[['FO']]$FOgear == 'OTQ',"FOgear"] <- "OTB"
 myRDBESData[['SA']][myRDBESData[['SA']]$sagear == 'OTQ',"SAgear"] <- "OTB"
 myRDBESData[['SA']]$SAspeciesCodeFAO <- NA
 
-#myRDBESData[['FT']]$FTencryptedVesselCode <- NA
 
 # Lets validate our data
 errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
@@ -78,5 +78,27 @@ saveRDataFilesForCS(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESda
 fieldNameMapping <- getFieldNameMapping(downloadFromGitHub= FALSE, fileLocation = './tableDefs/')
 
 myChangedRDBESData <- changeFieldNames(RDBESdata = myRDBESData, fieldNameMap = fieldNameMapping, typeOfChange = "DBtoR")
+
+## STEP 7) (OPTIONAL) We can also read in exchange files and convert them into RDBES data frames
+
+# Read our exhchange files
+myExchangeFileCE <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_HCE.csv' )
+myExchangeFileCL <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_HCL.csv' )
+myExchangeFileVD <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_HVD.csv' )
+myExchangeFileSL <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_HSL.csv' )
+
+#myExchangeFileH1 <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_H1.csv' )
+
+# Put the data frames in a list
+myExchangeFileRDBESData <- list(CE=myExchangeFileCE,CL=myExchangeFileCL,VD=myExchangeFileVD,SL=myExchangeFileSL)
+
+# For interest lets validate the data we just red in - it shoudl be fine if the exhcange file was produced using clean, valid data
+errorsExchangeFiles <- validateTables(RDBESdata = myExchangeFileRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
+
+
+
+ 
+
+
 
 

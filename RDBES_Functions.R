@@ -952,7 +952,7 @@ getValidationData <- function(downloadFromGitHub = TRUE,gitHubFileLocation = "ht
     }
   }
   
-  # STEP 4) Get the vaidation information for the thins like decimal ranges (stored as "simpleType")
+  # STEP 4) Get the vaidation information for the things like decimal ranges (stored as "simpleType")
   
   # Data frame to hold our validation info
   myValidationSimpleTypes <- NULL
@@ -1908,6 +1908,92 @@ refreshReferenceDataFromICES <- function(codeListsToRefresh){
   
 }
 
+
+readExchangeFile <- function(RDBESvalidationdata,nameOfFile){
+  
+  # For testing
+  #nameOfFile <- 'output/IE_2019_H1.csv'
+  
+  myNameOfTable <- NA
+  
+  if (grepl('.*HCE.csv',nameOfFile)){
+    myNameOfTable <- 'CE'
+  } else if (grepl('.*HCL.csv',nameOfFile)){
+    myNameOfTable <- 'CL'
+  } else if (grepl('.*HSL.csv',nameOfFile)){
+    myNameOfTable <- 'SL'
+  } else if (grepl('.*HVD.csv',nameOfFile)){
+    myNameOfTable <- 'VD'
+  } else if (grepl('.*H[1,2,3,4,5,6,7,8,9].csv',nameOfFile)){
+    myNameOfTable <- 'CS'
+  } else if (grepl('.*H1[0,1,2,3].csv',nameOfFile)){
+    myNameOfTable <- 'CS'
+  }  
+  
+  if (is.na(myNameOfTable)){
+    stop(paste("Not a valid file name ",nameOfFile))
+  } else if (myNameOfTable == 'CS'){
+    stop("Not implemented yet")
+  } else {
+    myExchangeFileData <- readSimpleExchangeFile(nameOfTable = myNameOfTable,RDBESvalidationdata= RDBESvalidationdata,nameOfFile = nameOfFile)
+  }
+  
+  myExchangeFileData
+  
+}
+
+readSimpleExchangeFile <- function(nameOfTable,RDBESvalidationdata,nameOfFile){
+  
+  # Create an empty data frame in the right format
+  emptyDf <- createEmptyDataFrameFromValidationData(nameOfTable = nameOfTable,RDBESvalidationdata = RDBESvalidationdata)
+  
+  # Read our exchange file
+  myFileContents <- fread(file=nameOfFile, header = FALSE, stringsAsFactors = FALSE)
+  # If this is a data table change it to a data frame
+  myFileContents <- as.data.frame(myFileContents)
+  # Get rid of the first column (this is just the record type)
+  myFileContents <- myFileContents[,2:length(names(myFileContents))]
+  # Set the correct column names
+  names(myFileContents) <- names(emptyDf)
+  
+  # Combine the empty data frame with the exchange file
+  myData <- rbind(emptyDf,myFileContents)
+  
+  # Add our XXid column at the start with arbiitrary id values
+  myID <- 1:nrow(myData)
+  myData <- cbind(myID, myData)
+  
+  # Name our new id column correctly
+  names(myData)[1] <- paste(nameOfTable,'id',sep = "")
+  
+  myData
+  
+}
+
+
+createEmptyDataFrameFromValidationData <- function(nameOfTable, RDBESvalidationdata){
+  
+  # For testing
+  #nameOfTable <- 'CE'
+  
+  # Get all the fields withe correct prefix
+  myRegExp <- paste('^',nameOfTable,'.*',sep = "")
+  myReleventFields <- validationData[grepl(myRegExp,validationData$name),]
+  
+  # Get our data frame column names
+  myColNames <- myReleventFields$name
+  # Work out what data types the columns shoudl be
+  myColClasses <- ifelse(myReleventFields$type == 'xs:int','integer',ifelse(myReleventFields$type == 'xs:decimal' | myReleventFields$type == 'xs:float','numeric','character'))
+  
+
+  # Create our data frame (trick with read.csv taken from https://stackoverflow.com/questions/10689055/create-an-empty-data-frame)
+  myNewDataFrame <- read.csv(text=paste(myColNames,collapse = ','), colClasses = myColClasses)
+  # If this is a data table change it to a data frame
+  myNewDataFrame <- as.data.frame(myNewDataFrame)
+  
+  myNewDataFrame
+  
+}
 
 
 

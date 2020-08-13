@@ -1987,7 +1987,7 @@ createEmptyDataFrameFromValidationData <- function(nameOfTable, RDBESvalidationd
   
 
   # Create our data frame (trick with read.csv taken from https://stackoverflow.com/questions/10689055/create-an-empty-data-frame)
-  myNewDataFrame <- read.csv(text=paste(myColNames,collapse = ','), colClasses = myColClasses)
+  myNewDataFrame <- read.csv(text=paste(myColNames,collapse = ','), colClasses = myColClasses, stringsAsFactors = FALSE)
   # If this is a data table change it to a data frame
   myNewDataFrame <- as.data.frame(myNewDataFrame)
   

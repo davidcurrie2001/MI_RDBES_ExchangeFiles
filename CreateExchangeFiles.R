@@ -60,7 +60,7 @@ generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = 2019, country = 'IE', 
 
 # Create an H1 CS file
 generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=20,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = requiredTables)
-#generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+#generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = requiredTables)
 
 # Create an H5 CS file
 generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=20,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = requiredTables)
@@ -96,9 +96,169 @@ myExchangeFileRDBESData <- list(CE=myExchangeFileCE,CL=myExchangeFileCL,VD=myExc
 errorsExchangeFiles <- validateTables(RDBESdata = myExchangeFileRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
 
 
+readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,RequiredTables){
+  
+  # For testing
+  typeOfFile <- 'H5'
+  # RDBESdata<-myRDBESData
+  # yearToUse <- 2017
+  # country <- 'IE'
+  # outputFileName <- ""
+  # numberOfSamples <- 10
+  # cleanData <- TRUE
+  RDBESvalidationdata <- validationData
+  # RDBEScodeLists <- allowedValues
+  RequiredTables <- requiredTables
+  nameOfFile <- 'output/IE_2019_H5.csv'
+  
+  testedCSfileTypes <- c('H1','H5')
+  
+  if (!typeOfFile %in% testedCSfileTypes){
+    warning(paste("Method not tested for ",typeOfFile, " yet", sep =""))
+  }
+  
+  # Find which tables we need for this file type
+  upperHierarchy <- substr(typeOfFile,2,nchar(typeOfFile))
+  myRequiredTables <- RequiredTables[[typeOfFile]]
+  
+  # Create a list with all the empty tables we need in it
+  myDataList <- list()
+  for (myTable in myRequiredTables){
+    myEmptyDf <- createEmptyDataFrameFromValidationData(nameOfTable = myTable, RDBESvalidationdata = RDBESvalidationdata)
+    # Add our empty XXid column to the front of the data frame
+    myID <- integer(0)
+    myEmptyDf <- cbind(myID, myEmptyDf)
+    # Name our new id column correctly
+    names(myEmptyDf)[1] <- paste(myTable,'id',sep = "")
+    # Add the empty data frame to our list
+    myDataList[[myTable]] <- myEmptyDf
+  }
+  
+  # Read our csv file 
+  myLines <- readLines(nameOfFile)
+  currentRowType <- NA
+  previousRowType <- NA
+  myNewRowID <- -1
+  myPreviousRowID <- -1
+  myForeignKeyID <- -1
+  myForeignKeyName <- NA
+  
+  # Just used for testing foreign key logic
+  foreignKeyTesting <- data.frame(currentRowID = integer(0), currentRowType = character(0),previousRowID = integer(0), previousRowType = character(0),foreignKeyID = integer(0), foreignKeyType = character(0), stringsAsFactors = FALSE)
+  
+  # store the most recent ids for each tabel type - needed for the foreign key logic
+  mostRecentIds <- list()
+  
+  # For each line in the file
+  for (i in 1:length(myLines)){
+  #for (i in 1:3){  
+    
+    # Store the previous row details
+    previousRowType <- ifelse(is.na(currentRowType),NA,currentRowType)
+    myPreviousRowID <- ifelse(myNewRowID == -1,-1,myNewRowID)
+    
+    # Read the next line
+    myRow <- myLines[[i]]
+    myRowValues <- strsplit(myRow,split=",")[[1]]
+    currentRowType <- myRowValues[1]
+    # Create a new row id - we'll just use sequential primary key - find out how many rows there are already are and add 1
+    myNewRowID <- nrow(myDataList[[currentRowType]])+1
+    
+    # Update the most recent row id for this record type
+    mostRecentIds[[currentRowType]] <- myNewRowID
+    
+    # Work out what the foreign key shoudl be
+    if (currentRowType == 'DE'){
+      # No foreign key for DE
+      myForeignKeyID <- 1
+      myForeignKeyName <- NA
+    } else if (currentRowType ==  previousRowType){
+      # If we are still on the same row type then we'll just keep the same foreign key detaisl that we already have - no need to do anything here then
+
+    } else if (grep(currentRowType,myRequiredTables) > grep(previousRowType,myRequiredTables)) {
+      # If we've moved to a row type lower in the hierarchy then we just need to set the new foreign key values
+      myForeignKeyID <- myPreviousRowID
+      myForeignKeyName <- paste(previousRowType,'id',sep="")
+    } else {
+      # else we're going back up the hierarchy - trickier...
+      
+      tableFound <- NA
+      
+      # Check the tables earlier in the hierarchy and find the lowest one that has an id already recorded - we'll use this for our foreign key
+      currentRowTypePositionInVector <- grep(currentRowType,myRequiredTables)
+      for (j in (currentRowTypePositionInVector-1):1){
+        tableToCheck <- myRequiredTables[j]
+        # if this table type exists in the data frame of the most recent keys then we'll use it
+        if (!is.null(mostRecentIds[[tableToCheck]])){
+          tableFound <- tableToCheck
+          break;
+        }
+      }
+      # If we found a mtach we'll use those values for the foreign key
+      if (!is.na(tableFound)){
+        myForeignKeyID <- mostRecentIds[[tableFound]]
+        myForeignKeyName <- paste(tableFound,'id',sep="")
+      } else {
+        # Soemthing has gone wrong
+        # just reset the values for now
+        myForeignKeyID <- 1
+        myForeignKeyName <- NA
+      }
+      
+
+    }
+    
+    # Just used for testing foreign key logic
+    foreignKeyTesting <- rbind(foreignKeyTesting,data.frame(currentRowID = myNewRowID, currentRowType = currentRowType,previousRowID = myPreviousRowID, previousRowType = previousRowType ,foreignKeyID = myForeignKeyID, foreignKeyType = myForeignKeyName, stringsAsFactors = FALSE))
+    
+
+    # Our new data
+    myNewData <- c(myNewRowID,myRowValues[2:length(myRowValues)])
+    
+    # Save the names because rbind screws them up
+    correctNames <- names(myDataList[[currentRowType]])
+    print(correctNames)
+    
+    # TODO - need to hange this - the second time that this code is run then we'll probably have foreign keys added to the data and this logic doesn't work :-S
+    # If the last value in the exchange file row is blank then readLines doesn't pick it up
+    # to solve this we'll add a blank value if required
+    if (length(correctNames)==length(myNewData)+1){
+      print(correctNames)
+      print(myNewData)
+      # Add a blank last value if required
+      myNewData <- c(myNewData,"")
+    }
+    
+    ## If we have a foreign key we might need to add it in to our data
+    if (!is.na(myForeignKeyName)){
+      # See if we need to add the column to our exisiting data frame
+      if (!myForeignKeyName %in% names(myDataList[[currentRowType]])){
+        # Add in the column if we need to, with a default value
+        myDataList[[currentRowType]][,myForeignKeyName] <- integer(nrow(myDataList[[currentRowType]]))
+        # Re-Save the names 
+        correctNames <- names(myDataList[[currentRowType]])
+      }
+      ## If we have a foreign key we need to add it in to our new data
+      myNewData <- c(myNewData,myForeignKeyID)
+    }
+    
+    ## If we have a foreign key we need to add it in to our new data
+    #if (!is.na(myForeignKeyName)){
+    #  myNewData <- c(myNewData,myForeignKeyID)
+    #}
+      
+    # Convert the transposed vector to a data frame - otherwise I had problems with factors
+    myNewData <- as.data.frame(t(myNewData),stringsAsFactors = FALSE)
+    # Fix the names
+    names(myNewData) <- correctNames
+    
+    # Add the row to our data
+    myDataList[[currentRowType]] <- rbind(myDataList[[currentRowType]],myNewData)
+
+  }
+
+  myDataList
+}
+View(myDataList[['BV']])
 
  
-
-
-
-

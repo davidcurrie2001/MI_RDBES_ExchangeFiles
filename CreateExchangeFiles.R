@@ -64,6 +64,7 @@ generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE',
 
 # Create an H5 CS file
 generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=20,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = requiredTables)
+#generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = requiredTables)
 
 ## STEP 5) (OPTIONAL) WE CAN SAVE OUR DATA IF WE WANT TO
 
@@ -143,8 +144,8 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
   myForeignKeyID <- -1
   myForeignKeyName <- NA
   
-  # Just used for testing foreign key logic
-  foreignKeyTesting <- data.frame(currentRowID = integer(0), currentRowType = character(0),previousRowID = integer(0), previousRowType = character(0),foreignKeyID = integer(0), foreignKeyType = character(0), stringsAsFactors = FALSE)
+  # Used for tracking and assigning foreign keys 
+  foreignKeyTracking <- data.frame(currentRowID = integer(0), currentRowType = character(0),previousRowID = integer(0), previousRowType = character(0),foreignKeyID = integer(0), foreignKeyType = character(0), stringsAsFactors = FALSE)
   
   # store the most recent ids for each tabel type - needed for the foreign key logic
   mostRecentIds <- list()
@@ -208,39 +209,45 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
 
     }
     
-    # Just used for testing foreign key logic
-    foreignKeyTesting <- rbind(foreignKeyTesting,data.frame(currentRowID = myNewRowID, currentRowType = currentRowType,previousRowID = myPreviousRowID, previousRowType = previousRowType ,foreignKeyID = myForeignKeyID, foreignKeyType = myForeignKeyName, stringsAsFactors = FALSE))
+    # Used for tracking and assigning foreign keys 
+    foreignKeyTracking <- rbind(foreignKeyTracking,data.frame(currentRowID = myNewRowID, currentRowType = currentRowType,previousRowID = myPreviousRowID, previousRowType = previousRowType ,foreignKeyID = myForeignKeyID, foreignKeyType = myForeignKeyName, stringsAsFactors = FALSE))
     
 
     # Our new data
-    myNewData <- c(myNewRowID,myRowValues[2:length(myRowValues)])
+    #myNewData <- c(myNewRowID,myRowValues[2:length(myRowValues)])
+    myNewData <- myRowValues[2:length(myRowValues)]
     
     # Save the names because rbind screws them up
     correctNames <- names(myDataList[[currentRowType]])
-    print(correctNames)
+    #print(correctNames)
     
-    # TODO - need to hange this - the second time that this code is run then we'll probably have foreign keys added to the data and this logic doesn't work :-S
+    # Add the PK to our new data Our new data
+    myNewData <- c(myNewRowID,myNewData)
+    
+    # TODO - need to change this - the second time that this code is run then we'll probably have foreign keys added to the data and this logic doesn't work :-S
     # If the last value in the exchange file row is blank then readLines doesn't pick it up
     # to solve this we'll add a blank value if required
+    #if (length(correctNames[!grepl("^..id$",correctNames)])==length(myNewData)+1){
     if (length(correctNames)==length(myNewData)+1){
-      print(correctNames)
-      print(myNewData)
+      #print(correctNames)
+      #print(myNewData)
       # Add a blank last value if required
       myNewData <- c(myNewData,"")
     }
     
-    ## If we have a foreign key we might need to add it in to our data
-    if (!is.na(myForeignKeyName)){
-      # See if we need to add the column to our exisiting data frame
-      if (!myForeignKeyName %in% names(myDataList[[currentRowType]])){
-        # Add in the column if we need to, with a default value
-        myDataList[[currentRowType]][,myForeignKeyName] <- integer(nrow(myDataList[[currentRowType]]))
-        # Re-Save the names 
-        correctNames <- names(myDataList[[currentRowType]])
-      }
-      ## If we have a foreign key we need to add it in to our new data
-      myNewData <- c(myNewData,myForeignKeyID)
-    }
+
+    # ## If we have a foreign key we might need to add it in to our data
+    # if (!is.na(myForeignKeyName)){
+    #   # See if we need to add the column to our exisiting data frame
+    #   if (!myForeignKeyName %in% names(myDataList[[currentRowType]])){
+    #     # Add in the column if we need to, with a default value
+    #     myDataList[[currentRowType]][,myForeignKeyName] <- integer(nrow(myDataList[[currentRowType]]))
+    #     # Re-Save the names 
+    #     correctNames <- names(myDataList[[currentRowType]])
+    #   }
+    #   ## If we have a foreign key we need to add it in to our new data
+    #   myNewData <- c(myNewData,myForeignKeyID)
+    # }
     
     ## If we have a foreign key we need to add it in to our new data
     #if (!is.na(myForeignKeyName)){
@@ -249,6 +256,15 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
       
     # Convert the transposed vector to a data frame - otherwise I had problems with factors
     myNewData <- as.data.frame(t(myNewData),stringsAsFactors = FALSE)
+    # Ensure the first column (XXid is still an ineteger)
+    myNewData[,1] <- as.integer(myNewData[,1])
+    
+    # for testing
+    # if (length(names(myNewData)) != length(correctNames)){
+    #   print(correctNames)
+    #   print(myNewData)
+    # }
+    
     # Fix the names
     names(myNewData) <- correctNames
     
@@ -257,6 +273,60 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
 
   }
 
+  # TODO append the foreign keys
+  
+  # See which columns we need to add
+  fkColumnsToAdd <- unique(foreignKeyTracking[!is.na(foreignKeyTracking$foreignKeyType),c("currentRowType","foreignKeyType")])
+  
+  # Add the FK data
+  for (i in 1:nrow(fkColumnsToAdd)){
+    
+    # first we'll add the new columns required
+    myColumnToAdd <- fkColumnsToAdd[i,]
+    myDataList[[myColumnToAdd$currentRowType]][,myColumnToAdd$foreignKeyType] <- integer(nrow(myDataList[[myColumnToAdd$currentRowType]]))
+    # default FK column to NA
+    if (nrow(myDataList[[myColumnToAdd$currentRowType]]) >0) {
+      myDataList[[myColumnToAdd$currentRowType]][,myColumnToAdd$foreignKeyType] <- NA
+    } 
+    
+    # Now we need to add the actual values for the FKs
+    
+    # Get the FK values
+    fkValuesToAdd <- foreignKeyTracking[!is.na(foreignKeyTracking$foreignKeyType) &  foreignKeyTracking$currentRowType == myColumnToAdd$currentRowType & foreignKeyTracking$foreignKeyType == myColumnToAdd$foreignKeyType,]
+    
+    myDataList[[myColumnToAdd$currentRowType]][,paste(myColumnToAdd$currentRowType,'id',sep="")]
+    
+    # Left join our data with the FK data - need to use "setNames" to specify the columns to join on because 1 of them is defined using a variable
+    mergedFKData <- left_join(myDataList[[myColumnToAdd$currentRowType]],fkValuesToAdd,by=setNames("currentRowID", paste(myColumnToAdd$currentRowType,'id',sep="")))
+  
+    # Now update the relevent column with the FK value
+    mergedFKData[,myColumnToAdd$foreignKeyType] <- mergedFKData$foreignKeyID
+    
+    # Get rid of the columns we don't need
+    colstoRemove <- c("currentRowType","previousRowID","previousRowType","foreignKeyID","foreignKeyType")
+    dataWithFK <- select(mergedFKData,-all_of(colstoRemove))
+    
+    # Update our data list with the modified data
+    myDataList[[myColumnToAdd$currentRowType]] <- dataWithFK
+  }
+  
+  # fkTablesToProcess <- unique(foreignKeyTracking[!is.na(foreignKeyTracking$foreignKeyType),c("currentRowType")])
+  # 
+  # for (myFKTable in fkTablesToProcess){
+  #   
+  #   myFKTable <- 'SA'
+  #   myIDField <- paste(myFKTable,'id',sep="")
+  #   myFKValues <- foreignKeyTracking[!is.na(foreignKeyTracking$foreignKeyType) & foreignKeyTracking$currentRowType == myFKTable,  ]
+  #   myDataList[[myFKTable]][,paste(myFKTable,'id',sep="")]
+  #   inner_join(myDataList[[myFKTable]],myFKValues,by=setNames("currentRowID", myIDField))
+  #   by = c("a" = "b")
+  #   joinBy <- c(myIDField = 'currentRowID')
+  #   myIDField <- "currentRowID"
+  #   setNames("currentRowID", myIDField)
+  # }
+  
+  
+  
   myDataList
 }
 View(myDataList[['BV']])

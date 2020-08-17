@@ -1914,17 +1914,10 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
   # TODO - this function needs more testing
   
   # For testing
-  # typeOfFile <- 'H1'
-  # RDBESdata<-myRDBESData
-  # yearToUse <- 2017
-  # country <- 'IE'
-  # outputFileName <- ""
-  # numberOfSamples <- 10
-  # cleanData <- TRUE
+  # typeOfFile <- 'H5'
   # RDBESvalidationdata <- validationData
-  # RDBEScodeLists <- allowedValues
   # RequiredTables <- requiredTables
-  # nameOfFile <- 'output/IE_2019_H1.csv'
+  # nameOfFile <- 'output/IE_2019_H5.csv'
   
   testedCSfileTypes <- c('H1','H5')
   
@@ -1938,6 +1931,9 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
   
   # Create a list with all the empty tables we need in it
   myDataList <- list()
+  # Also create a list to hold all our new data rows - testing to see if this is faster than using rbind in a loop
+  myNewDataList <- list()
+  
   for (myTable in myRequiredTables){
     myEmptyDf <- createEmptyDataFrameFromValidationData(nameOfTable = myTable, RDBESvalidationdata = RDBESvalidationdata)
     # Add our empty XXid column to the front of the data frame
@@ -1947,6 +1943,9 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
     names(myEmptyDf)[1] <- paste(myTable,'id',sep = "")
     # Add the empty data frame to our list
     myDataList[[myTable]] <- myEmptyDf
+    
+    # Testing to see if this is faster than using rbind in a loop
+    myNewDataList[[myTable]] <- list()
   }
   
   # Read our csv file 
@@ -1958,8 +1957,13 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
   myForeignKeyID <- -1
   myForeignKeyName <- NA
   
+
+  
   # Used for tracking and assigning foreign keys 
-  foreignKeyTracking <- data.frame(currentRowID = integer(0), currentRowType = character(0),previousRowID = integer(0), previousRowType = character(0),foreignKeyID = integer(0), foreignKeyType = character(0), stringsAsFactors = FALSE)
+  #foreignKeyTracking <- data.frame(currentRowID = integer(0), currentRowType = character(0),previousRowID = integer(0), previousRowType = character(0),foreignKeyID = integer(0), foreignKeyType = character(0), stringsAsFactors = FALSE)
+  #foreignKeyTracking <- data.frame(currentRowID = integer(length(myLines)), currentRowType = character(length(myLines)),previousRowID = integer(length(myLines)), previousRowType = character(length(myLines)),foreignKeyID = integer(length(myLines)), foreignKeyType = character(length(myLines)), stringsAsFactors = FALSE)
+  # Testing to see if faster than using rbind in a loop
+  foreignKeyTrackingList <- list()
   
   # store the most recent ids for each table type - needed for the foreign key logic
   mostRecentIds <- list()
@@ -1969,8 +1973,17 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
   
   # The approach that follows is to read in each line of the file and store the data and foreign key information seperately - we then add the foreign keys to the data at the end
   
+  if (length(myLines)>10000) {
+    print(paste("The file is ", length(myLines), " lines long so this might take 5 - 10 minutes - why not have a cup of tea while you wait...",sep=""))
+  }
+  
   # For each line in the file
   for (i in 1:length(myLines)){
+    
+    # Update the user on how far we have got - this slows down the processing so I have removed it
+    # if ((i %% 5000)==0){
+    #   print(paste("Processing line number ",i,sep=""))
+    # }
     
     # Store the previous row details
     previousRowType <- ifelse(is.na(currentRowType),NA,currentRowType)
@@ -1983,7 +1996,10 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
     myRowValues[myRowValues == ""] <- NA
     currentRowType <- myRowValues[1]
     # Create a new row id - we'll just use sequential primary key - find out how many rows there are already are and add 1
-    myNewRowID <- nrow(myDataList[[currentRowType]])+1
+    #myNewRowID <- nrow(myDataList[[currentRowType]])+1
+    # testing to see if this is faster than rbind
+    myNewRowID <-length(myNewDataList[[currentRowType]])+1
+    
     
     # Update the most recent row id for this record type
     mostRecentIds[[currentRowType]] <- myNewRowID
@@ -2035,7 +2051,13 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
     }
     
     # Used for tracking and assigning foreign keys 
-    foreignKeyTracking <- rbind(foreignKeyTracking,data.frame(currentRowID = myNewRowID, currentRowType = currentRowType,previousRowID = myPreviousRowID, previousRowType = previousRowType ,foreignKeyID = myForeignKeyID, foreignKeyType = myForeignKeyName, stringsAsFactors = FALSE))
+    #foreignKeyTracking <- rbind(foreignKeyTracking,data.frame(currentRowID = myNewRowID, currentRowType = currentRowType,previousRowID = myPreviousRowID, previousRowType = previousRowType ,foreignKeyID = myForeignKeyID, foreignKeyType = myForeignKeyName, stringsAsFactors = FALSE))
+    
+    # testing to see if faster than rbind in a loop
+    #foreignKeyTrackingList[[i]]<-data.frame(currentRowID = myNewRowID, currentRowType = currentRowType,previousRowID = myPreviousRowID, previousRowType = previousRowType ,foreignKeyID = myForeignKeyID, foreignKeyType = myForeignKeyName, stringsAsFactors = FALSE)
+    foreignKeyTrackingList[[i]] <- list(currentRowID = myNewRowID, currentRowType = currentRowType,previousRowID = myPreviousRowID, previousRowType = previousRowType ,foreignKeyID = myForeignKeyID, foreignKeyType = myForeignKeyName)
+    #foreignKeyTracking[i,c('currentRowID', 'currentRowType','previousRowID', 'previousRowType' ,'foreignKeyID', 'foreignKeyType')]<-c(myNewRowID, currentRowType,myPreviousRowID, previousRowType , myForeignKeyID, myForeignKeyName)
+    
     
     # Our new data
     myNewData <- myRowValues[2:length(myRowValues)]
@@ -2057,19 +2079,51 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
     }
     
     # Convert the transposed vector to a data frame - otherwise I had problems with factors
-    myNewData <- as.data.frame(t(myNewData),stringsAsFactors = FALSE)
+    # testing myNewData <- as.data.frame(t(myNewData),stringsAsFactors = FALSE)
     # Ensure the first column (XXid is still an ineteger)
-    myNewData[,1] <- as.integer(myNewData[,1])
+    #myNewData[,1] <- as.integer(myNewData[,1])
     
     # Fix the names
     names(myNewData) <- correctNames
     
     # Add the row to our data
-    myDataList[[currentRowType]] <- rbind(myDataList[[currentRowType]],myNewData)
+    #myDataList[[currentRowType]] <- rbind(myDataList[[currentRowType]],myNewData)
+    
+    # Testing to see if this is faster than rbind - Add the new to our list of new rows
+    myNewDataList[[currentRowType]][[i]] <- myNewData
     
   }
   
+  # For testing - see if quicker than rbind in a loop
+  for (myTable in myRequiredTables){
+    # Get the list of data we want
+    mynewDataListdf <-  myNewDataList[[myTable]]
+    # Get rid of emptry values in the list
+    mynewDataListdf <- mynewDataListdf[lapply(mynewDataListdf,length)>0]
+    # Combine our list of new data entires and ensure the first column is an int
+    mynewDataListdf <- do.call("rbind", mynewDataListdf)
+    mynewDataListdf <- as.data.frame(mynewDataListdf,stringsAsFactors = FALSE)
+    #mynewDataListdf <- do.call("rbind", myNewDataList[[myTable]])
+    mynewDataListdf[,1]<-as.integer(mynewDataListdf[,1])
+    myDataList[[myTable]] <- mynewDataListdf
+    #myDataList[[myTable]] <- do.call("rbind", myNewDataList[[myTable]])
+  }
+  
   # Now we have the data but we still need to append the foreign keys
+  
+  #View(foreignKeyTrackingList)
+  # First we need to turn our list of new foreign keys into a data frame
+  foreignKeyTracking <- do.call("rbind", foreignKeyTrackingList)
+  foreignKeyTracking <- as.data.frame(foreignKeyTracking,stringsAsFactors = FALSE)
+  # doing the above leaves all the columns as lists - don't knwo why - didn't seem to be a problem when I did the same to mynewDataListdf' in the code above - any I'll fix this now 
+  foreignKeyTracking$currentRowType <- unlist(foreignKeyTracking$currentRowType)
+  foreignKeyTracking$previousRowType <- unlist(foreignKeyTracking$previousRowType)
+  foreignKeyTracking$foreignKeyType <- unlist(foreignKeyTracking$foreignKeyType)
+  
+  # Ensure our columns are the correct data types
+  foreignKeyTracking$currentRowID <- as.integer(foreignKeyTracking$currentRowID)
+  foreignKeyTracking$previousRowID <- as.integer(foreignKeyTracking$previousRowID)
+  foreignKeyTracking$foreignKeyID <- as.integer(foreignKeyTracking$foreignKeyID)
   
   # See which FK columns we need to add
   fkColumnsToAdd <- unique(foreignKeyTracking[!is.na(foreignKeyTracking$foreignKeyType),c("currentRowType","foreignKeyType")])
@@ -2089,7 +2143,7 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
     # Get the FK values
     fkValuesToAdd <- foreignKeyTracking[!is.na(foreignKeyTracking$foreignKeyType) &  foreignKeyTracking$currentRowType == myColumnToAdd$currentRowType & foreignKeyTracking$foreignKeyType == myColumnToAdd$foreignKeyType,]
     
-    myDataList[[myColumnToAdd$currentRowType]][,paste(myColumnToAdd$currentRowType,'id',sep="")]
+    #myDataList[[myColumnToAdd$currentRowType]][,paste(myColumnToAdd$currentRowType,'id',sep="")]
     
     # Left join our data with the FK data - need to use "setNames" to specify the columns to join on because 1 of them is defined using a variable
     mergedFKData <- left_join(myDataList[[myColumnToAdd$currentRowType]],fkValuesToAdd,by=setNames("currentRowID", paste(myColumnToAdd$currentRowType,'id',sep="")))
@@ -2140,6 +2194,8 @@ readExchangeFile <- function(RDBESvalidationdata,nameOfFile,RequiredTables=NULL)
   } else {
     myExchangeFileData <- readSimpleExchangeFile(nameOfTable = myNameOfTable,RDBESvalidationdata= RDBESvalidationdata,nameOfFile = nameOfFile)
   }
+  
+  print(paste("Data has been imported from file ",nameOfFile,sep=""))
   
   myExchangeFileData
   

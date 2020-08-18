@@ -45,9 +45,11 @@ errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validati
 
 # Create a CE output file
 generateSimpleExchangeFile(typeOfFile = 'CE', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+#generateSimpleExchangeFile(typeOfFile = 'CE', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 # Create a CL output file
 generateSimpleExchangeFile(typeOfFile = 'CL', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+#generateSimpleExchangeFile(typeOfFile = 'CL', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 # Create a VD output file
 generateSimpleExchangeFile(typeOfFile = 'VD', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
@@ -87,15 +89,60 @@ myExchangeFileCE <- readExchangeFile(RDBESvalidationdata = validationData, nameO
 myExchangeFileCL <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_HCL.csv' )
 myExchangeFileVD <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_HVD.csv' )
 myExchangeFileSL <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_HSL.csv' )
-myExchangeFileH1 <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_H1.csv',RequiredTables = requiredTables )
+#myExchangeFileH1 <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_H1.csv',RequiredTables = requiredTables )
 myExchangeFileH5 <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_H5.csv',RequiredTables = requiredTables )
 
-
-# Combine the data we have read in into a single list
+# We can combine the data we have read in into a single list
 myExchangeFileRDBESData <- c(myExchangeFileCE,myExchangeFileCL,myExchangeFileVD,myExchangeFileSL,myExchangeFileH5)
 
 # For interest lets validate the data we just read in - it should be fine if the exchange file was produced using clean, valid data
 errorsExchangeFiles <- validateTables(RDBESdata = myExchangeFileRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
 
+# Now we can compare the CS data we have just imported from the exchange file with the data loaded from the database - if all has gone well they shoudl be the same
 
+# Our RDBES data loaded from the database
+dataSet1 <- myRDBESData
+
+# When we created the Exchange file we probably cleaned and filtered the RDBES data - if so, we need to do that again for dataSet1 so that we have a fair comparison 
+dataSet1HierarchyToCheck <- 'H5'
+dataSet1YearToCheck <- 2019
+dataSet1CountryToCheck <- 'IE'
+
+# Clean and filter DataSet1 so that we are comparing like-with-like (this is assuming we cleaned and filtered the data when we generated the exchange file)
+dataSet1 <- filterCSData(RDBESdata = dataSet1 , RequiredTables = requiredTables[[dataSet1HierarchyToCheck]], YearToFilterBy = dataSet1YearToCheck, CountryToFilterBy = dataSet1CountryToCheck, UpperHierarchyToFilterBy = substr(dataSet1HierarchyToCheck,2,nchar(dataSet1HierarchyToCheck)))
+# Validate 
+myErrors <- validateTables(RDBESdata = dataSet1,RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues,shortOutput = FALSE,framestoValidate = requiredTables[[dataSet1HierarchyToCheck]])
+# Remove any invalid rows 
+for (myRequiredTable in requiredTables[[dataSet1HierarchyToCheck]]){
+  dataSet1[[myRequiredTable]]<- removeInvalidRows(tableName = myRequiredTable,dataToClean = dataSet1[[myRequiredTable]],errorList = myErrors)
+}
+# Filter the data again to ensure we don't have any orphan rows in our output
+dataSet1 <- filterCSData(RDBESdata = dataSet1 , RequiredTables = requiredTables[[dataSet1HierarchyToCheck]], YearToFilterBy = dataSet1YearToCheck, CountryToFilterBy = dataSet1CountryToCheck, UpperHierarchyToFilterBy = substr(dataSet1HierarchyToCheck,2,nchar(dataSet1HierarchyToCheck)))
+
+# This is the CS data we have read in from the Exchange file
+dataSet2 <- myExchangeFileH5
+
+# Now we can compare our 2 CS data sets
+compareCSData(dataSet1 = dataSet1,dataSet2 = dataSet2)
+
+
+# Ok, let's compare our CE, CL, VD, and SL exchange files now
+
+# Our RDBES data loaded from the database
+dataSet1 <- list(CE = myRDBESData[['CE']],CL = myRDBESData[['CL']],SL = myRDBESData[['SL']],VD = myRDBESData[['VD']])
+# When we created the Exchange file we probably cleaned the RDBES data - if so, we need to do that again for dataSet1 so that we have a fair comparison  
+myErrors <- validateTables(RDBESdata = dataSet1,RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues,shortOutput = FALSE,framestoValidate = c('CE','CL','SL','VD'))
+# Remove any invalid rows 
+for (myRequiredTable in c('CE','CL','SL','VD')){
+  dataSet1[[myRequiredTable]]<- removeInvalidRows(tableName = myRequiredTable,dataToClean = dataSet1[[myRequiredTable]],errorList = myErrors)
+}
+
+# This is the data we have read in from the Exchange file 
+dataSet2 <- c(myExchangeFileCE,myExchangeFileCL,myExchangeFileVD,myExchangeFileSL)
+
+# Now run the comparison for our 4 types of data
+for (aTable in c('CE','CL','SL','VD')){
+  print(paste("Checking ",aTable,sep=""))
+  compareSimpleData(dataSet1 = dataSet1,dataSet2 = dataSet2,tableType = aTable)
+}
 

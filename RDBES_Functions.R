@@ -6,6 +6,7 @@ library(icesVocab)
 library(RCurl)
 library(httr)
 library(readxl)
+library(compare)
 
 # Location for our output files
 outputFolder <- "./output/"
@@ -1674,7 +1675,9 @@ validateSimpleTypes <- function(fieldToCheck,dataToCheck,fieldTypeToCheck){
     # Decimal
   } else if (myTypeToCheck == "xs:decimal" | myTypeToCheck == "xs:long"){
     # Check for any non numeric values
-    myNonDecValues <- dataToCheck[!is.numeric(dataToCheck[,fieldToCheck]),]
+    #myNonDecValues <- dataToCheck[!is.numeric(dataToCheck[,fieldToCheck]),]
+    # The above doesn't interpret numbers stored as text as numeric so I have changed it to the following
+    myNonDecValues <- dataToCheck[!(!is.na(as.numeric(dataToCheck[,fieldToCheck])) & is.numeric(as.numeric(dataToCheck[,fieldToCheck])) ),] 
     if (nrow(myNonDecValues)>0){
       #Log the error
       someErrors <- logValidationError(errorListToAppendTo = NULL
@@ -1974,7 +1977,7 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
   # The approach that follows is to read in each line of the file and store the data and foreign key information seperately - we then add the foreign keys to the data at the end
   
   if (length(myLines)>10000) {
-    print(paste("The file is ", length(myLines), " lines long so this might take 5 - 10 minutes - why not have a cup of tea while you wait...",sep=""))
+    print(paste("The file is ", length(myLines), " lines long so this might take a few minutes - why not have a cup of tea while you wait...",sep=""))
   }
   
   # For each line in the file
@@ -2206,8 +2209,11 @@ readSimpleExchangeFile <- function(nameOfTable,RDBESvalidationdata,nameOfFile){
   # Create an empty data frame in the right format
   emptyDf <- createEmptyDataFrameFromValidationData(nameOfTable = nameOfTable,RDBESvalidationdata = RDBESvalidationdata)
   
+  # These are the classes we want the data to read in to be mapped to
+  myColClasses <- c("character",unlist(lapply(emptyDf, class),use.names=F))
+  
   # Read our exchange file
-  myFileContents <- fread(file=nameOfFile, header = FALSE, stringsAsFactors = FALSE)
+  myFileContents <- fread(file=nameOfFile, header = FALSE, stringsAsFactors = FALSE, na.strings="", colClasses = myColClasses)
   # If this is a data table change it to a data frame
   myFileContents <- as.data.frame(myFileContents)
   # Get rid of the first column (this is just the record type)
@@ -2257,6 +2263,228 @@ createEmptyDataFrameFromValidationData <- function(nameOfTable, RDBESvalidationd
   
 }
 
+#' compareCSData Function to take 2 lists of CS data and compare the data in them for equality
+#'
+#' @param dataSet1 
+#' @param dataSet2 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+compareCSData <- function(dataSet1, dataSet2){
+  
+  # Our return value
+  dataIsEqual <- TRUE
+  
+  # Which hierarchies do we have in the data?
+  upperHierarchiesPresentInDS1 <-  unique(dataSet1[['DE']][,'DEhierarchy'])
+  upperHierarchiesPresentInDS2 <-  unique(dataSet2[['DE']][,'DEhierarchy'])
+  myTempResult <- compareMyValues(upperHierarchiesPresentInDS1,upperHierarchiesPresentInDS2)
+  ifelse(myTempResult,dataIsEqual<-dataIsEqual,dataIsEqual<-FALSE)
+  upperHierachiesToCheck <- intersect(upperHierarchiesPresentInDS1,upperHierarchiesPresentInDS2)
+  
+  # Which years do we have in the data?
+  yearsPresentInDS1 <- unique(dataSet1[['DE']][,'DEyear'])
+  yearsPresentInDS2 <- unique(dataSet2[['DE']][,'DEyear'])
+  myTempResult <-compareMyValues(yearsPresentInDS1,yearsPresentInDS2)
+  ifelse(myTempResult,dataIsEqual<-dataIsEqual,dataIsEqual<-FALSE)
+  yearsToCheck <- intersect(yearsPresentInDS1,yearsPresentInDS2)
+  
+  # Which countries do we have in the data?
+  countriesPresentInDS1 <- unique(dataSet1[['SD']][,'SDcountry'])
+  countriesPresentInDS2 <- unique(dataSet2[['SD']][,'SDcountry'])
+  myTempResult <-compareMyValues(countriesPresentInDS1,countriesPresentInDS2)
+  ifelse(myTempResult,dataIsEqual<-dataIsEqual,dataIsEqual<-FALSE)
+  countriesToCheck <- intersect(countriesPresentInDS1,countriesPresentInDS2)
+  
+  for (aYear in yearsToCheck){
+    
+    print(paste("Checking year ",aYear,sep=""))
+    
+    for (aCountry in countriesToCheck){
+      
+      print(paste("Checking country ",aCountry,sep=""))
+      
+      for (aHierarchy in upperHierachiesToCheck){
+        
+        aHierarchyText <- paste("H",aHierarchy,sep="")
+        print(paste("Checking hierarchy ",aHierarchyText,sep=""))
+        
+        subsetDataSet1 <- filterCSData(RDBESdata = dataSet1 , RequiredTables = requiredTables[[aHierarchyText]], YearToFilterBy = aYear, CountryToFilterBy = aCountry, UpperHierarchyToFilterBy = aHierarchy)
+        
+        subsetDataSet2 <- filterCSData(RDBESdata = dataSet2 , RequiredTables = requiredTables[[aHierarchyText]], YearToFilterBy = aYear, CountryToFilterBy = aCountry, UpperHierarchyToFilterBy = aHierarchy)
+        
+        tablesInDS1 <- names(subsetDataSet1)
+        tablesInDS2 <- names(subsetDataSet2)
+        myTempResult <-compareMyValues(tablesInDS1,tablesInDS2)
+        ifelse(myTempResult,dataIsEqual<-dataIsEqual,dataIsEqual<-FALSE)
+        commonTables <- intersect(tablesInDS1,tablesInDS2)
+        
+        for (aTable in commonTables){
+          
+          # Don't check the XXid or XXrecordType columns - they will almost certainly have different values
+          dataToCheck1 <- subsetDataSet1[[aTable]][,!(grepl('^..id$',names(subsetDataSet1[[aTable]])) | grepl('^..recordType$',names(subsetDataSet1[[aTable]])))]
+          dataToCheck2 <- subsetDataSet2[[aTable]][,!(grepl('^..id$',names(subsetDataSet2[[aTable]])) | grepl('^..recordType$',names(subsetDataSet2[[aTable]])))]
+          
+          
+          # Use the compare package to see if the data is basically the same (not identical but close enough)
+          myComparisonResult <- compare(dataToCheck1,dataToCheck2, allowAll = TRUE)
+          
+          if (myComparisonResult$result){
+            print(paste("The data in table ",aTable," matches",sep=""))
+          } else {
+            dataIsEqual<-FALSE
+            print(paste("The data in table ",aTable," does not match",sep=""))
+            if (!is.null(myComparisonResult$detailedResult)){
+              print("There were differences found in the following columns:")
+              print(names(dataToCheck1)[!myComparisonResult$detailedResult])
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  dataIsEqual
+  
+}
 
 
+#' compareMyValues Simple helper function to compare the contents of 2 sets of values and report if there are any differences.
+#'
+#' @param values1 
+#' @param values2 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+compareMyValues <- function(values1, values2){
+  
+  myReturnValue <- FALSE
+  warningText <- list()
+  
+  values1 <- unique(values1)
+  values2 <- unique(values2)
+  
+  # Check if the values are close enough to be considered equal
+  compareValues <- compare(values1,values2,allowAll = TRUE)
+  
+  if (!compareValues$result){
+    warningText[[1]]<- "The same values are not present in both data sets - we will only compare the values that are common (if there are any). "
+    if (length(setdiff(values1,values2))>0){
+      warningText[[2]] <- "The following values are in the first dataset but not the second: "
+      warningText[[3]] <- paste(setdiff(values1,values2),collapse = ",")
+    }
+    if (length(setdiff(values2,values1))>0){
+      warningText[[4]] <- "The following values are in the second dataset but not the first: "
+      warningText[[5]] <- paste(setdiff(values2,values1),collapse = ",")
+    }
+    
+  }
+  
+  # Show the warning text if we need to
+  if (length(warningText)>0){
+    #warning(unlist(warningText))
+    print(unlist(warningText))
+  }
+  
+  myReturnValue <- compareValues$result
+  
+  myReturnValue
+  
+}
+
+
+#' compareSimpleData This function compares CE, CL, SL, or VD data for equality
+#'
+#' @param dataSet1 
+#' @param dataSet2 
+#' @param tableType 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+compareSimpleData <- function(dataSet1, dataSet2, tableType){
+  
+  # For testing
+  #tableType <- 'CL'
+  #dataSet1 <- dataSet1
+  #dataSet2 <- dataSet2
+  
+
+  # Our return value
+  dataIsEqual <- TRUE
+  
+  yearField <- NA
+  countryField <- NA
+  
+  if (tableType == 'CE'){
+    yearField <- 'CEyear'
+    countryField <- 'CEvesselFlagCountry'
+  } else if (tableType == 'CL'){
+    yearField <- 'CLyear'
+    countryField <- 'CLvesselFlagCountry'
+  } else if (tableType == 'VD'){
+    yearField <- 'VDyear'
+    countryField <- 'VDcountry'
+  } else if (tableType == 'SL'){
+    yearField <- 'SLyear'
+    countryField <- 'SLcountry'
+  }
+  
+  # Which years do we have in the data?
+  yearsPresentInDS1 <- unique(dataSet1[[tableType]][,yearField])
+  yearsPresentInDS2 <- unique(dataSet2[[tableType]][,yearField])
+  myTempResult <-compareMyValues(yearsPresentInDS1,yearsPresentInDS2)
+  ifelse(myTempResult,dataIsEqual<-dataIsEqual,dataIsEqual<-FALSE)
+  yearsToCheck <- intersect(yearsPresentInDS1,yearsPresentInDS2)
+  
+  # Which countries do we have in the data?
+  countriesPresentInDS1 <- unique(dataSet1[[tableType]][,countryField])
+  countriesPresentInDS2 <- unique(dataSet2[[tableType]][,countryField])
+  myTempResult <-compareMyValues(countriesPresentInDS1,countriesPresentInDS2)
+  ifelse(myTempResult,dataIsEqual<-dataIsEqual,dataIsEqual<-FALSE)
+  countriesToCheck <- intersect(countriesPresentInDS1,countriesPresentInDS2)
+  
+  for (aYear in yearsToCheck){
+    
+    print(paste("Checking year ",aYear,sep=""))
+    
+    for (aCountry in countriesToCheck){
+      
+      print(paste("Checking country ",aCountry,sep=""))
+      
+      # Don't check the XXid or XXrecordType columns - they will almost certainly have different values
+      dataToCheck1 <- dataSet1[[tableType]][,!(grepl('^..id$',names(dataSet1[[tableType]])) | grepl('^..recordType$',names(dataSet1[[tableType]])))]
+      dataToCheck2 <- dataSet2[[tableType]][,!(grepl('^..id$',names(dataSet2[[tableType]])) | grepl('^..recordType$',names(dataSet2[[tableType]])))]
+      
+      # Filter our datasets by year and country
+      dataToCheck1 <- dataToCheck1[dataToCheck1[,countryField] == aCountry,]
+      dataToCheck1 <- dataToCheck1[dataToCheck1[,yearField] == aYear,]
+      
+      dataToCheck2 <- dataToCheck2[dataToCheck2[,countryField] == aCountry,]
+      dataToCheck2 <- dataToCheck2[dataToCheck2[,yearField] == aYear,]
+      
+      # Use the compare package to see if the data is basically the same (not identical but close enough)
+      myComparisonResult <- compare(dataToCheck1,dataToCheck2, allowAll = TRUE)
+      
+      if (myComparisonResult$result){
+        print(paste("The data in table ",tableType," matches",sep=""))
+      } else {
+        dataIsEqual<-FALSE
+        print(paste("The data in table ",tableType," does not match",sep=""))
+        if (!is.null(myComparisonResult$detailedResult)){
+          print("There were differences found in the following columns:")
+          print(names(dataToCheck1)[!myComparisonResult$detailedResult])
+        }
+      }
+    }
+  }
+
+  dataIsEqual
+  
+}
 

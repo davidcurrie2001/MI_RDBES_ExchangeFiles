@@ -89,7 +89,7 @@ myExchangeFileCE <- readExchangeFile(RDBESvalidationdata = validationData, nameO
 myExchangeFileCL <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_HCL.csv' )
 myExchangeFileVD <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_HVD.csv' )
 myExchangeFileSL <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_HSL.csv' )
-#myExchangeFileH1 <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_H1.csv',RequiredTables = requiredTables )
+myExchangeFileH1 <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_H1.csv',RequiredTables = requiredTables )
 myExchangeFileH5 <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_H5.csv',RequiredTables = requiredTables )
 
 # We can combine the data we have read in into a single list
@@ -104,7 +104,7 @@ errorsExchangeFiles <- validateTables(RDBESdata = myExchangeFileRDBESData, RDBES
 dataSet1 <- myRDBESData
 
 # When we created the Exchange file we probably cleaned and filtered the RDBES data - if so, we need to do that again for dataSet1 so that we have a fair comparison 
-dataSet1HierarchyToCheck <- 'H5'
+dataSet1HierarchyToCheck <- 'H1'
 dataSet1YearToCheck <- 2019
 dataSet1CountryToCheck <- 'IE'
 
@@ -120,7 +120,9 @@ for (myRequiredTable in requiredTables[[dataSet1HierarchyToCheck]]){
 dataSet1 <- filterCSData(RDBESdata = dataSet1 , RequiredTables = requiredTables[[dataSet1HierarchyToCheck]], YearToFilterBy = dataSet1YearToCheck, CountryToFilterBy = dataSet1CountryToCheck, UpperHierarchyToFilterBy = substr(dataSet1HierarchyToCheck,2,nchar(dataSet1HierarchyToCheck)))
 
 # This is the CS data we have read in from the Exchange file
-dataSet2 <- myExchangeFileH5
+dataSet2 <- myExchangeFileH1
+#dataSet2 <- myExchangeFileH5
+
 
 # Now we can compare our 2 CS data sets
 compareCSData(dataSet1 = dataSet1,dataSet2 = dataSet2)
@@ -145,4 +147,5 @@ for (aTable in c('CE','CL','SL','VD')){
   print(paste("Checking ",aTable,sep=""))
   compareSimpleData(dataSet1 = dataSet1,dataSet2 = dataSet2,tableType = aTable)
 }
+
 

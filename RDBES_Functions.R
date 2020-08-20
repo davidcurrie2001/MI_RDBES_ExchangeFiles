@@ -168,11 +168,15 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
   colstoRemove <- names(myDataForFile)[grepl("^..id$",names(myDataForFile))]
   myDataForFile <- select(myDataForFile,-all_of(colstoRemove))
   
-  # Get all the values from ceFile and list them out
+  # Replace any NAs with ''
+  myDataForFile[is.na(myDataForFile)] <- ''
+  
+  # Get all the values and list them out
   myFinalData <- do.call('paste',c(myDataForFile,sep=','))
   
-  # replace NA with blanks
-  myFinalData <- gsub('NA','',myFinalData)
+  # replace NA with blanks 
+  # 20/8/20 - if we get rid of NAs liek this it also removes NAs from the middle of words :-S - we'll get rid of NAs from the data frame instead earlier
+  #myFinalData <- gsub('NA','',myFinalData)
   
   # Write out the file
   fwrite(list(myFinalData), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
@@ -383,6 +387,9 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
     colstoRemove <- c("SortOrder", names(myCSData[[myRequiredTable]])[grepl("^..id$",names(myCSData[[myRequiredTable]]))])
     myData <- select(myCSData[[myRequiredTable]],-all_of(colstoRemove))
     
+    # Replace any NAs with ''
+    myData[is.na(myData)] <- ''
+    
     # Now stick all the lines from each table together with commas seperating the values
     if (myRequiredTable == 'DE'){
       cs <- do.call('paste',c(myData,sep=','))
@@ -395,7 +402,8 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   csOrdered <- cs[order(FileSortOrder)]
   
   # replace NA with blanks
-  csOrdered <- gsub('NA','',csOrdered)
+  # 20/8/20 - if we get rid of NAs like this it also removes NAs from the middle of words :-S - we'll get rid of NAs from the data frame instead earlier
+  #csOrdered <- gsub('NA','',csOrdered)
   
   fwrite(list(csOrdered), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   print(paste("Output file written to ",outputFileName,sep=""))
@@ -1917,10 +1925,10 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
   # TODO - this function needs more testing
   
   # For testing
-  # typeOfFile <- 'H5'
+  # typeOfFile <- 'H1'
   # RDBESvalidationdata <- validationData
   # RequiredTables <- requiredTables
-  # nameOfFile <- 'output/IE_2019_H5.csv'
+  # nameOfFile <- 'output/IE_2019_H1.csv'
   
   testedCSfileTypes <- c('H1','H5')
   
@@ -2099,17 +2107,20 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
   
   # For testing - see if quicker than rbind in a loop
   for (myTable in myRequiredTables){
-    # Get the list of data we want
-    mynewDataListdf <-  myNewDataList[[myTable]]
-    # Get rid of emptry values in the list
-    mynewDataListdf <- mynewDataListdf[lapply(mynewDataListdf,length)>0]
-    # Combine our list of new data entires and ensure the first column is an int
-    mynewDataListdf <- do.call("rbind", mynewDataListdf)
-    mynewDataListdf <- as.data.frame(mynewDataListdf,stringsAsFactors = FALSE)
-    #mynewDataListdf <- do.call("rbind", myNewDataList[[myTable]])
-    mynewDataListdf[,1]<-as.integer(mynewDataListdf[,1])
-    myDataList[[myTable]] <- mynewDataListdf
-    #myDataList[[myTable]] <- do.call("rbind", myNewDataList[[myTable]])
+    # If we have soem new data for this tabel type then deal with it...
+    if (length(myNewDataList[[myTable]])){
+      # Get the list of data we want
+      mynewDataListdf <-  myNewDataList[[myTable]]
+      # Get rid of emptry values in the list
+      mynewDataListdf <- mynewDataListdf[lapply(mynewDataListdf,length)>0]
+      # Combine our list of new data entires and ensure the first column is an int
+      mynewDataListdf <- do.call("rbind", mynewDataListdf)
+      mynewDataListdf <- as.data.frame(mynewDataListdf,stringsAsFactors = FALSE)
+      #mynewDataListdf <- do.call("rbind", myNewDataList[[myTable]])
+      mynewDataListdf[,1]<-as.integer(mynewDataListdf[,1])
+      myDataList[[myTable]] <- mynewDataListdf
+      #myDataList[[myTable]] <- do.call("rbind", myNewDataList[[myTable]])
+    }
   }
   
   # Now we have the data but we still need to append the foreign keys
@@ -2256,7 +2267,7 @@ createEmptyDataFrameFromValidationData <- function(nameOfTable, RDBESvalidationd
 
   # Create our data frame (trick with read.csv taken from https://stackoverflow.com/questions/10689055/create-an-empty-data-frame)
   myNewDataFrame <- read.csv(text=paste(myColNames,collapse = ','), colClasses = myColClasses, stringsAsFactors = FALSE)
-  # If this is a data table change it to a data frame
+  ## If this is a data table change it to a data frame
   myNewDataFrame <- as.data.frame(myNewDataFrame)
   
   myNewDataFrame
@@ -2273,6 +2284,10 @@ createEmptyDataFrameFromValidationData <- function(nameOfTable, RDBESvalidationd
 #'
 #' @examples
 compareCSData <- function(dataSet1, dataSet2){
+  
+  # For testing
+  #dataSet1 <- dataSet1
+  dataSet2 <- dataSet2
   
   # Our return value
   dataIsEqual <- TRUE

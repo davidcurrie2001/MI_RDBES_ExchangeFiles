@@ -251,70 +251,6 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
     
     myCSData <- limitSamplesInCSData(DataToFilter = myCSData, NumberOfSamples = numberOfSamples, RequiredTables = requiredTables)
     
-    # # Get our samples (not including sub-samples)
-    # NotSubSamples <- myCSData[['SA']][is.na(myCSData[['SA']]$SAparentSequenceNumber),]
-    # 
-    # #if (nrow(myCSData[['SA']])>numberOfSamples ) {
-    # if (nrow(NotSubSamples)>numberOfSamples ) {
-    #   
-    #   #Subset the data to get the SAid values we are interested it
-    #   #SAidsToUse <- myCSData[['SA']][1:numberOfSamples,"SAid"]
-    #   SAidsToUse <- NotSubSamples[1:numberOfSamples,"SAid"]
-    #   
-    #   # Need Sort out SA and FM first, then we'll deal with the other tables
-    #   
-    #   # SA : Top level samples not including sub-samplea
-    #   myCSData[['SA']]<- myCSData[['SA']][myCSData[['SA']]$SAid %in% SAidsToUse,]
-    #   # Now handle any sub-samples
-    #   mySubSampleData <- myCSData[['SA']][!is.na(myCSData[['SA']]$SAparentSequenceNumber),]
-    #   
-    #   # If we have any sub-samples see if we need to include them
-    #   if (nrow(mySubSampleData) > 0){
-    #     # Use a recursive function to fetch the top level sequence number of our sub-samples
-    #     mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
-    #     # Only include sub-samples if their top level sequence numebr is in our filtered sample data
-    #     mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% myCSData[['SA']]$SAsequenceNumber,]
-    #     # Remove the column we added
-    #     mySubSampleData$topLevelSequenceNumber <- NULL
-    #     # Combine our samples and sub-samples together
-    #     myCSData[['SA']] <- rbind(myCSData[['SA']],mySubSampleData)
-    #   }
-    #   
-    #   # FM
-    #   myCSData[['FM']]<- myCSData[['FM']][myCSData[['FM']]$SAid %in% myCSData[['SA']]$SAid,]
-    # 
-    #   # Now deal with all the other tables
-    #   myData <- NULL
-    #   previousRequiredTable <- NULL
-    #   
-    #   # Iterate through the required tables in reverse order and remove any records not assoicated with our selected samples
-    #   for (myRequiredTable in rev(requiredTables)){
-    # 
-    #     if (myRequiredTable %in% c('SA','FM')){
-    #       # Do nothing - already handled above
-    #     } 
-    #     # Need to check if the BV records are in either the FM or SA tables
-    #     else if (myRequiredTable == 'BV'){
-    #       myData <- myCSData[['BV']][myCSData[['BV']]$FMid %in% myCSData[['FM']]$FMid | myCSData[['BV']]$SAid %in% myCSData[['SA']]$SAid,]
-    #       myCSData[['BV']] <- myData
-    #     } 
-    #     # Other tables can follow a general pattern
-    #     else {
-    #       
-    #       previousHierarchyTable <- myCSData[[previousRequiredTable]]
-    #       ## Assume the primary key is the first field
-    #       currentPrimaryKey <- names(myCSData[[myRequiredTable]])[1]
-    #       myData <- myCSData[[myRequiredTable]][myCSData[[myRequiredTable]][,currentPrimaryKey] %in% previousHierarchyTable[,currentPrimaryKey],]
-    #       myCSData[[myRequiredTable]] = myData
-    #       
-    #     }
-    #     
-    #     previousRequiredTable <- myRequiredTable
-    #     
-    #   }
-    #   
-    #   print(paste("File truncated to data relating to ",numberOfSamples, " samples",sep=""))
-    # }
   }
   
   
@@ -705,9 +641,6 @@ generateSortOrder <- function(RDBESdataToSort, RequiredTables){
   previousRequiredTable <- NULL
   
   for (myRequiredTable in RequiredTables){
-    
-    # For testing
-    #myRequiredTable <- RequiredTables[[9]]
     
     # Check if there are any rows in this table
     if(nrow(RDBESdataToSort[[myRequiredTable]])>0) {
@@ -2092,7 +2025,7 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
   
   # Create a list with all the empty tables we need in it
   myDataList <- list()
-  # Also create a list to hold all our new data rows - testing to see if this is faster than using rbind in a loop
+  # Also create a list to hold all our new data rows 
   myNewDataList <- list()
   
   for (myTable in myRequiredTables){
@@ -2104,8 +2037,7 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
     names(myEmptyDf)[1] <- paste(myTable,'id',sep = "")
     # Add the empty data frame to our list
     myDataList[[myTable]] <- myEmptyDf
-    
-    # Testing to see if this is faster than using rbind in a loop
+    # Create an empty list to hold our new data
     myNewDataList[[myTable]] <- list()
   }
   
@@ -2121,9 +2053,6 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
 
   
   # Used for tracking and assigning foreign keys 
-  #foreignKeyTracking <- data.frame(currentRowID = integer(0), currentRowType = character(0),previousRowID = integer(0), previousRowType = character(0),foreignKeyID = integer(0), foreignKeyType = character(0), stringsAsFactors = FALSE)
-  #foreignKeyTracking <- data.frame(currentRowID = integer(length(myLines)), currentRowType = character(length(myLines)),previousRowID = integer(length(myLines)), previousRowType = character(length(myLines)),foreignKeyID = integer(length(myLines)), foreignKeyType = character(length(myLines)), stringsAsFactors = FALSE)
-  # Testing to see if faster than using rbind in a loop
   foreignKeyTrackingList <- list()
   
   # store the most recent ids for each table type - needed for the foreign key logic
@@ -2157,8 +2086,6 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
     myRowValues[myRowValues == ""] <- NA
     currentRowType <- myRowValues[1]
     # Create a new row id - we'll just use sequential primary key - find out how many rows there are already are and add 1
-    #myNewRowID <- nrow(myDataList[[currentRowType]])+1
-    # testing to see if this is faster than rbind
     myNewRowID <-length(myNewDataList[[currentRowType]])+1
     
     
@@ -2212,14 +2139,8 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
     }
     
     # Used for tracking and assigning foreign keys 
-    #foreignKeyTracking <- rbind(foreignKeyTracking,data.frame(currentRowID = myNewRowID, currentRowType = currentRowType,previousRowID = myPreviousRowID, previousRowType = previousRowType ,foreignKeyID = myForeignKeyID, foreignKeyType = myForeignKeyName, stringsAsFactors = FALSE))
-    
-    # testing to see if faster than rbind in a loop
-    #foreignKeyTrackingList[[i]]<-data.frame(currentRowID = myNewRowID, currentRowType = currentRowType,previousRowID = myPreviousRowID, previousRowType = previousRowType ,foreignKeyID = myForeignKeyID, foreignKeyType = myForeignKeyName, stringsAsFactors = FALSE)
     foreignKeyTrackingList[[i]] <- list(currentRowID = myNewRowID, currentRowType = currentRowType,previousRowID = myPreviousRowID, previousRowType = previousRowType ,foreignKeyID = myForeignKeyID, foreignKeyType = myForeignKeyName)
-    #foreignKeyTracking[i,c('currentRowID', 'currentRowType','previousRowID', 'previousRowType' ,'foreignKeyID', 'foreignKeyType')]<-c(myNewRowID, currentRowType,myPreviousRowID, previousRowType , myForeignKeyID, myForeignKeyName)
-    
-    
+
     # Our new data
     myNewData <- myRowValues[2:length(myRowValues)]
     
@@ -2239,23 +2160,15 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
       myNewData <- c(myNewData,NA)
     }
     
-    # Convert the transposed vector to a data frame - otherwise I had problems with factors
-    # testing myNewData <- as.data.frame(t(myNewData),stringsAsFactors = FALSE)
-    # Ensure the first column (XXid is still an ineteger)
-    #myNewData[,1] <- as.integer(myNewData[,1])
-    
     # Fix the names
     names(myNewData) <- correctNames
     
     # Add the row to our data
-    #myDataList[[currentRowType]] <- rbind(myDataList[[currentRowType]],myNewData)
-    
-    # Testing to see if this is faster than rbind - Add the new to our list of new rows
     myNewDataList[[currentRowType]][[i]] <- myNewData
     
   }
   
-  # For testing - see if quicker than rbind in a loop
+  # No Process all the data we have read in
   for (myTable in myRequiredTables){
     # If we have soem new data for this tabel type then deal with it...
     if (length(myNewDataList[[myTable]])){
@@ -2437,7 +2350,7 @@ compareCSData <- function(dataSet1, dataSet2, RequiredTables){
   
   # For testing
   #dataSet1 <- dataSet1
-  dataSet2 <- dataSet2
+  #dataSet2 <- dataSet2
   
   # Our return value
   dataIsEqual <- TRUE

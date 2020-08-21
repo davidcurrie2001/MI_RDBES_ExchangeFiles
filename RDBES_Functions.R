@@ -2168,7 +2168,7 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
     
   }
   
-  # No Process all the data we have read in
+  # Now process all the data we have read in
   for (myTable in myRequiredTables){
     # If we have soem new data for this tabel type then deal with it...
     if (length(myNewDataList[[myTable]])){

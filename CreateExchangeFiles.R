@@ -17,8 +17,8 @@ allowedValues <- loadReferenceData(downloadFromICES = FALSE)
 #allowedValues <- loadReferenceData(downloadFromICES = TRUE, validationData=validationData)
 
 # Load the lists of tables required for each hierarchy: either refresh from ICES or just use a local copy
-requiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLocation = './tableDefs/')
-#requiredTables <- getTablesInHierarchies(downloadFromGitHub = TRUE, fileLocation = './tableDefs/')
+allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLocation = './tableDefs/')
+#allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = TRUE, fileLocation = './tableDefs/')
 
 # Load the RDBES data from the database - you can either write your own database connection string in a format similar to this: 'driver=SQL Server;server=mysqlhost;database=mydbname;trusted_connection=true' or just manually create a named list of data fames in the correct format
 # IMPORTANT - if you are just going to use your own list of data frames make sure you don't have factors in them - my code assumes the data frames were created using stringsAsFactors = FALSE
@@ -61,17 +61,17 @@ generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = 2019, country = 'IE', 
 ## STEP 4) GENERATE COMPLEX EXCHANGE FILES (CS)
 
 # Create an H1 CS file
-generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=20,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = requiredTables)
-#generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = requiredTables)
+generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=500,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+#generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 # Create an H5 CS file
-generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=100,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = requiredTables)
-#generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = requiredTables)
+generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=100,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+#generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 ## STEP 5) (OPTIONAL) WE CAN SAVE OUR DATA IF WE WANT TO
 
 # Save RData files for H1
-saveRDataFilesForCS(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, RequiredTables = requiredTables)
+saveRDataFilesForCS(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, RequiredTables = allRequiredTables)
 #loadRDataFiles(directoryToSearch="./output/H1")
 
 
@@ -89,8 +89,8 @@ myExchangeFileCE <- readExchangeFile(RDBESvalidationdata = validationData, nameO
 myExchangeFileCL <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_HCL.csv' )
 myExchangeFileVD <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_HVD.csv' )
 myExchangeFileSL <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_HSL.csv' )
-myExchangeFileH1 <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_H1.csv',RequiredTables = requiredTables )
-myExchangeFileH5 <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_H5.csv',RequiredTables = requiredTables )
+myExchangeFileH1 <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_H1.csv',RequiredTables = allRequiredTables )
+myExchangeFileH5 <- readExchangeFile(RDBESvalidationdata = validationData, nameOfFile = 'output/IE_2019_H5.csv',RequiredTables = allRequiredTables )
 
 # We can combine the data we have read in into a single list
 myExchangeFileRDBESData <- c(myExchangeFileCE,myExchangeFileCL,myExchangeFileVD,myExchangeFileSL,myExchangeFileH5)
@@ -108,16 +108,10 @@ dataSet1HierarchyToCheck <- 'H1'
 dataSet1YearToCheck <- 2019
 dataSet1CountryToCheck <- 'IE'
 
-# Clean and filter DataSet1 so that we are comparing like-with-like (this is assuming we cleaned and filtered the data when we generated the exchange file)
-dataSet1 <- filterCSData(RDBESdata = dataSet1 , RequiredTables = requiredTables[[dataSet1HierarchyToCheck]], YearToFilterBy = dataSet1YearToCheck, CountryToFilterBy = dataSet1CountryToCheck, UpperHierarchyToFilterBy = substr(dataSet1HierarchyToCheck,2,nchar(dataSet1HierarchyToCheck)))
-# Validate 
-myErrors <- validateTables(RDBESdata = dataSet1,RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues,shortOutput = FALSE,framestoValidate = requiredTables[[dataSet1HierarchyToCheck]])
-# Remove any invalid rows 
-for (myRequiredTable in requiredTables[[dataSet1HierarchyToCheck]]){
-  dataSet1[[myRequiredTable]]<- removeInvalidRows(tableName = myRequiredTable,dataToClean = dataSet1[[myRequiredTable]],errorList = myErrors)
-}
-# Filter the data again to ensure we don't have any orphan rows in our output
-dataSet1 <- filterCSData(RDBESdata = dataSet1 , RequiredTables = requiredTables[[dataSet1HierarchyToCheck]], YearToFilterBy = dataSet1YearToCheck, CountryToFilterBy = dataSet1CountryToCheck, UpperHierarchyToFilterBy = substr(dataSet1HierarchyToCheck,2,nchar(dataSet1HierarchyToCheck)))
+# Clean and filter DataSet1 so that we are comparing like-with-like (this is assuming we cleaned and filtered the data when we generated the exchange file - if not you don't need to do this)
+dataSet1 <- filterCSData(RDBESdata = dataSet1 , RequiredTables = allRequiredTables[[dataSet1HierarchyToCheck]], YearToFilterBy = dataSet1YearToCheck, CountryToFilterBy = dataSet1CountryToCheck, UpperHierarchyToFilterBy = substr(dataSet1HierarchyToCheck,2,nchar(dataSet1HierarchyToCheck)))
+dataSet1 <- cleanCSData(DataToClean = dataSet1,RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables[[dataSet1HierarchyToCheck]], YearToFilterBy = dataSet1YearToCheck, CountryToFilterBy = dataSet1CountryToCheck,UpperHierarchyToFilterBy = substr(dataSet1HierarchyToCheck,2,nchar(dataSet1HierarchyToCheck)))
+dataSet1 <- limitSamplesInCSData(DataToFilter = dataSet1, NumberOfSamples = 500, RequiredTables = allRequiredTables[[dataSet1HierarchyToCheck]])
 
 # This is the CS data we have read in from the Exchange file
 dataSet2 <- myExchangeFileH1
@@ -125,7 +119,7 @@ dataSet2 <- myExchangeFileH1
 
 
 # Now we can compare our 2 CS data sets
-compareCSData(dataSet1 = dataSet1,dataSet2 = dataSet2)
+compareCSData(dataSet1 = dataSet1,dataSet2 = dataSet2, RequiredTables = allRequiredTables)
 
 
 # Ok, let's compare our CE, CL, VD, and SL exchange files now
@@ -149,3 +143,20 @@ for (aTable in c('CE','CL','SL','VD')){
 }
 
 
+# try filtering our exchange file data and see if the BV values are lost
+test <- filterCSData(RDBESdata = myExchangeFileH1 , RequiredTables = allRequiredTables[['H1']], YearToFilterBy = 2019, CountryToFilterBy = 'IE', UpperHierarchyToFilterBy = 1)
+
+# The imported and filtered BV is empty
+test[['BV']]
+test[['SA']][test[['SA']][,1] == 2635,c('SAid','SSid',"SAlowerHierarchy")]
+
+# But the imported BV looks ok - what's going on?  Does filterCSData break if the required columns aren't present i.e. does it need FMid and SAid columns to be in the BV data?  I think it might
+# try tracking a BVid through - looks ok to me...
+myExchangeFileH1[['BV']][myExchangeFileH1[['BV']][,1] == 1,c('BVid','SAid')]
+myExchangeFileH1[['SA']][myExchangeFileH1[['SA']][,1] == 2635,c('SAid','SSid',"SAlowerHierarchy")]
+myExchangeFileH1[['SS']][myExchangeFileH1[['SS']][,1] == 2562,c('SSid','FOid')]
+myExchangeFileH1[['FO']][myExchangeFileH1[['FO']][,1] == 2472,c('FOid','FTid')]
+myExchangeFileH1[['FT']][myExchangeFileH1[['FT']][,1] == 1956,c('FTid','VSid')]
+myExchangeFileH1[['VS']][myExchangeFileH1[['VS']][,1] == 1955,c('VSid','SDid')]
+myExchangeFileH1[['SD']][myExchangeFileH1[['SD']][,1] == 1,c('SDid','DEid')]
+myExchangeFileH1[['DE']][myExchangeFileH1[['DE']][,1] == 1,c('DEid')]

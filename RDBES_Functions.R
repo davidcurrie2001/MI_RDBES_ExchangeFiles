@@ -205,16 +205,16 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
 generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL, RequiredTables){
   
   # For testing
-  # typeOfFile <- 'H5'
-  # RDBESdata<-myRDBESData
-  # yearToUse <- 2017
-  # country <- 'IE'
-  # outputFileName <- ""
-  # numberOfSamples <- 10
-  # cleanData <- TRUE
-  # RDBESvalidationdata <- validationData
-  # RDBEScodeLists <- allowedValues
-  # RequiredTables = requiredTables
+   # typeOfFile <- 'H1'
+   # RDBESdata<-myRDBESData
+   # yearToUse <- 2019
+   # country <- 'IE'
+   # outputFileName <- ""
+   # numberOfSamples <- 10
+   # cleanData <- TRUE
+   # RDBESvalidationdata <- validationData
+   # RDBEScodeLists <- allowedValues
+   # RequiredTables <- allRequiredTables
   
   ## Step 0 - Check typeOfFile and generate a file name if we need to 
   testedCSfileTypes <- c('H1','H5')
@@ -241,108 +241,80 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   # If we want to remove any invalid data before generating the upload files do this now
   if(cleanData){
     
-    rowsBefore <- 0
-    for (myRequiredTable in requiredTables){
-      rowsBefore <- rowsBefore + nrow(myCSData[[myRequiredTable]])
-    }
-    print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
-    
-    # Validate 
-    myErrors <- validateTables(RDBESdata = myCSData
-                               ,RDBESvalidationdata = RDBESvalidationdata
-                               ,RDBEScodeLists = RDBEScodeLists
-                               ,shortOutput = FALSE
-                               ,framestoValidate = requiredTables
-    )
-    
-    # Remove any invalid rows 
-    for (myRequiredTable in requiredTables){
-      myCSData[[myRequiredTable]]<- removeInvalidRows(tableName = myRequiredTable,dataToClean = myCSData[[myRequiredTable]],errorList = myErrors)
-    }
-    
-    # Filter the data again to ensure we don't have any orphan rows in our output
-    myCSData <- filterCSData(RDBESdata = myCSData , RequiredTables = requiredTables, YearToFilterBy = yearToUse, CountryToFilterBy = country, UpperHierarchyToFilterBy = upperHierarchy)
-    
-    rowsAfter <- 0
-    for (myRequiredTable in requiredTables){
-      rowsAfter <- rowsAfter + nrow(myCSData[[myRequiredTable]])
-    }
-    print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
-    
-    if (rowsAfter < rowsBefore){
-      missingRows <- rowsBefore - rowsAfter
-      warning(paste(missingRows,' invalid rows removed before trying to generate output files', sep = ""))
-    }
+    myCSData <- cleanCSData(DataToClean = myCSData, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists, RequiredTables = requiredTables, YearToFilterBy = yearToUse, CountryToFilterBy = country, UpperHierarchyToFilterBy = upperHierarchy)
     
   }
   
   
   # If required, limit the number of samples we will output (normally just used during testing)
   if (!is.null(numberOfSamples)){
-    # Get our samples (not including sub-samples)
-    NotSubSamples <- myCSData[['SA']][is.na(myCSData[['SA']]$SAparentSequenceNumber),]
     
-    #if (nrow(myCSData[['SA']])>numberOfSamples ) {
-    if (nrow(NotSubSamples)>numberOfSamples ) {
-      
-      #Subset the data to get the SAid values we are interested it
-      #SAidsToUse <- myCSData[['SA']][1:numberOfSamples,"SAid"]
-      SAidsToUse <- NotSubSamples[1:numberOfSamples,"SAid"]
-      
-      # Need Sort out SA and FM first, then we'll deal with the other tables
-      
-      # SA : Top level samples not including sub-samplea
-      myCSData[['SA']]<- myCSData[['SA']][myCSData[['SA']]$SAid %in% SAidsToUse,]
-      # Now handle any sub-samples
-      mySubSampleData <- myCSData[['SA']][!is.na(myCSData[['SA']]$SAparentSequenceNumber),]
-      
-      # If we have any sub-samples see if we need to include them
-      if (nrow(mySubSampleData) > 0){
-        # Use a recursive function to fetch the top level sequence number of our sub-samples
-        mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
-        # Only include sub-samples if their top level sequence numebr is in our filtered sample data
-        mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% myCSData[['SA']]$SAsequenceNumber,]
-        # Remove the column we added
-        mySubSampleData$topLevelSequenceNumber <- NULL
-        # Combine our samples and sub-samples together
-        myCSData[['SA']] <- rbind(myCSData[['SA']],mySubSampleData)
-      }
-      
-      # FM
-      myCSData[['FM']]<- myCSData[['FM']][myCSData[['FM']]$SAid %in% myCSData[['SA']]$SAid,]
-
-      # Now deal with all the other tables
-      myData <- NULL
-      previousRequiredTable <- NULL
-      
-      # Iterate through the required tables in reverse order and remove any records not assoicated with our selected samples
-      for (myRequiredTable in rev(requiredTables)){
-
-        if (myRequiredTable %in% c('SA','FM')){
-          # Do nothing - already handled above
-        } 
-        # Need to check if the BV records are in either the FM or SA tables
-        else if (myRequiredTable == 'BV'){
-          myData <- myCSData[['BV']][myCSData[['BV']]$FMid %in% myCSData[['FM']]$FMid | myCSData[['BV']]$SAid %in% myCSData[['SA']]$SAid,]
-          myCSData[['BV']] <- myData
-        } 
-        # Other tables can follow a general pattern
-        else {
-          
-          previousHierarchyTable <- myCSData[[previousRequiredTable]]
-          ## Assume the primary key is the first field
-          currentPrimaryKey <- names(myCSData[[myRequiredTable]])[1]
-          myData <- myCSData[[myRequiredTable]][myCSData[[myRequiredTable]][,currentPrimaryKey] %in% previousHierarchyTable[,currentPrimaryKey],]
-          myCSData[[myRequiredTable]] = myData
-          
-        }
-        
-        previousRequiredTable <- myRequiredTable
-        
-      }
-      
-      print(paste("File truncated to data relating to ",numberOfSamples, " samples",sep=""))
-    }
+    myCSData <- limitSamplesInCSData(DataToFilter = myCSData, NumberOfSamples = numberOfSamples, RequiredTables = requiredTables)
+    
+    # # Get our samples (not including sub-samples)
+    # NotSubSamples <- myCSData[['SA']][is.na(myCSData[['SA']]$SAparentSequenceNumber),]
+    # 
+    # #if (nrow(myCSData[['SA']])>numberOfSamples ) {
+    # if (nrow(NotSubSamples)>numberOfSamples ) {
+    #   
+    #   #Subset the data to get the SAid values we are interested it
+    #   #SAidsToUse <- myCSData[['SA']][1:numberOfSamples,"SAid"]
+    #   SAidsToUse <- NotSubSamples[1:numberOfSamples,"SAid"]
+    #   
+    #   # Need Sort out SA and FM first, then we'll deal with the other tables
+    #   
+    #   # SA : Top level samples not including sub-samplea
+    #   myCSData[['SA']]<- myCSData[['SA']][myCSData[['SA']]$SAid %in% SAidsToUse,]
+    #   # Now handle any sub-samples
+    #   mySubSampleData <- myCSData[['SA']][!is.na(myCSData[['SA']]$SAparentSequenceNumber),]
+    #   
+    #   # If we have any sub-samples see if we need to include them
+    #   if (nrow(mySubSampleData) > 0){
+    #     # Use a recursive function to fetch the top level sequence number of our sub-samples
+    #     mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
+    #     # Only include sub-samples if their top level sequence numebr is in our filtered sample data
+    #     mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% myCSData[['SA']]$SAsequenceNumber,]
+    #     # Remove the column we added
+    #     mySubSampleData$topLevelSequenceNumber <- NULL
+    #     # Combine our samples and sub-samples together
+    #     myCSData[['SA']] <- rbind(myCSData[['SA']],mySubSampleData)
+    #   }
+    #   
+    #   # FM
+    #   myCSData[['FM']]<- myCSData[['FM']][myCSData[['FM']]$SAid %in% myCSData[['SA']]$SAid,]
+    # 
+    #   # Now deal with all the other tables
+    #   myData <- NULL
+    #   previousRequiredTable <- NULL
+    #   
+    #   # Iterate through the required tables in reverse order and remove any records not assoicated with our selected samples
+    #   for (myRequiredTable in rev(requiredTables)){
+    # 
+    #     if (myRequiredTable %in% c('SA','FM')){
+    #       # Do nothing - already handled above
+    #     } 
+    #     # Need to check if the BV records are in either the FM or SA tables
+    #     else if (myRequiredTable == 'BV'){
+    #       myData <- myCSData[['BV']][myCSData[['BV']]$FMid %in% myCSData[['FM']]$FMid | myCSData[['BV']]$SAid %in% myCSData[['SA']]$SAid,]
+    #       myCSData[['BV']] <- myData
+    #     } 
+    #     # Other tables can follow a general pattern
+    #     else {
+    #       
+    #       previousHierarchyTable <- myCSData[[previousRequiredTable]]
+    #       ## Assume the primary key is the first field
+    #       currentPrimaryKey <- names(myCSData[[myRequiredTable]])[1]
+    #       myData <- myCSData[[myRequiredTable]][myCSData[[myRequiredTable]][,currentPrimaryKey] %in% previousHierarchyTable[,currentPrimaryKey],]
+    #       myCSData[[myRequiredTable]] = myData
+    #       
+    #     }
+    #     
+    #     previousRequiredTable <- myRequiredTable
+    #     
+    #   }
+    #   
+    #   print(paste("File truncated to data relating to ",numberOfSamples, " samples",sep=""))
+    # }
   }
   
   
@@ -407,6 +379,169 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   
   fwrite(list(csOrdered), paste(outputFolder,outputFileName, sep = "") ,row.names=F,col.names=F,quote=F)
   print(paste("Output file written to ",outputFileName,sep=""))
+  
+}
+
+
+#' limitSamplesInCSData
+#'
+#' @param DataToFilter 
+#' @param NumberOfSamples 
+#' @param RequiredTables 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+limitSamplesInCSData <- function(DataToFilter, NumberOfSamples, RequiredTables){
+  
+  # Get our samples (not including sub-samples)
+  NotSubSamples <- DataToFilter[['SA']][is.na(DataToFilter[['SA']]$SAparentSequenceNumber),]
+  
+  #if (nrow(myCSData[['SA']])>numberOfSamples ) {
+  if (nrow(NotSubSamples)>NumberOfSamples ) {
+    
+    #Subset the data to get the SAid values we are interested it
+    #SAidsToUse <- myCSData[['SA']][1:numberOfSamples,"SAid"]
+    SAidsToUse <- NotSubSamples[1:NumberOfSamples,"SAid"]
+    
+    # Need Sort out SA and FM first, then we'll deal with the other tables
+    
+    # SA : Top level samples not including sub-samplea
+    DataToFilter[['SA']]<- DataToFilter[['SA']][DataToFilter[['SA']]$SAid %in% SAidsToUse,]
+    # Now handle any sub-samples
+    mySubSampleData <- DataToFilter[['SA']][!is.na(DataToFilter[['SA']]$SAparentSequenceNumber),]
+    
+    # If we have any sub-samples see if we need to include them
+    if (nrow(mySubSampleData) > 0){
+      # Use a recursive function to fetch the top level sequence number of our sub-samples
+      mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
+      # Only include sub-samples if their top level sequence numebr is in our filtered sample data
+      mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% DataToFilter[['SA']]$SAsequenceNumber,]
+      # Remove the column we added
+      mySubSampleData$topLevelSequenceNumber <- NULL
+      # Combine our samples and sub-samples together
+      DataToFilter[['SA']] <- rbind(DataToFilter[['SA']],mySubSampleData)
+    }
+    
+    # FM
+    DataToFilter[['FM']]<- DataToFilter[['FM']][DataToFilter[['FM']]$SAid %in% DataToFilter[['SA']]$SAid,]
+    
+    # Now deal with all the other tables
+    myData <- NULL
+    previousRequiredTable <- NULL
+    
+    # Iterate through the required tables in reverse order and remove any records not assoicated with our selected samples
+    for (myRequiredTable in rev(RequiredTables)){
+      
+      if (myRequiredTable %in% c('SA','FM')){
+        # Do nothing - already handled above
+      } 
+      # Need to check if the BV records are in either the FM or SA tables
+      else if (myRequiredTable == 'BV'){
+        
+        # don't assume FMid and SAid always exist
+        myData <- DataToFilter[['BV']][DataToFilter[['BV']]$FMid %in% DataToFilter[['FM']]$FMid | DataToFilter[['BV']]$SAid %in% DataToFilter[['SA']]$SAid,]
+        
+        if ('FMid' %in% names(DataToFilter[['BV']])){
+          data1 <- DataToFilter[['BV']][DataToFilter[['BV']]$FMid %in% DataToFilter[['FM']]$FMid,]
+        } else {
+          data1 <- NULL
+        }
+        
+        if ('SAid' %in% names(DataToFilter[['BV']])){
+          data2 <- DataToFilter[['BV']][DataToFilter[['BV']]$SAid %in% DataToFilter[['SA']]$SAid,]
+        } else {
+          data2 <- NULL
+        }
+        
+        #DataToFilter[['BV']] <- myData
+        DataToFilter[['BV']] <- rbind(data1,data2)
+      } 
+      # Other tables can follow a general pattern
+      else {
+        
+        previousHierarchyTable <- DataToFilter[[previousRequiredTable]]
+        ## Assume the primary key is the first field
+        currentPrimaryKey <- names(DataToFilter[[myRequiredTable]])[1]
+        myData <- DataToFilter[[myRequiredTable]][DataToFilter[[myRequiredTable]][,currentPrimaryKey] %in% previousHierarchyTable[,currentPrimaryKey],]
+        DataToFilter[[myRequiredTable]] = myData
+        
+      }
+      
+      previousRequiredTable <- myRequiredTable
+      
+    }
+    
+    print(paste("File truncated to data relating to ",NumberOfSamples, " samples",sep=""))
+  }
+  
+  DataToFilter
+}
+
+#' cleanCSData
+#'
+#' @param DataToClean 
+#' @param RDBESvalidationdata 
+#' @param RDBEScodeLists 
+#' @param RequiredTables 
+#' @param YearToFilterBy 
+#' @param CountryToFilterBy 
+#' @param UpperHierarchyToFilterBy 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+cleanCSData <- function(DataToClean,RDBESvalidationdata, RDBEScodeLists, RequiredTables, YearToFilterBy, CountryToFilterBy,UpperHierarchyToFilterBy ){
+  
+  # For testing
+   # typeOfFile <- 'H1'
+   # UpperHierarchyToFilterBy <- substr(typeOfFile,2,nchar(typeOfFile))
+   # YearToFilterBy <- 2019
+   # CountryToFilterBy <- 'IE'
+   # outputFileName <- ""
+   # RDBESvalidationdata <- validationData
+   # RDBEScodeLists <- allowedValues
+   # #RequiredTables <- requiredTables
+   # requiredTables <- allRequiredTables[[typeOfFile]]
+   # DataToClean <- filterCSData(RDBESdata = RDBESdata , RequiredTables = requiredTables, YearToFilterBy = YearToFilterBy, CountryToFilterBy = CountryToFilterBy, UpperHierarchyToFilterBy = UpperHierarchyToFilterBy)
+
+  
+  rowsBefore <- 0
+  for (myRequiredTable in RequiredTables){
+    rowsBefore <- rowsBefore + nrow(DataToClean[[myRequiredTable]])
+  }
+  print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
+  
+  # Validate 
+  myErrors <- validateTables(RDBESdata = DataToClean
+                             ,RDBESvalidationdata = RDBESvalidationdata
+                             ,RDBEScodeLists = RDBEScodeLists
+                             ,shortOutput = FALSE
+                             ,framestoValidate = RequiredTables
+  )
+  
+  # Remove any invalid rows 
+  for (myRequiredTable in RequiredTables){
+    DataToClean[[myRequiredTable]]<- removeInvalidRows(tableName = myRequiredTable,dataToClean = DataToClean[[myRequiredTable]],errorList = myErrors)
+  }
+  
+  # Filter the data again to ensure we don't have any orphan rows in our output
+  DataToClean <- filterCSData(RDBESdata = DataToClean , RequiredTables = RequiredTables, YearToFilterBy = YearToFilterBy, CountryToFilterBy = CountryToFilterBy, UpperHierarchyToFilterBy = UpperHierarchyToFilterBy)
+  
+  rowsAfter <- 0
+  for (myRequiredTable in RequiredTables){
+    rowsAfter <- rowsAfter + nrow(DataToClean[[myRequiredTable]])
+  }
+  print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
+  
+  if (rowsAfter < rowsBefore){
+    missingRows <- rowsBefore - rowsAfter
+    warning(paste(missingRows,' invalid rows removed before trying to generate output files', sep = ""))
+  }
+  
+  DataToClean
   
 }
 
@@ -480,8 +615,23 @@ filterCSData <- function(RDBESdata, RequiredTables, YearToFilterBy, CountryToFil
     }
     # BVid can either be in FM or SA
     else if (myRequiredTable == 'BV'){
-      myData <- myData[myData$FMid %in% myCSData[['FM']]$FMid | myData$SAid %in% myCSData[['SA']]$SAid,]
-      myCSData[[myRequiredTable]] = myData
+      
+      #myData <- myData[myData$FMid %in% myCSData[['FM']]$FMid | myData$SAid %in% myCSData[['SA']]$SAid,]
+      # Don't just assume the FMid or SAid columns are present - check first
+      if ('FMid' %in% names(myData)){
+        myData1 <- myData[myData$FMid %in% myCSData[['FM']]$FMid,]
+      } else {
+        myData1 <- NULL
+      }
+      if ('SAid' %in% names(myData)){
+        myData2 <- myData[myData$SAid %in% myCSData[['SA']]$SAid,]
+      } else {
+        myData2 <- NULL
+      }
+      
+      
+      #myCSData[[myRequiredTable]] = myData
+      myCSData[[myRequiredTable]] = rbind(myData1,myData2)
     } 
     # all other tables can follow a general pattern of matching
     else {
@@ -2283,7 +2433,7 @@ createEmptyDataFrameFromValidationData <- function(nameOfTable, RDBESvalidationd
 #' @export
 #'
 #' @examples
-compareCSData <- function(dataSet1, dataSet2){
+compareCSData <- function(dataSet1, dataSet2, RequiredTables){
   
   # For testing
   #dataSet1 <- dataSet1
@@ -2326,9 +2476,9 @@ compareCSData <- function(dataSet1, dataSet2){
         aHierarchyText <- paste("H",aHierarchy,sep="")
         print(paste("Checking hierarchy ",aHierarchyText,sep=""))
         
-        subsetDataSet1 <- filterCSData(RDBESdata = dataSet1 , RequiredTables = requiredTables[[aHierarchyText]], YearToFilterBy = aYear, CountryToFilterBy = aCountry, UpperHierarchyToFilterBy = aHierarchy)
+        subsetDataSet1 <- filterCSData(RDBESdata = dataSet1 , RequiredTables = RequiredTables[[aHierarchyText]], YearToFilterBy = aYear, CountryToFilterBy = aCountry, UpperHierarchyToFilterBy = aHierarchy)
         
-        subsetDataSet2 <- filterCSData(RDBESdata = dataSet2 , RequiredTables = requiredTables[[aHierarchyText]], YearToFilterBy = aYear, CountryToFilterBy = aCountry, UpperHierarchyToFilterBy = aHierarchy)
+        subsetDataSet2 <- filterCSData(RDBESdata = dataSet2 , RequiredTables = RequiredTables[[aHierarchyText]], YearToFilterBy = aYear, CountryToFilterBy = aCountry, UpperHierarchyToFilterBy = aHierarchy)
         
         tablesInDS1 <- names(subsetDataSet1)
         tablesInDS2 <- names(subsetDataSet2)

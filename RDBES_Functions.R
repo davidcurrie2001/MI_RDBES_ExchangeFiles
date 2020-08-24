@@ -2566,3 +2566,361 @@ compareSimpleData <- function(dataSet1, dataSet2, tableType){
   
 }
 
+
+
+#' createTestData
+#'
+#' @param HierarchyToGenerate 
+#' @param LowerHierarchyToGenerate 
+#' @param RDBESvalidationdata 
+#' @param RDBEScodeLists 
+#' @param RequiredTables 
+#' @param NumberOfStrata 
+#' @param NumberSampled 
+#' @param NumberTotal 
+#' @param SelectionMethods 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+createTestData <- function(HierarchyToGenerate,LowerHierarchyToGenerate, RDBESvalidationdata, RDBEScodeLists, RequiredTables, NumberOfStrata, NumberSampled, NumberTotal, SelectionMethods ){
+  
+  myRequiredTables <- RequiredTables[[HierarchyToGenerate]]
+  myAuxTables <- c('VD','SL')
+  
+  # We might need to remove some tables, depending on the lower hierarchy
+  if (LowerHierarchyToGenerate == 'A'){
+    # No need to do anything
+  } else if (LowerHierarchyToGenerate == 'B'){
+    # Remove BV
+    myRequiredTables <- myRequiredTables[myRequiredTables != 'BV']
+  } else if (LowerHierarchyToGenerate == 'C'){
+    # Remove FM
+    myRequiredTables <- myRequiredTables[myRequiredTables != 'FM']
+  } else if (LowerHierarchyToGenerate == 'D'){
+    # Remove FM and BV
+    myRequiredTables <- myRequiredTables[myRequiredTables != 'FM']
+    myRequiredTables <- myRequiredTables[myRequiredTables != 'BV']
+  }
+  
+  # First create a list with all the empty tables we need in it (the CS hierarchy tables and VD, SL)
+  myDataList <- list()
+  
+  for (myTable in c(myRequiredTables,myAuxTables)){
+    myEmptyDf <- createEmptyDataFrameFromValidationData(nameOfTable = myTable, RDBESvalidationdata = RDBESvalidationdata)
+    # Add our empty XXid column to the front of the data frame
+    myID <- integer(0)
+    # Create the record type column
+    myRecType <- character(0)
+    myEmptyDf <- cbind(myID,myRecType,myEmptyDf)
+    # Name our new columns correctly
+    names(myEmptyDf)[1] <- paste(myTable,'id',sep = "")
+    names(myEmptyDf)[2] <- paste(myTable,'recordType',sep = "")
+    # Add the empty data frame to our list
+    myDataList[[myTable]] <- myEmptyDf
+    
+    # Check if we have been given values for some aspects of the data we want to generate - if not we set defaults
+    
+    if (!myTable %in% names(NumberOfStrata)){
+      NumberOfStrata[[myTable]] <- 1
+    }
+    
+    if (!myTable %in% names(NumberSampled)){
+      NumberSampled[[myTable]] <- 1
+    }
+    
+    if (!myTable %in% names(NumberTotal)){
+      NumberTotal[[myTable]] <- NumberSampled[[myTable]] +1
+    }
+    
+    if (!myTable %in% names(SelectionMethods)){
+      SelectionMethods[[myTable]] <- 'SRSWR'
+    }
+    
+    myDF <- myDataList[[myTable]]
+    myNumberOfStrata <- NumberOfStrata[[myTable]]
+    myNumberSampled <- NumberSampled[[myTable]]
+    myNumberTotal <- NumberTotal[[myTable]]
+    myMethod <- SelectionMethods[[myTable]]
+    
+    # Generate test data for each required table
+    myNewDF <- createNewTestDataFrame(HierarchyToGenerate = HierarchyToGenerate,LowerHierarchyToGenerate = LowerHierarchyToGenerate, TableType = myTable, DataFrameToUpdate = myDF, NumberOfStrata = myNumberOfStrata, NumberSampled = myNumberSampled, NumberTotal = myNumberTotal, SelectionMethod = myMethod, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists)
+    
+    myDataList[[myTable]] <- myNewDF
+    
+    
+  }
+  
+  #myDataList
+  
+  # At the moment we have a lot of indepdent test data - we'll mutiple all these records together so that we have our data linked together
+  myMultipliedTestData <- list()
+  
+  currentTable <- NA
+  previousTable <- NA
+  
+  for (myTable in myRequiredTables){
+    
+    previousTable <- currentTable
+    currentTable <- myTable
+    #print(currentTable)
+    #print(previousTable)
+    myCurrentData <-  myDataList[[currentTable]]
+    
+    # If we're not at the top level table lets start mutiplying data
+    if (!is.na(previousTable)){
+      myPreviousData <- myMultipliedTestData[[previousTable]]
+      
+      FKcolumnName <- paste(previousTable,'id',sep="")
+      
+      # Add our foreign key column to the data
+      myCurrentData[,FKcolumnName]<-integer(nrow(myCurrentData))
+      # Default the value to NA if we need to
+      if (nrow(myCurrentData)>0){
+        myCurrentData[,FKcolumnName] <- NA
+      }
+      
+      # For each unique value of the foreign key in the previous table we will mutiply the data in the current table
+      for (myFK in unique(myPreviousData[,FKcolumnName])){
+        newBlockOfData <- myCurrentData
+        newBlockOfData[,FKcolumnName] <- myFK
+        myMultipliedTestData[[currentTable]] <- rbind(myMultipliedTestData[[currentTable]],newBlockOfData)
+      }
+      
+      # Re-generate the PK for our mutiplied data because they will have been duplicated
+      myMultipliedTestData[[currentTable]][,paste(currentTable,'id',sep="")] <- 1:nrow(myMultipliedTestData[[currentTable]])
+      
+      # If we're at the first table we'll just take those values without trying to multiply them
+    } else {
+      myMultipliedTestData[[currentTable]] <- myCurrentData
+    }
+    
+  }
+  
+  # Just add the auxillary tables into the output without doing anything to them
+  for (myTable in myAuxTables){
+    myMultipliedTestData[[myTable]] <- myDataList[[myTable]]
+  }
+  
+  # Ok we now have soem fairly meaningless random data - lets try and make it a bit more useful
+  myMultipliedTestData
+  
+  
+}
+
+
+
+
+#' createNewTestDataFrame
+#'
+#' @param HierarchyToGenerate 
+#' @param LowerHierarchyToGenerate 
+#' @param TableType 
+#' @param DataFrameToUpdate 
+#' @param NumberOfStrata 
+#' @param NumberSampled 
+#' @param NumberTotal 
+#' @param SelectionMethod 
+#' @param RDBESvalidationdata 
+#' @param RDBEScodeLists 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+createNewTestDataFrame <- function(HierarchyToGenerate,LowerHierarchyToGenerate, TableType, DataFrameToUpdate, NumberOfStrata, NumberSampled, NumberTotal,SelectionMethod, RDBESvalidationdata, RDBEScodeLists){
+  
+  # Generate our strata names
+  if (NumberOfStrata <= 1){
+    myStratumNames <- c('U')
+  } else {
+    myStratumNames <- sapply(1:NumberOfStrata, function(x) paste(TableType,'_stratum',x,sep=""))
+  }
+  
+  # For each stratum
+  for (aStratum in myStratumNames){
+    # for each of our sampled units
+    for (i in 1:NumberSampled){
+      
+      # Create a new row id
+      newRowID <- nrow(DataFrameToUpdate) +1
+      
+      # Create a new row
+      myNewRowValues <- createNewTestDataRow(HierarchyToGenerate = HierarchyToGenerate,LowerHierarchyToGenerate = LowerHierarchyToGenerate, TableType = TableType, RowID = newRowID, ColumnNames = names(DataFrameToUpdate), StratumName = aStratum, NumberSampled = NumberSampled, NumberTotal = NumberTotal,SelectionMethod = SelectionMethod, RDBESvalidationdata = RDBESvalidationdata, RDBEScodeLists = RDBEScodeLists)
+      
+      # Add the new row to our data frame
+      myNewRow <- as.data.frame(myNewRowValues, stringsAsFactors = FALSE)
+      # Slow to use Rbind in a loop :-(
+      DataFrameToUpdate <- rbind(DataFrameToUpdate,myNewRow)  
+    }
+  }
+  
+  DataFrameToUpdate
+  
+  
+}
+
+
+
+#' createNewTestDataRow
+#'
+#' @param HierarchyToGenerate 
+#' @param LowerHierarchyToGenerate 
+#' @param TableType 
+#' @param RowID 
+#' @param ColumnNames 
+#' @param StratumName 
+#' @param NumberSampled 
+#' @param NumberTotal 
+#' @param SelectionMethod 
+#' @param RDBESvalidationdata 
+#' @param RDBEScodeLists 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+createNewTestDataRow <- function(HierarchyToGenerate,LowerHierarchyToGenerate, TableType, RowID, ColumnNames, StratumName, NumberSampled, NumberTotal,SelectionMethod, RDBESvalidationdata, RDBEScodeLists){
+  
+  # Empty list to hold our new row values
+  myNewRowValues <- list()
+  
+  # For each column in our data frame
+  for (myColName in ColumnNames){
+    
+    # Default the new value to NA
+    myNewValue <- NA
+    
+    # We'll deal with the 'special' columns first (most specific first), then deal with all the others
+    
+    # SPECIAL COLUMN - DEhierarchy
+    if (myColName == 'DEhierarchy') {
+      myNewValue <- substr(HierarchyToGenerate,2,nchar(HierarchyToGenerate))
+      # SPECIAL COLUMN - DEhierarchyCorrect
+    } else if (myColName == 'DEhierarchyCorrect') {
+      myNewValue <- 'Y'
+      # SPECIAL COLUMN - DEhierarchyCorrect
+    } else if (myColName == 'SAlowerHierarchy') {
+      myNewValue <- LowerHierarchyToGenerate
+      # SPECIAL COLUMN - XXid
+    } else if (myColName == paste(TableType,'id',sep="")) {
+      myNewValue <- RowID
+      # SPECIAL COLUMN - XXrecordType
+    } else if (myColName == paste(TableType,'recordType',sep="")) {
+      myNewValue <- TableType
+      # SPECIAL COLUMN - XXsequenceNumber
+    } else if (grepl('^..sequenceNumber$',myColName)) {
+      myNewValue <- RowID
+      # SPECIAL COLUMN - XXunitName
+    } else if (grepl('^..unitName$',myColName)) {
+      myNewValue <- paste(TableType,'_unit_', RowID,sep = "")
+      # SPECIAL COLUMN - XXstratification
+    } else if (grepl('^..stratification$',myColName)) {
+      if (StratumName =='U'){
+        myNewValue <-if_else(myColName == 'BVstratification','N','No')
+        #myNewValue <- 'No'
+      } else {
+        myNewValue <-if_else(myColName == 'BVstratification','Y','Yes')
+        #myNewValue <- 'Yes'
+      }
+      # SPECIAL COLUMN - XXstratumName
+    } else if (grepl('^..stratumName$',myColName)) {
+      myNewValue <- StratumName
+      # SPECIAL COLUMN - XXnumberSampled
+    } else if (grepl('^..numberSampled$',myColName)) {
+      myNewValue <- NumberSampled
+      # SPECIAL COLUMN - XXnumberTotal
+    } else if (grepl('^..numberTotal$',myColName)) {
+      myNewValue <- NumberTotal
+      # SPECIAL COLUMN - XXselectionMethod
+    } else if (grepl('^..selectionMethod$',myColName)) {
+      myNewValue <- SelectionMethod
+      # SPECIAL COLUMN - XXsampled
+    } else if (grepl('^..sampled$',myColName)) {
+      myNewValue <- 'Y'
+      # SPECIAL COLUMN - XXclustering
+    } else if (grepl('^..clustering$',myColName)) {
+      myNewValue <- 'No'
+      # SPECIAL COLUMN - XXclusterName
+    } else if (grepl('^..clusterName$',myColName)) {
+      myNewValue <- 'U'
+      # SPECIAL COLUMN - XXgsaSubarea
+    } else if (grepl('^..gsaSubarea$',myColName)) {
+      myNewValue <- 'NotApplicable'
+      # SPECIAL COLUMN - XXArea
+    } else if (grepl('^..area$',myColName)) {
+      myNewValue <- '27'
+      # NOT SPECIAL :-(
+    } else {
+      # Else this column is not special :-( - just put some random data in it....
+      
+      # Try finding the validation info for this column
+      myValidationInfo <- RDBESvalidationdata[RDBESvalidationdata$name == myColName,]
+      
+      # VALIDATION INFROMATION FOUND
+      if (nrow(myValidationInfo)==1){
+        #print(myColName)
+        # MANDATORY
+        if (myValidationInfo$min >0){
+          # Mandatory so we need to do soemthing :-)
+          # What we do will depden on what type of column it is e.g. code list, int, double etc
+          
+          # CODE LIST
+          if (grepl('^t.*',myValidationInfo$type) & is.na(myValidationInfo$description)){
+            # if its a code list we'll get the first entry from the code list
+            requiredCodeListName <- myValidationInfo$type
+            #print(requiredCodeListName)
+            firstEntry <- RDBEScodeLists[RDBEScodeLists$listName == requiredCodeListName,'Key' ][1]
+            myNewValue <- firstEntry
+            # SIMPLETYPECHECK
+          } else if (!is.na(myValidationInfo$description) & myValidationInfo$description == 'simpleTypeCheck'){
+            # simpleTypeCheck - string with pattern
+            if (!is.na(myValidationInfo$pattern)){
+              # string with pattern - I assume this can only be dates or times - might not hold true in the future
+              if (myValidationInfo$checkName == 'tDate'){
+                myNewValue <- '1999-01-01'
+              } else if (myValidationInfo$checkName == 'tDate'){
+                myNewValue <- '12:34'
+              } else {
+                print(paste("There was a pattern check that I didn't deal with in column ", myColName, sep =""))
+              }
+              # simpleTypeCheck - min value
+            } else if (!is.na(myValidationInfo$minValue)){
+              myNewValue <- myValidationInfo$minValue
+              # simpleTypeCheck - max value (but no min)
+            } else if (!is.na(myValidationInfo$maxValue)){
+              myNewValue <- myValidationInfo$maxValue
+              # simpleTypeCheck - specified max decimal places
+            } else if (!is.na(myValidationInfo$fractionDigits)){
+              myNewValue <- round(1.12345678912345678912345,as.integer(myValidationInfo$fractionDigits))
+            } else {
+              print(paste("There was a simpleTypeCheck that I didn't deal with in column ", myColName, sep =""))
+            }
+            # INT, LONG, OR DECIMAL
+          } else if (myValidationInfo$type %in% c('xs:int','xs:long','xs:decimal')){
+            myNewValue <- 10
+            # STRING
+          } else if (myValidationInfo$type == 'xs:string'){
+            myNewValue <- 'abc'
+            # DIDN'T MATCH - TELL THE USER
+          } else {
+            print(paste("I didn't deal with the validation information in column ", myColName, sep =""))
+          }
+          # OPTIONAL
+        } else {
+          # If the field is optional- don't bother to do anything
+        }
+        # NO VALIDATION INFORMATION FOUND
+      } else {
+        print(paste("Could not find information for ",myColName,sep=""))
+      }
+    }
+    # Add our new value to the list of new values
+    myNewRowValues[[myColName]] <- myNewValue
+  }
+  
+  myNewRowValues
+  
+}
+

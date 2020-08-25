@@ -3036,11 +3036,11 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
   }
   if ('OS' %in% names(DataToUse)){
     myRandomValues <- sample(seq(as.Date(paste(YearToUse,'/01/01',sep="")), as.Date(paste(YearToUse,'/12/01',sep="")), by="day"), nrow(DataToUse[['OS']]),replace = TRUE)
-    DataToUse[['OS']][,'OSsamplingDate'] <- format(myRandomValues,'%Y/%m/%d')
+    DataToUse[['OS']][,'OSsamplingDate'] <- format(myRandomValues,'%Y-%m-%d')
   }
   if ('LE' %in% names(DataToUse)){
     myRandomValues <- sample(seq(as.Date(paste(YearToUse,'/01/01',sep="")), as.Date(paste(YearToUse,'/12/01',sep="")), by="day"), nrow(DataToUse[['LE']]),replace = TRUE)
-    DataToUse[['LE']][,'LEdate'] <- format(myRandomValues,'%Y/%m/%d')
+    DataToUse[['LE']][,'LEdate'] <- format(myRandomValues,'%Y-%m-%d')
   }
   
   # SPECIES LIST NAME
@@ -3069,7 +3069,7 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     DataToUse[['FT']][,'FTencryptedVesselCode'] <- NA
     
     # If we have a VS table then we'll use the vessel code form that record in the FT record
-    if ('VS' %in% names(DataToUse)){
+    if ('VS' %in% names(DataToUse) & 'VSid' %in% names(DataToUse[['FT']])){
       VSvessel <- DataToUse[['VS']][,c('VSid','VSencryptedVesselCode')]
       myJoin <- inner_join(DataToUse[['FT']],VSvessel, by ='VSid')
       DataToUse[['FT']][,'FTencryptedVesselCode'] <- myJoin[,'VSencryptedVesselCode']
@@ -3093,15 +3093,15 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     # Clear out any existing values first
     DataToUse[['LE']][,'LEencryptedVesselCode'] <- NA
     
-    # If we have a VS table then we'll use the vessel code form that record in the FT record
-    if ('VS' %in% names(DataToUse)){
+    # If we have a VS table then we'll use the vessel code form that record in the LE record
+    if ('VS' %in% names(DataToUse) & 'VSid' %in% names(DataToUse[['LE']])  ){
       VSvessel <- DataToUse[['VS']][,c('VSid','VSencryptedVesselCode')]
       myJoin <- inner_join(DataToUse[['LE']],VSvessel, by ='VSid')
       DataToUse[['LE']][,'LEencryptedVesselCode'] <- myJoin[,'VSencryptedVesselCode']
     } 
     
-    # If we have a FT table then we'll use the vessel code form that record in the FT record
-    if ('FT' %in% names(DataToUse)){
+    # If we have a FT table then we'll use the vessel code form that record in the LE record
+    if ('FT' %in% names(DataToUse) & 'FTid' %in% names(DataToUse[['LE']])){
       FTvessel <- DataToUse[['FT']][,c('FTid','FTencryptedVesselCode')]
       myJoin <- inner_join(DataToUse[['LE']],FTvessel, by ='FTid')
       DataToUse[['LE']][,'LEencryptedVesselCode'] <- myJoin[,'FTencryptedVesselCode']

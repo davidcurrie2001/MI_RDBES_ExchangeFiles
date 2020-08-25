@@ -23,8 +23,12 @@ allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLoca
 ## STEP 2) GENERATE TEST DATA
 
 
+#for (i in 1:13){
+#myHierarchyToGenerate <- paste('H',i,sep="")
+
 # Define some parameters for our test data
-myHierarchyToGenerate <- 'H8'
+#myHierarchyToGenerate <- 'H10'
+print(myHierarchyToGenerate)
 myLowerHierarchyToGenerate <- 'A'
 myYear <- 2015
 myCountry <- 'IE'
@@ -55,4 +59,4 @@ generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = myYear, country = myCo
 # Create a complex exchange file (Hx)
 generateComplexExchangeFile(typeOfFile = myHierarchyToGenerate, yearToUse = myYear, country = myCountry, RDBESdata = myNewTestData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
-
+#}

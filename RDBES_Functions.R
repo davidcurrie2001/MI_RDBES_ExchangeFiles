@@ -3186,28 +3186,51 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
   
   if ('FM' %in% names(DataToUse)){
     
-    # For each species sampled we'll randomly pick a minimum length and then create soem length data in the FM data
+    # For each species sampled we'll randomly pick a minimum length and then create soem normal length data in the FM data
     speciesSampled <- unique(DataToUse[['SA']][,'SAspeciesCode'])
     minLength <- data.frame( SAspeciesCode = speciesSampled, minLength = sample(10:40,length(speciesSampled), replace = TRUE), stringsAsFactors = FALSE)
     myJoin <- inner_join(DataToUse[['SA']],minLength, by ='SAspeciesCode')
     myJoin2 <- inner_join(DataToUse[['FM']],myJoin,by='SAid')
+    # Set all the values of FMclass to be the minium length to start with - we'll change this in a bit
     DataToUse[['FM']][,'FMclass'] <- myJoin2[,'minLength'] * 10
     
-    # For each sample, create increasing values for FMclass
+    # For each sample, create increasing values for FMclass, with a normal distribution of fish counts
     # TODO - shoudl be a better way to do this
     for (mySAid in unique(DataToUse[['FM']][,'SAid'])){
+      
+      # The FM data associated with this SAid
       myFMDataForASample <- DataToUse[['FM']][DataToUse[['FM']][,'SAid'] == mySAid,]
+      
+      # First we'll generate soem nromal data that we will use for the number of fish at each length
+      myNumberOfLengthClasses <- nrow(myFMDataForASample)
+      myMinLengthClass <- min(myFMDataForASample[,'FMclass'])
+      # Set a standard deviation
+      mySD <- 5
+      # Assume the mean is half way along the number of length classes
+      myMean <- myMinLengthClass + (myNumberOfLengthClasses/2)
+      # Generate a normal distribution of lengths
+      myLengthSequence <- seq(myMinLengthClass, myMinLengthClass + myNumberOfLengthClasses, by = 1)
+      myNormalFishCounts <- dnorm(myLengthSequence, mean = myMean, sd = mySD)
+      # Let's fix the max number of fish at a length class as 10 and scale everything accordingly
+      myMultiplyFactor <- 10/max(myNormalFishCounts)
+      myNormalFishCounts <- round(myNormalFishCounts*myMultiplyFactor)
+      
+      # Now lets generate our lengths and the number of fish at each length
       currentLength <- NA
+      FMCount <- 0
       for (myFMid in myFMDataForASample[,'FMid']){
+        FMCount <- FMCount + 1
         if (is.na(currentLength)){
           currentLength <- myFMDataForASample[myFMDataForASample[,'FMid']==myFMid,'FMclass']
         } else {
+          # Add 10mm to previous length
           currentLength <- currentLength + 10
         }
-        # Add 10mm to previous length
         myFMDataForASample[myFMDataForASample[,'FMid'] == myFMid,'FMclass'] <- currentLength
         # Make a random number of fish at that length
-        myFMDataForASample[myFMDataForASample[,'FMid'] == myFMid,'FMnumberAtUnit'] <- sample(1:10,1)
+        #myFMDataForASample[myFMDataForASample[,'FMid'] == myFMid,'FMnumberAtUnit'] <- sample(1:10,1)
+        # Use our nomral distribution of fish counts
+        myFMDataForASample[myFMDataForASample[,'FMid'] == myFMid,'FMnumberAtUnit'] <- myNormalFishCounts[FMCount]
         
       }
       DataToUse[['FM']][DataToUse[['FM']][,'SAid'] == mySAid,] <- myFMDataForASample

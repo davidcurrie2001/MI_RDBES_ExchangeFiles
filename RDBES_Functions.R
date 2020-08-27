@@ -3242,14 +3242,38 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     
     # Sort out BVfishId so that we don't have duplicates
     DataToUse[['BV']][,'BVfishId'] <- DataToUse[['BV']][,'BVid']
-    # Pick a random age
+    
+    # Ages
     myBVages <- DataToUse[['BV']][DataToUse[['BV']][,'BVtype'] == 'Age',]
+    
+    # If we have soem age data
     if (nrow(myBVages)>0){
-      DataToUse[['BV']][DataToUse[['BV']][,'BVtype'] == 'Age','BVvalue'] <- as.character(sample(1:10, nrow(myBVages),replace = TRUE))
+      
+      # Set the ages to NA to start with 
+      DataToUse[['BV']][DataToUse[['BV']][,'BVtype'] == 'Age','BVvalue'] <- NA
+      
+      # If the BV is linked to a length class use that to generate an age
+      if( 'FMid' %in% names(myBVages)){
+        myJoin <- inner_join(myBVages,DataToUse[['FM']][,c('FMid','FMclass')], by ='FMid')
+        if (nrow(myJoin)>0){
+          # Assume the age is length / 50
+          myJoin[,'BVvalue'] <- round(myJoin[,'FMclass']/50.0)
+          # Update the age values in our data
+          # TODO - this is not a good way of doing things in R
+          for(myBV in myJoin[,'BVid'] ){
+            DataToUse[['BV']][DataToUse[['BV']][,'BVid'] == myBV,'BVvalue'] <- myJoin[myJoin[,'BVid']==myBV,'BVvalue']
+          }
+          
+        }
+        
+      } 
+      
+      # For any remaining NAs we'll pick a random age
+      DataToUse[['BV']][DataToUse[['BV']][,'BVtype'] == 'Age' & is.na(DataToUse[['BV']][,'BVvalue']),'BVvalue'] <- as.character(sample(1:10, nrow(myBVages),replace = TRUE))
+    
+      # Set the unit as Year
       DataToUse[['BV']][DataToUse[['BV']][,'BVtype'] == 'Age','BVvalueType'] <- 'Year'
     }
-    
-    
   }
   
   

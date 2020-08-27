@@ -22,12 +22,12 @@ allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLoca
 
 ## STEP 2) GENERATE TEST DATA
 
-
+# Can use a loop to generate test data for all hierarchies if you want to 
 #for (i in 1:13){
 #myHierarchyToGenerate <- paste('H',i,sep="")
 
 # Define some parameters for our test data
-#myHierarchyToGenerate <- 'H10'
+myHierarchyToGenerate <- 'H1'
 print(myHierarchyToGenerate)
 myLowerHierarchyToGenerate <- 'A'
 myYear <- 2015

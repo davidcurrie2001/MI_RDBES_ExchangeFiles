@@ -2821,11 +2821,11 @@ createNewTestDataRow <- function(HierarchyToGenerate,LowerHierarchyToGenerate, T
       # SPECIAL COLUMN - XXstratification
     } else if (grepl('^..stratification$',myColName)) {
       if (StratumName =='U'){
-        myNewValue <-if_else(myColName == 'BVstratification','N','No')
-        #myNewValue <- 'No'
+        #myNewValue <-if_else(myColName == 'BVstratification','N','No')
+        myNewValue <- 'N'
       } else {
-        myNewValue <-if_else(myColName == 'BVstratification','Y','Yes')
-        #myNewValue <- 'Yes'
+        #myNewValue <-if_else(myColName == 'BVstratification','Y','Yes')
+        myNewValue <- 'Y'
       }
       # SPECIAL COLUMN - XXstratumName
     } else if (grepl('^..stratumName$',myColName)) {
@@ -2844,7 +2844,7 @@ createNewTestDataRow <- function(HierarchyToGenerate,LowerHierarchyToGenerate, T
       myNewValue <- 'Y'
       # SPECIAL COLUMN - XXclustering
     } else if (grepl('^..clustering$',myColName)) {
-      myNewValue <- 'No'
+      myNewValue <- 'N'
       # SPECIAL COLUMN - XXclusterName
     } else if (grepl('^..clusterName$',myColName)) {
       myNewValue <- 'U'
@@ -2940,7 +2940,7 @@ createNewTestDataRow <- function(HierarchyToGenerate,LowerHierarchyToGenerate, T
 #' @export
 #'
 #' @examples
-makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierList,SpeciesList,RDBEScodeLists){
+makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierList,SpeciesList,RDBEScodeLists, catchFractionToUse = 'Lan', landingCategoryToUse = 'HuC'){
   
   # For testing
   #DataToUse <- myTestData
@@ -2948,6 +2948,7 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
   #CountryToUse <- 'IE'
   #SpeciesList <- c(126436)
   #MetierList <- c('OTB_DEF_100-119_0_0')
+  
   
   # VESSEL DETAILS
   DataToUse[['VD']][,'VDcountry'] <- CountryToUse
@@ -2968,6 +2969,7 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
   mySpeciesCodes <- mySpeciesCodes[1:nrow(DataToUse[['SL']])]
   DataToUse[['SL']][,'SLcommercialTaxon'] <- mySpeciesCodes
   DataToUse[['SL']][,'SLspeciesCode'] <- mySpeciesCodes
+  DataToUse[['SL']][,'SLcatchFraction'] <- catchFractionToUse
   
   # CS TABLES
   
@@ -3045,6 +3047,7 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
   
   # SPECIES LIST NAME
   DataToUse[['SS']][,'SSspeciesListName'] <- paste(CountryToUse,'_',YearToUse,'_SpeciesList',sep="")
+  DataToUse[['SS']][,'SScatchFraction'] <- catchFractionToUse
   
   # VESSELS
   # Ensure we are only referring to vessel that appear in our Vessel Details - this gets a bit complex because we can have the encryptedVesselCode used in a few tables, which can be linked to each other
@@ -3084,6 +3087,8 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     if (nrow(DataToUse[['FT']][is.na(DataToUse[['FT']][,'FTencryptedVesselCode']),])>0){
       DataToUse[['FT']][is.na(DataToUse[['FT']][,'FTencryptedVesselCode']),'FTencryptedVesselCode'] <- myRandomValues
     }
+    
+    DataToUse[['FT']][,'FTsequenceNumber'] <- DataToUse[['FT']][,'FTid']
     
   }
   
@@ -3165,6 +3170,9 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     }
     DataToUse[['LE']][,'LEmetier6'] <- myRandomValues
     DataToUse[['LE']][,'LEgear'] <- substring(myRandomValues,1,3)
+    
+    DataToUse[['LE']][,'LEsequenceNumber'] <- DataToUse[['LE']][,'LEid']
+    
   }
   
   # If we have SA data pick a random metier and gear code
@@ -3180,6 +3188,17 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     
     # Ensure SAsequence number is unique
     DataToUse[['SA']][,'SAsequenceNumber'] <- DataToUse[['SA']][,'SAid']
+    
+    # Sort out catch and landing categories
+    DataToUse[['SA']][,'SAcatchCategory'] <- catchFractionToUse
+    DataToUse[['SA']][,'SAlandingCategory'] <- landingCategoryToUse
+    
+  }
+  
+  # Temporal
+  if ('TE' %in% names(DataToUse)){
+    DataToUse[['TE']][,'TEsequenceNumber'] <- DataToUse[['TE']][,'TEid']
+    
   }
   
   # FREQUENCY MEASURE

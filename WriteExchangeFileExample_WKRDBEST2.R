@@ -8,6 +8,11 @@ options(scipen=500) # big number of digits
 
 ## STEP 1) LOAD OUR DATA
 
+# TODO
+# Load the RDBES data - you can either write your own database connection string in a format similar to this: 'driver=SQL Server;server=mysqlhost;database=mydbname;trusted_connection=true' or just manually create a named list of data fames in the correct format
+# IMPORTANT - if you are just going to use your own list of data frames make sure you don't have factors in them - my code assumes the data frames were created using stringsAsFactors = FALSE
+myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
+
 # Load the validation data
 #validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = './tableDefs/BaseTypes.xsd')
 validationData <- getValidationData(downloadFromGitHub = TRUE, fileLocation = './tableDefs/BaseTypes.xsd')
@@ -23,10 +28,6 @@ allowedValues <- loadReferenceData(downloadFromICES = TRUE, validationData=valid
 #allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLocation = './tableDefs/')
 allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = TRUE, fileLocation = './tableDefs/')
 
-# TODO
-# Load the RDBES data from the database - you can either write your own database connection string in a format similar to this: 'driver=SQL Server;server=mysqlhost;database=mydbname;trusted_connection=true' or just manually create a named list of data fames in the correct format
-# IMPORTANT - if you are just going to use your own list of data frames make sure you don't have factors in them - my code assumes the data frames were created using stringsAsFactors = FALSE
-myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 
 ## STEP 2) VALIDATE OUR DATA AND CHECK ERRORS
 

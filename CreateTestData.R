@@ -26,7 +26,7 @@ allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLoca
 ## STEP 2) GENERATE TEST DATA
 
 # Can use a loop to generate test data for all hierarchies if you want to 
-for (i in 1:13){
+for (i in 1:1){
   myHierarchyToGenerate <- paste('H',i,sep="")
   
   # Define some parameters for our test data
@@ -34,11 +34,11 @@ for (i in 1:13){
   print(myHierarchyToGenerate)
   myLowerHierarchyToGenerate <- 'A'
   myYear <- 2015
-  myCountry <- 'IE'
+  myCountry <- 'VA'
   # Number of strata in different tables - if no value if given for a table then it is assumed to be unstratified
   myStrata <- list(DE = 2, VS = 2)
   # Number of things sampled in different tables - if no value is given for a table then it is assumed to be 1
-  mySampled <- list(VS=5,FO=3,SS=1,SA=2, FM=20,BV=2, VD=10, SL=20)
+  mySampled <- list(VS=5,FO=3,SS=1,SA=3, FM=20,BV=2, VD=10, SL=20)
   # Total number of things in different tables - if no value is given for a table then it is assumed to be equal to the number sampled + 1
   myTotal <- list(VS=30,FO=10,SS=4, FM=20, BV=2)
   # Select methods used in different tables - if no value is given for a table then it is assumed to be simple random sampling SRSWR
@@ -61,5 +61,14 @@ for (i in 1:13){
   
   # Create a complex exchange file (Hx)
   generateComplexExchangeFile(typeOfFile = myHierarchyToGenerate, yearToUse = myYear, country = myCountry, RDBESdata = myNewTestData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+  
+  # (OPTIONAL) Save the tables as csv files
+  write.csv(myNewTestData[['VD']],file=paste("./output/testDataForPackage/",myHierarchyToGenerate,"_","VD",".csv",sep=""),row.names = FALSE,na="",quote = FALSE)
+  
+  write.csv(myNewTestData[['SL']],file=paste("./output/testDataForPackage/",myHierarchyToGenerate,"_","SL",".csv",sep=""),row.names = FALSE,na="",quote = FALSE)
+  
+  for (tablesToSave in allRequiredTables[[i]]){
+    write.csv(myNewTestData[[tablesToSave]],file=paste("./output/testDataForPackage/",myHierarchyToGenerate,"_",tablesToSave,".csv",sep=""),row.names = FALSE,na="",quote = FALSE)
+  }
 
 }

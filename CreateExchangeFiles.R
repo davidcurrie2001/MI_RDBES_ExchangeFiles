@@ -12,6 +12,9 @@ options(scipen=500) # big number of digits
 validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = './tableDefs/BaseTypes.xsd')
 #validationData <- getValidationData(downloadFromGitHub = TRUE, fileLocation = './tableDefs/BaseTypes.xsd')
 
+# 11/9/2020 Temp fix because the validation fields aren't up to date :-(
+validationData[validationData$type == 'tRS_Stratification','type'] <- 'tYesNoFields'
+
 # Load the reference data: either refresh from ICES or just use a local copy
 allowedValues <- loadReferenceData(downloadFromICES = FALSE)
 #allowedValues <- loadReferenceData(downloadFromICES = TRUE, validationData=validationData)
@@ -29,14 +32,20 @@ myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 
 #UGLY HACKS - these are temporary fixes for my data - they will be removed once correct values are added to reference lists
 # Temporary fixes
-myRDBESData[['DE']][myRDBESData[['DE']]$DEsamplingScheme == 'Ireland DCF Port Sampling',"DEsamplingScheme"] <- "National Routine"
+#myRDBESData[['DE']][myRDBESData[['DE']]$DEsamplingScheme == 'Ireland DCF Port Sampling',"DEsamplingScheme"] <- "National Routine"
 myRDBESData[['FO']][myRDBESData[['FO']]$FOgear == 'OTQ',"FOgear"] <- "OTB"
 myRDBESData[['SA']][myRDBESData[['SA']]$sagear == 'OTQ',"SAgear"] <- "OTB"
 myRDBESData[['SA']]$SAspeciesCodeFAO <- NA
+myRDBESData[['BV']][!is.na(myRDBESData[['BV']]$BVmeasurementEquipment) &  myRDBESData[['BV']]$BVmeasurementEquipment == '',"BVmeasurementEquipment"] <- "Image Processing"
+myRDBESData[['FT']]$FTsequenceNumber <- myRDBESData[['FT']]$FTid
+myRDBESData[['SA']]$SAsequenceNumber <- myRDBESData[['SA']]$SAid
 
+# Test
+#myRDBESData[['SA']]$SAtotalWeightLive <- 1
+#myRDBESData[['SA']]$SAtotalWeightMeasured <- 1
 
 # Lets validate our data
-errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
+errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","TE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
 
 # Can check errros from individual tables using e.g.
 #View(errors[errors$tableName == 'FT',])
@@ -44,12 +53,12 @@ errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validati
 ## STEP 3) GENERATE SIMPLE EXCHANGE FILES (CL,CE,SL,VD)
 
 # Create a CE output file
-generateSimpleExchangeFile(typeOfFile = 'CE', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-#generateSimpleExchangeFile(typeOfFile = 'CE', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+#generateSimpleExchangeFile(typeOfFile = 'CE', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateSimpleExchangeFile(typeOfFile = 'CE', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 # Create a CL output file
-generateSimpleExchangeFile(typeOfFile = 'CL', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-#generateSimpleExchangeFile(typeOfFile = 'CL', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+#generateSimpleExchangeFile(typeOfFile = 'CL', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateSimpleExchangeFile(typeOfFile = 'CL', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 # Create a VD output file
 generateSimpleExchangeFile(typeOfFile = 'VD', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
@@ -61,11 +70,11 @@ generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = 2019, country = 'IE', 
 ## STEP 4) GENERATE COMPLEX EXCHANGE FILES (CS)
 
 # Create an H1 CS file
-generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=500,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=10000,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 #generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 # Create an H5 CS file
-generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=100,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 #generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 ## STEP 5) (OPTIONAL) WE CAN SAVE OUR DATA IF WE WANT TO

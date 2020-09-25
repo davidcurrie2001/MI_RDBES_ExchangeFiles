@@ -40,9 +40,13 @@ myRDBESData[['BV']][!is.na(myRDBESData[['BV']]$BVmeasurementEquipment) &  myRDBE
 myRDBESData[['FT']]$FTsequenceNumber <- myRDBESData[['FT']]$FTid
 myRDBESData[['SA']]$SAsequenceNumber <- myRDBESData[['SA']]$SAid
 
-# Test
-#myRDBESData[['SA']]$SAtotalWeightLive <- 1
-#myRDBESData[['SA']]$SAtotalWeightMeasured <- 1
+# If soem of the values for the total weight are large than the maximum value of xs:int
+# we wil have a problem during the upload - lets fix this
+# Need to check whether these values are due to mistake e.g. choosing units of kg
+# rather than boxes
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAtotalWeightLive) & myRDBESData[['SA']]$SAtotalWeightLive > 2147483647,'SAtotalWeightLive'] <- 2147483647
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAtotalWeightMeasured) & myRDBESData[['SA']]$SAtotalWeightMeasured > 2147483647,'SAtotalWeightMeasured'] <- 2147483647
+
 
 # Lets validate our data
 errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","TE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
@@ -74,8 +78,8 @@ generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE',
 #generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 # Create an H5 CS file
-generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
-#generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+#generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 ## STEP 5) (OPTIONAL) WE CAN SAVE OUR DATA IF WE WANT TO
 

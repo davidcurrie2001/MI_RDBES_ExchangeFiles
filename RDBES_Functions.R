@@ -133,7 +133,11 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
   # If we want to remove any invalid data before generating the upload files do this now
   if(cleanData){
     
-    rowsBefore <- nrow(myDataForFile)
+    rowsBefore <- 0
+    if (!is.null(myDataForFile)){
+      rowsBefore <- nrow(myDataForFile)
+    }
+    
     print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
     
     # Validate
@@ -142,7 +146,11 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
     # Remove any invalid rows 
     myDataForFile <- removeInvalidRows(tableName = typeOfFile,dataToClean = myDataForFile,errorList = myErrors)
     
-    rowsAfter <- nrow(myDataForFile)
+    rowsAfter <- 0
+    if (!is.null(myDataForFile)){
+      rowsAfter <- nrow(myDataForFile)
+    }
+    
     print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
     
     if (rowsAfter < rowsBefore){
@@ -161,8 +169,15 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
     }
   }
   
+  # If myDataForFile is NULL at this point just stop
+  if (is.null(myDataForFile)){
+    print("Error - the data to generate the exchange file is is NULL")
+    stop("Could not generate an exchange file - please validate your data to identify any problems")
+  }
+  
   # We now write out the data frame with ids and column names included to make debugging easier
   fwrite(myDataForFile, paste(outputFolder, "debug_", outputFileName,sep="") ,row.names=F,col.names=T,quote=F)
+
   
 
   # Get rid of the XXid fields from our data - not included in the final output file
@@ -254,6 +269,12 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
     
   }
   
+  # If myCSData is empty at this point just stop
+  if (length(myCSData)==0){
+    print("Error - the data to generate the exchange file is empty")
+    stop("Could not generate an exchange file - please validate your data to identify any problems")
+  }
+
   
   ## Step 2 - I now add a SortOrder field to each of our fitlered data frames
   ## this will allow me to generate the CS file in the correct row order without needing a slow for-loop
@@ -273,11 +294,14 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   ## STEP 3) Create a version of the output data for debugging
   
   # Here we create a version of the output data with all the ids and sorting columns in so I can check things are correct
+  csForChecking <- NULL
   for (myRequiredTable in requiredTables){
-    if (myRequiredTable == 'DE'){
-      csForChecking <- do.call('paste',c(myCSData[[myRequiredTable]],sep=','))
-    } else {
-      csForChecking <- c(csForChecking,do.call('paste',c(myCSData[[myRequiredTable]],sep=',')))
+    if (!is.null(myCSData[[myRequiredTable]])){
+      if (myRequiredTable == 'DE'){
+        csForChecking <- do.call('paste',c(myCSData[[myRequiredTable]],sep=','))
+      } else {
+        csForChecking <- c(csForChecking,do.call('paste',c(myCSData[[myRequiredTable]],sep=',')))
+      }
     }
   }
   
@@ -290,20 +314,24 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   ## STEP 4) Create the real version of the output data
   
   # Create the CS data with the sort columns and ids removed - this will then be used to generate the exchange file
+  cs <- NULL
   for (myRequiredTable in requiredTables){
     
-    # First remove the columns we don't want in the final output (SortOrder and any XXid columns)
-    colstoRemove <- c("SortOrder", names(myCSData[[myRequiredTable]])[grepl("^..id$",names(myCSData[[myRequiredTable]]))])
-    myData <- select(myCSData[[myRequiredTable]],-all_of(colstoRemove))
+    if (!is.null(myCSData[[myRequiredTable]])){
     
-    # Replace any NAs with ''
-    myData[is.na(myData)] <- ''
-    
-    # Now stick all the lines from each table together with commas seperating the values
-    if (myRequiredTable == 'DE'){
-      cs <- do.call('paste',c(myData,sep=','))
-    } else {
-      cs <- c(cs,do.call('paste',c(myData,sep=',')))
+      # First remove the columns we don't want in the final output (SortOrder and any XXid columns)
+      colstoRemove <- c("SortOrder", names(myCSData[[myRequiredTable]])[grepl("^..id$",names(myCSData[[myRequiredTable]]))])
+      myData <- select(myCSData[[myRequiredTable]],-all_of(colstoRemove))
+      
+      # Replace any NAs with ''
+      myData[is.na(myData)] <- ''
+      
+      # Now stick all the lines from each table together with commas seperating the values
+      if (myRequiredTable == 'DE'){
+        cs <- do.call('paste',c(myData,sep=','))
+      } else {
+        cs <- c(cs,do.call('paste',c(myData,sep=',')))
+      }
     }
   }
   
@@ -336,83 +364,86 @@ limitSamplesInCSData <- function(DataToFilter, NumberOfSamples, RequiredTables){
   NotSubSamples <- DataToFilter[['SA']][is.na(DataToFilter[['SA']]$SAparentSequenceNumber),]
   
   #if (nrow(myCSData[['SA']])>numberOfSamples ) {
-  if (nrow(NotSubSamples)>NumberOfSamples ) {
-    
-    #Subset the data to get the SAid values we are interested it
-    #SAidsToUse <- myCSData[['SA']][1:numberOfSamples,"SAid"]
-    SAidsToUse <- NotSubSamples[1:NumberOfSamples,"SAid"]
-    
-    # Need Sort out SA and FM first, then we'll deal with the other tables
-    
-    # SA : Top level samples not including sub-samplea
-    DataToFilter[['SA']]<- DataToFilter[['SA']][DataToFilter[['SA']]$SAid %in% SAidsToUse,]
-    # Now handle any sub-samples
-    mySubSampleData <- DataToFilter[['SA']][!is.na(DataToFilter[['SA']]$SAparentSequenceNumber),]
-    
-    # If we have any sub-samples see if we need to include them
-    if (nrow(mySubSampleData) > 0){
-      # Use a recursive function to fetch the top level sequence number of our sub-samples
-      mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
-      # Only include sub-samples if their top level sequence numebr is in our filtered sample data
-      mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% DataToFilter[['SA']]$SAsequenceNumber,]
-      # Remove the column we added
-      mySubSampleData$topLevelSequenceNumber <- NULL
-      # Combine our samples and sub-samples together
-      DataToFilter[['SA']] <- rbind(DataToFilter[['SA']],mySubSampleData)
-    }
-    
-    # FM
-    DataToFilter[['FM']]<- DataToFilter[['FM']][DataToFilter[['FM']]$SAid %in% DataToFilter[['SA']]$SAid,]
-    
-    # Now deal with all the other tables
-    myData <- NULL
-    previousRequiredTable <- NULL
-    
-    # Iterate through the required tables in reverse order and remove any records not assoicated with our selected samples
-    for (myRequiredTable in rev(RequiredTables)){
+  
+  if (!is.null(NotSubSamples)){
+    if (nrow(NotSubSamples)>NumberOfSamples ) {
       
-      if (myRequiredTable %in% c('SA','FM')){
-        # Do nothing - already handled above
-      } 
-      # Need to check if the BV records are in either the FM or SA tables
-      else if (myRequiredTable == 'BV'){
+      #Subset the data to get the SAid values we are interested it
+      #SAidsToUse <- myCSData[['SA']][1:numberOfSamples,"SAid"]
+      SAidsToUse <- NotSubSamples[1:NumberOfSamples,"SAid"]
+      
+      # Need Sort out SA and FM first, then we'll deal with the other tables
+      
+      # SA : Top level samples not including sub-samplea
+      DataToFilter[['SA']]<- DataToFilter[['SA']][DataToFilter[['SA']]$SAid %in% SAidsToUse,]
+      # Now handle any sub-samples
+      mySubSampleData <- DataToFilter[['SA']][!is.na(DataToFilter[['SA']]$SAparentSequenceNumber),]
+      
+      # If we have any sub-samples see if we need to include them
+      if (nrow(mySubSampleData) > 0){
+        # Use a recursive function to fetch the top level sequence number of our sub-samples
+        mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
+        # Only include sub-samples if their top level sequence numebr is in our filtered sample data
+        mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% DataToFilter[['SA']]$SAsequenceNumber,]
+        # Remove the column we added
+        mySubSampleData$topLevelSequenceNumber <- NULL
+        # Combine our samples and sub-samples together
+        DataToFilter[['SA']] <- rbind(DataToFilter[['SA']],mySubSampleData)
+      }
+      
+      # FM
+      DataToFilter[['FM']]<- DataToFilter[['FM']][DataToFilter[['FM']]$SAid %in% DataToFilter[['SA']]$SAid,]
+      
+      # Now deal with all the other tables
+      myData <- NULL
+      previousRequiredTable <- NULL
+      
+      # Iterate through the required tables in reverse order and remove any records not assoicated with our selected samples
+      for (myRequiredTable in rev(RequiredTables)){
         
-        # don't assume FMid and SAid always exist
-        myData <- DataToFilter[['BV']][DataToFilter[['BV']]$FMid %in% DataToFilter[['FM']]$FMid | DataToFilter[['BV']]$SAid %in% DataToFilter[['SA']]$SAid,]
-        
-        if ('FMid' %in% names(DataToFilter[['BV']])){
-          data1 <- DataToFilter[['BV']][DataToFilter[['BV']]$FMid %in% DataToFilter[['FM']]$FMid,]
-        } else {
-          data1 <- NULL
+        if (myRequiredTable %in% c('SA','FM')){
+          # Do nothing - already handled above
+        } 
+        # Need to check if the BV records are in either the FM or SA tables
+        else if (myRequiredTable == 'BV'){
+          
+          # don't assume FMid and SAid always exist
+          myData <- DataToFilter[['BV']][DataToFilter[['BV']]$FMid %in% DataToFilter[['FM']]$FMid | DataToFilter[['BV']]$SAid %in% DataToFilter[['SA']]$SAid,]
+          
+          if ('FMid' %in% names(DataToFilter[['BV']])){
+            data1 <- DataToFilter[['BV']][DataToFilter[['BV']]$FMid %in% DataToFilter[['FM']]$FMid,]
+          } else {
+            data1 <- NULL
+          }
+          
+          if ('SAid' %in% names(DataToFilter[['BV']])){
+            data2 <- DataToFilter[['BV']][DataToFilter[['BV']]$SAid %in% DataToFilter[['SA']]$SAid,]
+          } else {
+            data2 <- NULL
+          }
+          
+          #DataToFilter[['BV']] <- myData
+          DataToFilter[['BV']] <- rbind(data1,data2)
+        } 
+        # Other tables can follow a general pattern
+        else {
+          
+          previousHierarchyTable <- DataToFilter[[previousRequiredTable]]
+          ## Assume the primary key is the first field
+          currentPrimaryKey <- names(DataToFilter[[myRequiredTable]])[1]
+          myData <- DataToFilter[[myRequiredTable]][DataToFilter[[myRequiredTable]][,currentPrimaryKey] %in% previousHierarchyTable[,currentPrimaryKey],]
+          DataToFilter[[myRequiredTable]] = myData
+          
         }
         
-        if ('SAid' %in% names(DataToFilter[['BV']])){
-          data2 <- DataToFilter[['BV']][DataToFilter[['BV']]$SAid %in% DataToFilter[['SA']]$SAid,]
-        } else {
-          data2 <- NULL
-        }
-        
-        #DataToFilter[['BV']] <- myData
-        DataToFilter[['BV']] <- rbind(data1,data2)
-      } 
-      # Other tables can follow a general pattern
-      else {
-        
-        previousHierarchyTable <- DataToFilter[[previousRequiredTable]]
-        ## Assume the primary key is the first field
-        currentPrimaryKey <- names(DataToFilter[[myRequiredTable]])[1]
-        myData <- DataToFilter[[myRequiredTable]][DataToFilter[[myRequiredTable]][,currentPrimaryKey] %in% previousHierarchyTable[,currentPrimaryKey],]
-        DataToFilter[[myRequiredTable]] = myData
+        previousRequiredTable <- myRequiredTable
         
       }
       
-      previousRequiredTable <- myRequiredTable
-      
+      print(paste("File truncated to data relating to ",NumberOfSamples, " samples",sep=""))
     }
-    
-    print(paste("File truncated to data relating to ",NumberOfSamples, " samples",sep=""))
   }
-  
+    
   DataToFilter
 }
 
@@ -447,7 +478,9 @@ cleanCSData <- function(DataToClean,RDBESvalidationdata, RDBEScodeLists, Require
   
   rowsBefore <- 0
   for (myRequiredTable in RequiredTables){
-    rowsBefore <- rowsBefore + nrow(DataToClean[[myRequiredTable]])
+    if (!is.null(DataToClean[[myRequiredTable]])){
+      rowsBefore <- rowsBefore + nrow(DataToClean[[myRequiredTable]])
+    }
   }
   print(paste(rowsBefore, ' rows before removing invalid data', sep =""))
   
@@ -469,7 +502,9 @@ cleanCSData <- function(DataToClean,RDBESvalidationdata, RDBEScodeLists, Require
   
   rowsAfter <- 0
   for (myRequiredTable in RequiredTables){
-    rowsAfter <- rowsAfter + nrow(DataToClean[[myRequiredTable]])
+    if (!is.null(DataToClean[[myRequiredTable]])){
+      rowsAfter <- rowsAfter + nrow(DataToClean[[myRequiredTable]])
+    }
   }
   print(paste(rowsAfter, ' rows after removing invalid data', sep =""))
   
@@ -513,71 +548,75 @@ filterCSData <- function(RDBESdata, RequiredTables, YearToFilterBy, CountryToFil
 
     myData <- RDBESdata[[myRequiredTable]]
     
-    # Need to filter DE by year and upper hieararchy
-    if (myRequiredTable == 'DE'){
-      myData <- myData[myData$DEyear == YearToFilterBy & myData$DEhierarchy == UpperHierarchyToFilterBy,]
-      myCSData[[myRequiredTable]] = myData
-    } 
-    # Need to filter SD by country
-    else if (myRequiredTable == 'SD'){
-      myData <- myData[myData$DEid %in% myCSData[[previousRequiredTable]]$DEid & myData$SDcountry == CountryToFilterBy,]
-      myCSData[[myRequiredTable]] = myData
-    }
-    # Need to handle samples and sub-samples for SA
-    else if (myRequiredTable == 'SA'){
-      
-      #Lets deal with Samples first
-      previousHierarchyTable <- myCSData[[previousRequiredTable]]
-      ## Assume the primary key is the first field
-      previousPrimaryKey <- names(previousHierarchyTable)[1]
-      mySampleData <- myData[myData[,previousPrimaryKey] %in% previousHierarchyTable[,previousPrimaryKey],]
-      
-      # Now handle any sub-samples
-      mySubSampleData <- myData[!is.na(myData$SAparentSequenceNumber),]
-      
-      # Use a recursive function to fetch the top level sequence number of our sub-samples
-      mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
-      
-      # Only include sub-samples if their top level sequence numebr is in our filtered sample data
-      mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% mySampleData$SAsequenceNumber,]
-      
-      # Get rid of the column we added earlier
-      mySubSampleData$topLevelSequenceNumber <- NULL
-      
-      # Stick our samples and sub-samples together
-      myData <- rbind(mySampleData, mySubSampleData)
-      
-      myCSData[[myRequiredTable]] = myData
-      
-    }
-    # BVid can either be in FM or SA
-    else if (myRequiredTable == 'BV'){
-      
-      #myData <- myData[myData$FMid %in% myCSData[['FM']]$FMid | myData$SAid %in% myCSData[['SA']]$SAid,]
-      # Don't just assume the FMid or SAid columns are present - check first
-      if ('FMid' %in% names(myData)){
-        myData1 <- myData[myData$FMid %in% myCSData[['FM']]$FMid,]
-      } else {
-        myData1 <- NULL
+    # Don't worry about tables we don't have data for
+    if (!is.null(myData)){
+    
+      # Need to filter DE by year and upper hieararchy
+      if (myRequiredTable == 'DE'){
+        myData <- myData[myData$DEyear == YearToFilterBy & myData$DEhierarchy == UpperHierarchyToFilterBy,]
+        myCSData[[myRequiredTable]] = myData
+      } 
+      # Need to filter SD by country
+      else if (myRequiredTable == 'SD'){
+        myData <- myData[myData$DEid %in% myCSData[[previousRequiredTable]]$DEid & myData$SDcountry == CountryToFilterBy,]
+        myCSData[[myRequiredTable]] = myData
       }
-      if ('SAid' %in% names(myData)){
-        myData2 <- myData[myData$SAid %in% myCSData[['SA']]$SAid,]
-      } else {
-        myData2 <- NULL
+      # Need to handle samples and sub-samples for SA
+      else if (myRequiredTable == 'SA'){
+        
+        #Lets deal with Samples first
+        previousHierarchyTable <- myCSData[[previousRequiredTable]]
+        ## Assume the primary key is the first field
+        previousPrimaryKey <- names(previousHierarchyTable)[1]
+        mySampleData <- myData[myData[,previousPrimaryKey] %in% previousHierarchyTable[,previousPrimaryKey],]
+        
+        # Now handle any sub-samples
+        mySubSampleData <- myData[!is.na(myData$SAparentSequenceNumber),]
+        
+        # Use a recursive function to fetch the top level sequence number of our sub-samples
+        mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
+        
+        # Only include sub-samples if their top level sequence numebr is in our filtered sample data
+        mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% mySampleData$SAsequenceNumber,]
+        
+        # Get rid of the column we added earlier
+        mySubSampleData$topLevelSequenceNumber <- NULL
+        
+        # Stick our samples and sub-samples together
+        myData <- rbind(mySampleData, mySubSampleData)
+        
+        myCSData[[myRequiredTable]] = myData
+        
       }
-      
-      
-      #myCSData[[myRequiredTable]] = myData
-      myCSData[[myRequiredTable]] = rbind(myData1,myData2)
-    } 
-    # all other tables can follow a general pattern of matching
-    else {
-      #previousHierarchyTable <- RDBESdata[[myRequiredTable]]
-      previousHierarchyTable <- myCSData[[previousRequiredTable]]
-      ## Assume the primary key is the first field
-      previousPrimaryKey <- names(previousHierarchyTable)[1]
-      myData <- myData[myData[,previousPrimaryKey] %in% previousHierarchyTable[,previousPrimaryKey],]
-      myCSData[[myRequiredTable]] = myData
+      # BVid can either be in FM or SA
+      else if (myRequiredTable == 'BV'){
+        
+        #myData <- myData[myData$FMid %in% myCSData[['FM']]$FMid | myData$SAid %in% myCSData[['SA']]$SAid,]
+        # Don't just assume the FMid or SAid columns are present - check first
+        if ('FMid' %in% names(myData)){
+          myData1 <- myData[myData$FMid %in% myCSData[['FM']]$FMid,]
+        } else {
+          myData1 <- NULL
+        }
+        if ('SAid' %in% names(myData)){
+          myData2 <- myData[myData$SAid %in% myCSData[['SA']]$SAid,]
+        } else {
+          myData2 <- NULL
+        }
+        
+        
+        #myCSData[[myRequiredTable]] = myData
+        myCSData[[myRequiredTable]] = rbind(myData1,myData2)
+      } 
+      # all other tables can follow a general pattern of matching
+      else {
+        #previousHierarchyTable <- RDBESdata[[myRequiredTable]]
+        previousHierarchyTable <- myCSData[[previousRequiredTable]]
+        ## Assume the primary key is the first field
+        previousPrimaryKey <- names(previousHierarchyTable)[1]
+        myData <- myData[myData[,previousPrimaryKey] %in% previousHierarchyTable[,previousPrimaryKey],]
+        myCSData[[myRequiredTable]] = myData
+      }
     }
     
     previousRequiredTable <- myRequiredTable
@@ -643,73 +682,77 @@ generateSortOrder <- function(RDBESdataToSort, RequiredTables){
   
   for (myRequiredTable in RequiredTables){
     
-    # Check if there are any rows in this table
-    if(nrow(RDBESdataToSort[[myRequiredTable]])>0) {
+    # If the table actually exists
+    if(!is.null(RDBESdataToSort[[myRequiredTable]])){
       
-      # Need to handle DE differently because the SortOrder doesn't just use the primary key
-      if (myRequiredTable == 'DE'){
+      # Check if there are any rows in this table
+      if(nrow(RDBESdataToSort[[myRequiredTable]])>0) {
         
-        RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste(RDBESdataToSort[[myRequiredTable]]$DEhierarchy,RDBESdataToSort[[myRequiredTable]]$DEyear,RDBESdataToSort[[myRequiredTable]]$DEstratum,sep="-")
-        
-      } 
-      # Need to handle SA differently because there can be sub-samples
-      else if (myRequiredTable == 'SA'){
-        
-        # We will use SAsequenceNumber in the SortOrder - this shoudl ensure all samples and sub-samples end-up in the correct order
-        # TODO this needs checking
-        
-        previousHierarchyTable <- RDBESdataToSort[[previousRequiredTable]]
-        ## Assume the primary key is the first field
-        previousPrimaryKey <- names(previousHierarchyTable)[1]
-        currentPrimaryKey <- names(RDBESdataToSort[[myRequiredTable]])[1]
-        # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
-        RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste( inner_join(RDBESdataToSort[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][,"SAsequenceNumber"], sep = "-")
-        
-      }
-      # Need to handle BV differently because it can be linked to from either FM or SA
-      else if (myRequiredTable == 'BV') {
-        
-        # Add the SortOrder field first
-        # Bit ugly but we'll call it SortOrder_BV to start with to avoid some issues - we'll name it propery in a minute
-        RDBESdataToSort[[myRequiredTable]]$SortOrder_BV <- character(nrow(RDBESdataToSort[[myRequiredTable]]))
-        currentPrimaryKey <- names(RDBESdataToSort[[myRequiredTable]])[1]
-        
-        # Add SortOrder where there is a link to FM (rows where FMid is not NA)
-        if (nrow( RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),] )>0){
+        # Need to handle DE differently because the SortOrder doesn't just use the primary key
+        if (myRequiredTable == 'DE'){
           
-          previousHierarchyTable <- RDBESdataToSort[['FM']]
-          previousPrimaryKey <- names(previousHierarchyTable)[1]
-          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key (just for the BV rows that have an FMid)
-          RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),"SortOrder_BV"] <- paste( inner_join(RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),currentPrimaryKey], sep = "-")
+          RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste(RDBESdataToSort[[myRequiredTable]]$DEhierarchy,RDBESdataToSort[[myRequiredTable]]$DEyear,RDBESdataToSort[[myRequiredTable]]$DEstratum,sep="-")
+          
         } 
-        
-        # Add SortOrder where there is a link to SA (rows where SAid is not NA)
-        if (nrow( RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),] )>0){
+        # Need to handle SA differently because there can be sub-samples
+        else if (myRequiredTable == 'SA'){
           
-          previousHierarchyTable <- RDBESdataToSort[['SA']]
+          # We will use SAsequenceNumber in the SortOrder - this shoudl ensure all samples and sub-samples end-up in the correct order
+          # TODO this needs checking
+          
+          previousHierarchyTable <- RDBESdataToSort[[previousRequiredTable]]
+          ## Assume the primary key is the first field
           previousPrimaryKey <- names(previousHierarchyTable)[1]
-          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key (just for BV rows that have an SAid)
-          RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),"SortOrder_BV"] <- paste( inner_join(RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),currentPrimaryKey], sep = "-")
+          currentPrimaryKey <- names(RDBESdataToSort[[myRequiredTable]])[1]
+          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
+          RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste( inner_join(RDBESdataToSort[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][,"SAsequenceNumber"], sep = "-")
           
         }
-        
-        # Rename SortOrder_BV field to SortOrder
-        names(RDBESdataToSort[[myRequiredTable]])[names(RDBESdataToSort[[myRequiredTable]]) == "SortOrder_BV"] <- "SortOrder"
-        
+        # Need to handle BV differently because it can be linked to from either FM or SA
+        else if (myRequiredTable == 'BV') {
+          
+          # Add the SortOrder field first
+          # Bit ugly but we'll call it SortOrder_BV to start with to avoid some issues - we'll name it propery in a minute
+          RDBESdataToSort[[myRequiredTable]]$SortOrder_BV <- character(nrow(RDBESdataToSort[[myRequiredTable]]))
+          currentPrimaryKey <- names(RDBESdataToSort[[myRequiredTable]])[1]
+          
+          # Add SortOrder where there is a link to FM (rows where FMid is not NA)
+          if (nrow( RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),] )>0){
+            
+            previousHierarchyTable <- RDBESdataToSort[['FM']]
+            previousPrimaryKey <- names(previousHierarchyTable)[1]
+            # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key (just for the BV rows that have an FMid)
+            RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),"SortOrder_BV"] <- paste( inner_join(RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$FMid),currentPrimaryKey], sep = "-")
+          } 
+          
+          # Add SortOrder where there is a link to SA (rows where SAid is not NA)
+          if (nrow( RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),] )>0){
+            
+            previousHierarchyTable <- RDBESdataToSort[['SA']]
+            previousPrimaryKey <- names(previousHierarchyTable)[1]
+            # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key (just for BV rows that have an SAid)
+            RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),"SortOrder_BV"] <- paste( inner_join(RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][!is.na(RDBESdataToSort[[myRequiredTable]]$SAid),currentPrimaryKey], sep = "-")
+            
+          }
+          
+          # Rename SortOrder_BV field to SortOrder
+          names(RDBESdataToSort[[myRequiredTable]])[names(RDBESdataToSort[[myRequiredTable]]) == "SortOrder_BV"] <- "SortOrder"
+          
+        }
+        # Else follow the general pattern
+        else {
+          
+          previousHierarchyTable <- RDBESdataToSort[[previousRequiredTable]]
+          ## Assume the primary key is the first field
+          previousPrimaryKey <- names(previousHierarchyTable)[1]
+          currentPrimaryKey <- names(RDBESdataToSort[[myRequiredTable]])[1]
+          # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
+          RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste( inner_join(RDBESdataToSort[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][,currentPrimaryKey], sep = "-")
+        }
+      # If there's no rows in the table we'll add an emtpy SortOrder column so it definitely exists
+      } else  {
+        RDBESdataToSort[[myRequiredTable]]$SortOrder <- character(0)
       }
-      # Else follow the general pattern
-      else {
-        
-        previousHierarchyTable <- RDBESdataToSort[[previousRequiredTable]]
-        ## Assume the primary key is the first field
-        previousPrimaryKey <- names(previousHierarchyTable)[1]
-        currentPrimaryKey <- names(RDBESdataToSort[[myRequiredTable]])[1]
-        # Create the value for SortOrder based on the value of SortOrder from the previous table, and the current primary key
-        RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste( inner_join(RDBESdataToSort[[myRequiredTable]],previousHierarchyTable, by =previousPrimaryKey)[,c("SortOrder")], RDBESdataToSort[[myRequiredTable]][,currentPrimaryKey], sep = "-")
-      }
-    # If there's no rows in the table we'll add an emtpy SortOrder column so it definitely exists
-    } else  {
-      RDBESdataToSort[[myRequiredTable]]$SortOrder <- character(0)
     }
     
     previousRequiredTable <- myRequiredTable
@@ -1548,11 +1591,29 @@ validateLowerHierarchy <- function(RDBESdataToCheck){
   
   # We need to check the SA, FM, and BV tables 
   SAdataToCheck <- RDBESdataToCheck[['SA']]
-  FMdataToCheck <- RDBESdataToCheck[['FM']]
-  BVdataToCheck <- RDBESdataToCheck[['BV']]
+  #FMdataToCheck <- RDBESdataToCheck[['FM']]
+  #BVdataToCheck <- RDBESdataToCheck[['BV']]
   
-  if (is.null(SAdataToCheck) | is.null(FMdataToCheck) | is.null(BVdataToCheck)){
-    print("Either SA, or FM, or BV don't exist in the data to validate - so we are not running the validateLowerHierarchy check")
+  # Get our FM data - create a dummy frame if it doesn't exist
+  if (!is.null(RDBESdataToCheck[['FM']])){
+    FMdataToCheck <- RDBESdataToCheck[['FM']]
+  } else {
+    FMdataToCheck <- data.frame('SAid'=NA, stringsAsFactors = FALSE)
+  }
+  
+  # Get our BV data - create a dummy frame if it doesn't exist
+  if (!is.null(RDBESdataToCheck[['BV']])){
+    BVdataToCheck <- RDBESdataToCheck[['BV']]
+  } else {
+    BVdataToCheck <- data.frame('SAid'=NA,'FMid'=NA, stringsAsFactors = FALSE)
+  }
+  
+  
+  #if (is.null(SAdataToCheck) | is.null(FMdataToCheck) | is.null(BVdataToCheck)){
+  #  print("Either SA, or FM, or BV don't exist in the data to validate - so we are not running the validateLowerHierarchy check")
+  #} 
+  if (is.null(SAdataToCheck)){
+    print("SA doesn't exist in the data to validate - so we are not running the validateLowerHierarchy check")
   } 
   # Check the lower hierarchy sample
   else {

@@ -52,7 +52,7 @@ myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAtotalWeightMeasured) & myRDBESD
 errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","TE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
 
 # Can check errros from individual tables using e.g.
-#View(errors[errors$tableName == 'FT',])
+#View(errors[errors$tableName == 'SA',])
 
 ## STEP 3) GENERATE SIMPLE EXCHANGE FILES (CL,CE,SL,VD)
 
@@ -73,6 +73,8 @@ generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = 2019, country = 'IE', 
 
 
 ## STEP 4) GENERATE COMPLEX EXCHANGE FILES (CS)
+
+
 
 
 # Create an H1 CS file

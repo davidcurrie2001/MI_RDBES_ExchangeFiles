@@ -10,6 +10,7 @@ library(compare)
 
 # Location for our output files
 outputFolder <- "./output/"
+print(paste("The default output folder for exchange files is '",outputFolder,"' Change the value of 'outputFolder' if you want to save them to a different place.",sep = ""))
 
 #' loadRDBESData
 #' This function loads data that is already in the RDBES format from a relational database.
@@ -1257,7 +1258,9 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
   } 
   
   # If we want shorter output we won't show every error  - just the first of each type
-  if (shortOutput){
+  # (only run if we actually have some errors)
+  if (shortOutput & nrow(errorList) >0 ){
+  #if (shortOutput  ){
     fieldsToKeep <- names(errorList)
     # Sort the errors
     errorList <- errorList[order(errorList$tableName, errorList$fieldName, errorList$problemType, errorList$rowID),]

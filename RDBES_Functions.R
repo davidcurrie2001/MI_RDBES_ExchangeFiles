@@ -1369,6 +1369,13 @@ validateCSdataFrame <- function(RDBESdataFrameToCheck,RDBESvalidationdata){
     
   }
   
+  # Print how many errors we found
+  numberOfErrorsFound <- 0
+  if (!is.null(errorsToReturn)) {
+    numberOfErrorsFound <- nrow(errorsToReturn)
+  }
+  print(paste(numberOfErrorsFound,"errors found"))
+  
   errorsToReturn
   
 }

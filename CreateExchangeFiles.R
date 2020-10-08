@@ -75,8 +75,6 @@ generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = 2019, country = 'IE', 
 ## STEP 4) GENERATE COMPLEX EXCHANGE FILES (CS)
 
 
-
-
 # Create an H1 CS file
 generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=500,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 #generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)

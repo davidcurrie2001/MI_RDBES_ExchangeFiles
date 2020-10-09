@@ -1379,14 +1379,34 @@ validateCSdataFrame <- function(RDBESdataFrameToCheck,RDBESvalidationdata){
   # Clear out any errors from any earlier checking
   newErrors <- NULL
   
+  # Get the names of dfToCheck
+  #myFieldNames <- names(dfToCheck)
+  # Assume the id is always the first field - might be better to check the field names instead
+  myIDField <- names(dfToCheck)[[1]]
+  myTableName <- substr(myIDField,1,2)
+  print(paste("Validating ",myTableName,sep=""))
+  
+  # If any of the field names are NA - log an error and remove them from the list we'll check
+  if (length(names(dfToCheck)[is.na(names(dfToCheck))])>0){
+    newErrors <- logValidationError(errorListToAppendTo = NULL
+                                    ,tableName = myTableName
+                                    ,rowID = NA
+                                    ,fieldName = NA
+                                    ,problemType = "NAs in field names"
+                                    ,problemDescription = "NAs found in field names - the content of those fields was not validated")
+    errorsToReturn <- rbind(errorsToReturn,newErrors)
+    dfToCheck <- dfToCheck[,!is.na(names(dfToCheck))]
+  }
+  
+  
   # Get the field names as a data frame
   myDF <- data.frame(fieldName = names(dfToCheck), stringsAsFactors = FALSE)
   # Join the field names to the field type data frame
   fieldsAndTypes <- left_join(myDF,RDBESvalidationdata,by=c("fieldName" = "name"))
   # Assume the id is always the first field - might be better to check the field names instead
-  myIDField <- names(dfToCheck)[[1]]
-  myTableName <- substr(myIDField,1,2)
-  print(paste("Validating ",myTableName,sep=""))
+  #myIDField <- names(dfToCheck)[[1]]
+  #myTableName <- substr(myIDField,1,2)
+  #print(paste("Validating ",myTableName,sep=""))
   
   # Check 2: Check if we are missing any fields
   newErrors <- validateMissingFields(RDBESdataToCheck=dfToCheck,RDBESvalidationdata=RDBESvalidationdata, tableToCheck=myTableName )
@@ -1397,7 +1417,8 @@ validateCSdataFrame <- function(RDBESdataFrameToCheck,RDBESvalidationdata){
   errorsToReturn <- rbind(errorsToReturn,newErrors)
   
   # Now we'll check each field in our current data frame
-  for (i in 1:length(names(dfToCheck))) {
+  #for (i in 1:length(names(dfToCheck))) {
+  for (i in seq_along(names(dfToCheck))) {
     #i <- 15
     
     # Get the current field and its validation infromation

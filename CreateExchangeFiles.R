@@ -47,7 +47,6 @@ myRDBESData[['SA']]$SAsequenceNumber <- myRDBESData[['SA']]$SAid
 myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAtotalWeightLive) & myRDBESData[['SA']]$SAtotalWeightLive > 2147483647,'SAtotalWeightLive'] <- 2147483647
 myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAtotalWeightMeasured) & myRDBESData[['SA']]$SAtotalWeightMeasured > 2147483647,'SAtotalWeightMeasured'] <- 2147483647
 
-
 # Lets validate our data
 errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","TE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
 

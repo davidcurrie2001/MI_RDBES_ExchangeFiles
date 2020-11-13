@@ -44,5 +44,9 @@ myRDBESData[['SA']]$SAsequenceNumber <- myRDBESData[['SA']]$SAid
 # Lets validate our data
 errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","TE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
 
-myresult <- summariseSelectionMethods(hierarchyToCheck = 'H1', yearToUse = 2019, country = 'IE', rdbesData = myRDBESData, requiredTables = allRequiredTables)
+# Run our first function
+myResult <- summariseSelectionMethods(hierarchyToCheck = 'H1', yearToUse = 2019, country = 'IE', rdbesData = myRDBESData, requiredTables = allRequiredTables)
+
+# save to csv 
+#write.csv(myResult$joinedData, file="summaryOutput.csv")
 

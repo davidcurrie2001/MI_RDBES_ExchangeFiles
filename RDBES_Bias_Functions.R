@@ -42,6 +42,7 @@ summariseSelectionMethods <- function(hierarchyToCheck,
   # Lists to hold the outputs
   myData <- list()
   myDataGrouped <- list()
+  myJoinedData <- NULL
   previousRequiredTable <- NULL
   
   # STEP 2 Process each table to get the data in the format we need
@@ -61,7 +62,8 @@ summariseSelectionMethods <- function(hierarchyToCheck,
       myTempData$DEfullStratumName <- paste(myTempData[,'DEsamplingScheme'],myTempData[,'DEyear'],myTempData[,'DEstratumName'],sep = '_')
 
       #Save the data to our list (DE doesn't need to be grouped)
-      myData[[aRequiredTable]] <- myTempData[,c('DEid', 'DEfullStratumName', 'DEyear', 'DEhierarchyCorrect', 'DEhierarchy')]
+      myData[[aRequiredTable]] <- myTempData[,c('DEid','DEstratumName', 'DEfullStratumName','DEsamplingScheme', 'DEyear', 'DEhierarchyCorrect', 'DEhierarchy')]
+      myDataGrouped[[aRequiredTable]] <- myData[[aRequiredTable]]
       
     # We need particualr fields for SD
     } else if (aRequiredTable == 'SD'){
@@ -82,6 +84,7 @@ summariseSelectionMethods <- function(hierarchyToCheck,
       
       #Save the data to our list (SD doesn't need to be grouped)
       myData[[aRequiredTable]] <- myTempData[,c(currentPrimaryKey,previousPrimaryKey, 'SDparentFullStratumName','SDstratumName','SDfullStratumName', 'SDcountry', 'SDinstitution')]
+      myDataGrouped[[aRequiredTable]] <- myData[[aRequiredTable]]
     
     } else {
       
@@ -112,10 +115,51 @@ summariseSelectionMethods <- function(hierarchyToCheck,
       myTempData[,currentFullStratumNameField] <- paste(myTempData[,currentParentFullStratumName],myTempData[,currentStratumNameField],sep = ':')
       
       #Save the data to our list 
-      myData[[aRequiredTable]] <- myTempData[,c(currentPrimaryKey,previousPrimaryKey, currentParentFullStratumName,currentStratumNameField,currentFullStratumNameField, currentStratificationField,currentNumberSampledField,currentNumberTotalField,currentSelectionMethodField,currentSampledField )]
+      myData[[aRequiredTable]] <- myTempData[,c(currentPrimaryKey,previousPrimaryKey, currentParentFullStratumName,currentStratumNameField,currentFullStratumNameField, currentStratificationField,currentNumberSampledField,currentNumberTotalField,currentSelectionMethodField, currentSampledField )]
       
-      # TODO aggregate data
-      # https://stackoverflow.com/questions/10702708/how-can-i-apply-different-aggregate-functions-to-different-columns-in-r
+      # Now we will group and summarise the data
+
+      # Get the data we want to group
+      myTempToGroup <- myData[[aRequiredTable]][,
+                                          c(currentParentFullStratumName,
+                                            currentStratumNameField,
+                                            currentFullStratumNameField, 
+                                            currentStratificationField,
+                                            currentSelectionMethodField,
+                                            currentSampledField,
+                                            currentNumberSampledField,
+                                            currentNumberTotalField)]
+      
+      # CHanges names so we can hard-code them below
+      # - dplyr can't seem to cope with variables - grrr
+      names(myTempToGroup) <- 
+        substr(names(myTempToGroup), 3, nchar(names(myTempToGroup)))
+      
+      # Add fields to hold the calcualted number of things 
+      # we did and didn't sample
+      myTempToGroup$numberNotSampledCalc <- NA
+      myTempToGroup$numberSampledCalc <- NA
+      
+      myTempToGroup[myTempToGroup$sampled == 'N' & 
+                      !is.na(myTempToGroup$sampled),'numberNotSampledCalc'] <- 1 
+      myTempToGroup[myTempToGroup$sampled == 'Y' &
+                      !is.na(myTempToGroup$sampled),'numberSampledCalc'] <- 1 
+      # Group and summarise
+      myDataGrouped[[aRequiredTable]] <- myTempToGroup %>% 
+        dplyr::group_by(parentFullStratumName,
+                        stratumName,
+                        fullStratumName,
+                        stratification,
+                        selectionMethod) %>% 
+        dplyr::summarise(numberOfRows = n(),
+                      numberNotSampledCalc = sum(!is.na(numberNotSampledCalc)),
+                      numberSampledCalc = sum(!is.na(numberSampledCalc)))
+      
+      names(myDataGrouped[[aRequiredTable]]) <- paste(aRequiredTable,names(myDataGrouped[[aRequiredTable]]),sep='')
+        
+      
+
+
       
     }
     
@@ -123,6 +167,30 @@ summariseSelectionMethods <- function(hierarchyToCheck,
     
   }
   
-  myData
+  
+  myJoinedData <- NULL
+  previousRequiredTable <- NULL
+  
+  # Now join our grouped data together
+  for (aRequiredTable in myRequiredTables[!myRequiredTables %in% c('SS','SA','FM','BV')]){
+    
+    if (aRequiredTable == 'DE'){
+       myJoinedData <- myDataGrouped[['DE']]
+    } else {
+      previousTableJoinField <- paste(previousRequiredTable,'fullStratumName',sep="")
+      currentTableJoinField <- paste(aRequiredTable,'parentFullStratumName',sep="")
+      myJoinedData <- dplyr::inner_join(myJoinedData,myDataGrouped[[aRequiredTable]],by = setNames(currentTableJoinField, previousTableJoinField))
+    }
+    
+    previousRequiredTable <- aRequiredTable
+    
+  }
+  
+  
+  # Return values
+  list(detailedData = myData,
+       summaryData = myDataGrouped,
+       joinedData = myJoinedData)
+  
   
 }

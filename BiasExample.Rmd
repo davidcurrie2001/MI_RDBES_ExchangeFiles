@@ -1,0 +1,90 @@
+---
+title: "BiasExamples"
+author: "David Currie"
+date: "16/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## ICES Special Request - Example of functions to highlight sources of potential bias
+
+```{r loadFunctions, message=FALSE, warning=FALSE}
+# Load our functions
+source("RDBES_Bias_Functions.R")
+library(kableExtra)
+```
+
+```{r loadData, echo=FALSE}
+
+# IMPORTANT: Hack to stop write.csv changing numbers to scientific notation
+options(scipen=500) # big number of digits
+
+## STEP 1) LOAD OUR DATA
+
+# Load the validation data
+validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = './tableDefs/BaseTypes.xsd')
+#validationData <- getValidationData(downloadFromGitHub = TRUE, fileLocation = './tableDefs/BaseTypes.xsd')
+
+# 11/9/2020 Temp fix because the validation fields aren't up to date :-(
+validationData[validationData$type == 'tRS_Stratification','type'] <- 'tYesNoFields'
+
+# Load the reference data: either refresh from ICES or just use a local copy
+allowedValues <- loadReferenceData(downloadFromICES = FALSE)
+#allowedValues <- loadReferenceData(downloadFromICES = TRUE, validationData=validationData)
+
+# Load the lists of tables required for each hierarchy: either refresh from ICES or just use a local copy
+allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLocation = './tableDefs/')
+#allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = TRUE, fileLocation = './tableDefs/')
+
+# Load the RDBES data from the database - you can either write your own database connection string in a format similar to this: 'driver=SQL Server;server=mysqlhost;database=mydbname;trusted_connection=true' or just manually create a named list of data fames in the correct format
+# IMPORTANT - if you are just going to use your own list of data frames make sure you don't have factors in them - my code assumes the data frames were created using stringsAsFactors = FALSE
+myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
+```
+
+## Selection methods
+
+The first function highlights non-probabilistic seection methods, and the numebr of units that were intended to be sampled but weren't - these are both potentially sources of bias.
+
+```{r selectionMethods}
+myResult <- summariseSelectionMethods(hierarchyToCheck = 'H1', yearToUse = 2019, country = 'IE', rdbesData = myRDBESData, requiredTables = allRequiredTables)
+
+# This is the data we'll print - after soem small formatting changes
+dataToPrint <- myResult$overallSummary
+# change NA to blanks
+dataToPrint[is.na(dataToPrint)] <- ""
+# get the "non caculated" column numbers - we'll format these differently
+myNonCalcColumns <- which(names(dataToPrint) %in% names(dataToPrint)[grepl('^..numberNotSampledCalc$',names(dataToPrint))])
+
+# Print the overall summary
+dataToPrint %>% 
+    mutate_all(~cell_spec(
+        .x,
+        background = ifelse(.x %in% c('NPAH','NPEJ','NPQS'), 'red','white'),
+        color = ifelse(.x %in% c('NPAH','NPEJ','NPQS'), 'white','black'))) %>%
+  kbl(escape = F) %>%
+  column_spec(myNonCalcColumns, bold=T) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+# This is the data we'll print - after soem small formatting changes
+dataToPrint <- myResult$summaryDataJoined
+# change NA to blanks
+dataToPrint[is.na(dataToPrint)] <- ""
+# get the "non caculated" column numbers - we'll format these differently
+myNonCalcColumns <- which(names(dataToPrint) %in% names(dataToPrint)[grepl('^..numberNotSampledCalc$',names(dataToPrint))])
+
+# Print the more detailed infromation by stratum
+dataToPrint %>% 
+    mutate_all(~cell_spec(
+        .x,
+        background = ifelse(.x %in% c('NPAH','NPEJ','NPQS'), 'red','white'),
+        color = ifelse(.x %in% c('NPAH','NPEJ','NPQS'), 'white','black'))) %>%
+  kbl(escape = F) %>%
+  column_spec(myNonCalcColumns, bold=T) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

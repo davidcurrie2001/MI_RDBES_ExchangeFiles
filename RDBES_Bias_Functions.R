@@ -41,7 +41,8 @@ summariseSelectionMethods <- function(hierarchyToCheck,
   
   # Lists to hold the outputs
   myData <- list()
-  myDataGrouped <- list()
+  myDataGroupedStrataMethod <- list()
+  myDataGroupedMethod <- list()
   myJoinedData <- NULL
   previousRequiredTable <- NULL
   
@@ -63,7 +64,11 @@ summariseSelectionMethods <- function(hierarchyToCheck,
 
       #Save the data to our list (DE doesn't need to be grouped)
       myData[[aRequiredTable]] <- myTempData[,c('DEid','DEstratumName', 'DEfullStratumName','DEsamplingScheme', 'DEyear', 'DEhierarchyCorrect', 'DEhierarchy')]
-      myDataGrouped[[aRequiredTable]] <- myData[[aRequiredTable]]
+      myDataGroupedStrataMethod[[aRequiredTable]] <- myData[[aRequiredTable]][,c('DEstratumName', 'DEfullStratumName','DEsamplingScheme', 'DEyear', 'DEhierarchyCorrect', 'DEhierarchy')]
+      #myDataGroupedMethod[[aRequiredTable]] <- myData[[aRequiredTable]][,c('DEyear', 'DEhierarchyCorrect', 'DEhierarchy')]
+      myDataGroupedMethod[[aRequiredTable]] <- myDataGroupedStrataMethod[[aRequiredTable]] %>%
+        dplyr::group_by(DEyear, DEhierarchyCorrect, DEhierarchy) %>%
+        dplyr::summarise(DEstratumName = paste(unique(DEstratumName), collapse = ","))
       
     # We need particualr fields for SD
     } else if (aRequiredTable == 'SD'){
@@ -82,9 +87,13 @@ summariseSelectionMethods <- function(hierarchyToCheck,
       myTempData$SDstratumName <- paste(myTempData[,'SDcountry'],myTempData[,'SDinstitution'],sep = '_')
       myTempData$SDfullStratumName <- paste(myTempData[,'SDparentFullStratumName'],myTempData[,'SDstratumName'],sep = ':')
       
-      #Save the data to our list (SD doesn't need to be grouped)
+      #Save the data to our list 
       myData[[aRequiredTable]] <- myTempData[,c(currentPrimaryKey,previousPrimaryKey, 'SDparentFullStratumName','SDstratumName','SDfullStratumName', 'SDcountry', 'SDinstitution')]
-      myDataGrouped[[aRequiredTable]] <- myData[[aRequiredTable]]
+      myDataGroupedStrataMethod[[aRequiredTable]] <- myData[[aRequiredTable]][,c('SDparentFullStratumName','SDstratumName','SDfullStratumName', 'SDcountry', 'SDinstitution')]
+      # Group SD by country and institute (1 row for each country with institute concatenated)
+      myDataGroupedMethod[[aRequiredTable]] <- myDataGroupedStrataMethod[[aRequiredTable]] %>%
+        dplyr::group_by(SDcountry) %>%
+        dplyr::summarise(SDinstitution = paste(unique(SDinstitution), collapse = ","))
     
     } else {
       
@@ -144,8 +153,9 @@ summariseSelectionMethods <- function(hierarchyToCheck,
                       !is.na(myTempToGroup$sampled),'numberNotSampledCalc'] <- 1 
       myTempToGroup[myTempToGroup$sampled == 'Y' &
                       !is.na(myTempToGroup$sampled),'numberSampledCalc'] <- 1 
-      # Group and summarise
-      myDataGrouped[[aRequiredTable]] <- myTempToGroup %>% 
+      
+      # Group 1) - Group by strata and selection method and summarise
+      myDataGroupedStrataMethod[[aRequiredTable]] <- myTempToGroup %>% 
         dplyr::group_by(parentFullStratumName,
                         stratumName,
                         fullStratumName,
@@ -155,19 +165,25 @@ summariseSelectionMethods <- function(hierarchyToCheck,
                       numberNotSampledCalc = sum(!is.na(numberNotSampledCalc)),
                       numberSampledCalc = sum(!is.na(numberSampledCalc)))
       
-      names(myDataGrouped[[aRequiredTable]]) <- paste(aRequiredTable,names(myDataGrouped[[aRequiredTable]]),sep='')
+      names(myDataGroupedStrataMethod[[aRequiredTable]]) <- paste(aRequiredTable,names(myDataGroupedStrataMethod[[aRequiredTable]]),sep='')
+      
+      # Group 2) - Group by selection method and summarise
+      myDataGroupedMethod[[aRequiredTable]] <- myTempToGroup %>% 
+        dplyr::group_by(selectionMethod) %>% 
+        dplyr::summarise(numberOfRows = n(),
+                         numberNotSampledCalc = sum(!is.na(numberNotSampledCalc)),
+                         numberSampledCalc = sum(!is.na(numberSampledCalc)))
+      
+      names(myDataGroupedMethod[[aRequiredTable]]) <- paste(aRequiredTable,names(myDataGroupedMethod[[aRequiredTable]]),sep='')
         
-      
-
-
-      
+    
     }
     
     previousRequiredTable <- aRequiredTable
     
   }
   
-  
+  myTotalSummary <- NULL
   myJoinedData <- NULL
   previousRequiredTable <- NULL
   
@@ -175,11 +191,33 @@ summariseSelectionMethods <- function(hierarchyToCheck,
   for (aRequiredTable in myRequiredTables[!myRequiredTables %in% c('SS','SA','FM','BV')]){
     
     if (aRequiredTable == 'DE'){
-       myJoinedData <- myDataGrouped[['DE']]
+       # 1) Grouped by stratum and method
+       myJoinedData <- myDataGroupedStrataMethod[['DE']]
+       # 2) Grouped by method
+       myTotalSummary <- myDataGroupedMethod[['DE']]
     } else {
+      # 1) Grouped by stratum and method
       previousTableJoinField <- paste(previousRequiredTable,'fullStratumName',sep="")
       currentTableJoinField <- paste(aRequiredTable,'parentFullStratumName',sep="")
-      myJoinedData <- dplyr::inner_join(myJoinedData,myDataGrouped[[aRequiredTable]],by = setNames(currentTableJoinField, previousTableJoinField))
+      myJoinedData <- dplyr::inner_join(myJoinedData,myDataGroupedStrataMethod[[aRequiredTable]],by = setNames(currentTableJoinField, previousTableJoinField))
+      
+      # 2) Grouped by method
+      
+      # We'll merge the myDataGroupedMethod data frames together on row numbers
+      # - this will add NA values where there are more rows in some of the 
+      # data frames
+      
+      # Add column to each data frame with row number
+      myDataGroupedMethod[[aRequiredTable]]$number <- row.names(myDataGroupedMethod[[aRequiredTable]])
+      myTotalSummary$number <- row.names(myTotalSummary)
+      
+      # Merge data frames
+      #"all = TRUE" will mean that NA values will be added whenever there is no match 
+      myTotalSummary <- merge(myTotalSummary, myDataGroupedMethod[[aRequiredTable]], by = "number", all = TRUE)
+      
+      # Now get rid of the superfluous row number column
+      myTotalSummary$number <- NULL
+      
     }
     
     previousRequiredTable <- aRequiredTable
@@ -189,8 +227,10 @@ summariseSelectionMethods <- function(hierarchyToCheck,
   
   # Return values
   list(detailedData = myData,
-       summaryData = myDataGrouped,
-       joinedData = myJoinedData)
+       summaryDataByStrataAndMethod = myDataGroupedStrataMethod,
+       summaryDataJoined = myJoinedData,
+       overallSummary = myTotalSummary
+       )
   
   
 }

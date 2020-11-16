@@ -53,3 +53,5 @@ connectionString.RDS
 *.RData
 
 readme.txt
+
+*.html

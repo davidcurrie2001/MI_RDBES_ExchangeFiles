@@ -34,7 +34,7 @@
   <xs:complexType name="OS">
     <xs:complexContent mixed="false">
       <xs:extension base="BaseOS">
-        <xs:sequence >
+        <xs:sequence  minOccurs="0"  maxOccurs="unbounded">
           <xs:element minOccurs="0"  name="LE" type="LE"  />
           <xs:element minOccurs="0"  name="SS" type="SS" />
         </xs:sequence>

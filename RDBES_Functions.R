@@ -12,6 +12,7 @@ library(compare)
 outputFolder <- "./output/"
 print(paste("The default output folder for exchange files is '",outputFolder,"' Change the value of 'outputFolder' if you want to save them to a different place.",sep = ""))
 
+
 #' loadRDBESData
 #' This function loads data that is already in the RDBES format from a relational database.
 #' 
@@ -1049,16 +1050,23 @@ loadRDataFiles <- function(directoryToSearch, recursive = FALSE){
 #' @examples validationData <- getValidationData(fileLocation = './tableDefs/BaseTypes.xsd')
 getValidationData <- function(downloadFromGitHub = TRUE,gitHubFileLocation = "https://raw.githubusercontent.com/ices-tools-dev/RDBES/master/XSD-files/BaseTypes.xsd", fileLocation){
   
+ 
   # For testing
-  #downloadFromGitHub = FALSE
+  #downloadFromGitHub = TRUE
+  #gitHubFileLocation = "https://raw.githubusercontent.com/ices-tools-dev/RDBES/master/XSD-files/BaseTypes.xsd"
   #fileLocation <- './tableDefs/BaseTypes.xsd'
   
   # STEP 1) Get the BaseTypes file (if required)
   if (downloadFromGitHub){
     # get the latest BaseTypes.xsd file from GitHub
-    myBaseTypes <- getURL(gitHubFileLocation)
+    #myBaseTypes <- getURL(gitHubFileLocation)
+    myBaseTypes <- httr::GET(gitHubFileLocation)
+    # stop if there was a problem accessing the file
+    stop_for_status(myBaseTypes$status_code)
     # save the file locally
-    writeLines(myBaseTypes, fileLocation)
+    #writeLines(myBaseTypes, fileLocation)
+    writeLines(httr::content(myBaseTypes, "text"), fileLocation)
+     
   }
   
   # STEP 2) Parse the XML
@@ -1167,9 +1175,13 @@ getTablesInHierarchies <- function(downloadFromGitHub = TRUE,gitHubFileLocation 
         
     # Download our files
     for (i in 1:nrow(myHierarchyFiles)){
-      anHierarchyFile <- getURL(myHierarchyFiles[i,'downloadURL'])
+      #anHierarchyFile <- getURL(myHierarchyFiles[i,'downloadURL'])
+      anHierarchyFile <-httr::GET(myHierarchyFiles[i,'downloadURL'])
+      # stop if there was a problem accessing the file
+      httr::warn_for_status(anHierarchyFile$status_code)
       # save the file locally
-      writeLines(anHierarchyFile, paste(fileLocation,myHierarchyFiles[i,'fileName'], sep = ""))
+      #writeLines(anHierarchyFile, paste(fileLocation,myHierarchyFiles[i,'fileName'], sep = ""))
+      writeLines(httr::content(anHierarchyFile, "text"), paste(fileLocation,myHierarchyFiles[i,'fileName'], sep = ""))
     }
     
   }
@@ -2035,6 +2047,9 @@ removeInvalidRows <- function(tableName,dataToClean,errorList ){
 #' @examples
 loadReferenceData <- function(downloadFromICES = TRUE, validationData = NULL)
 {
+  
+  # For testing
+  #validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = './tableDefs/BaseTypes.xsd')
   
   if (downloadFromICES){
   

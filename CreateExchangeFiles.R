@@ -1,6 +1,8 @@
 
 # Load our functions
 source("RDBES_Functions.R")
+# Temporary fix required for a function from icesVocab - otherwise the function breaks when it tries to download the EDMO code list (or any list containing carriage returns)
+source("tempIcesVocabFix.R")
 
 
 # IMPORTANT: Hack to stop write.csv changing numbers to scientific notation
@@ -12,8 +14,9 @@ options(scipen=500) # big number of digits
 validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = './tableDefs/BaseTypes.xsd')
 #validationData <- getValidationData(downloadFromGitHub = TRUE, fileLocation = './tableDefs/BaseTypes.xsd')
 
-# 11/9/2020 Temp fix because the validation fields aren't up to date :-(
-validationData[validationData$type == 'tRS_Stratification','type'] <- 'tYesNoFields'
+
+# 30/8/2021 Temp fix because the validation fields aren't up to date :-(
+validationData[validationData$type == 'tRS_Sex','type'] <- 'tSEXCO'
 
 # Load the reference data: either refresh from ICES or just use a local copy
 allowedValues <- loadReferenceData(downloadFromICES = FALSE)
@@ -27,31 +30,59 @@ allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLoca
 # IMPORTANT - if you are just going to use your own list of data frames make sure you don't have factors in them - my code assumes the data frames were created using stringsAsFactors = FALSE
 myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 
-
 ## STEP 2) VALIDATE OUR DATA AND CHECK ERRORS
 
-#UGLY HACKS - these are temporary fixes for my data - they will be removed once correct values are added to reference lists
-# Temporary fixes
-#myRDBESData[['DE']][myRDBESData[['DE']]$DEsamplingScheme == 'Ireland DCF Port Sampling',"DEsamplingScheme"] <- "National Routine"
-myRDBESData[['FO']][myRDBESData[['FO']]$FOgear == 'OTQ',"FOgear"] <- "OTB"
-myRDBESData[['SA']][myRDBESData[['SA']]$sagear == 'OTQ',"SAgear"] <- "OTB"
-myRDBESData[['SA']]$SAspeciesCodeFAO <- NA
-myRDBESData[['BV']][!is.na(myRDBESData[['BV']]$BVmeasurementEquipment) &  myRDBESData[['BV']]$BVmeasurementEquipment == '',"BVmeasurementEquipment"] <- "Image Processing"
-myRDBESData[['FT']]$FTsequenceNumber <- myRDBESData[['FT']]$FTid
-myRDBESData[['SA']]$SAsequenceNumber <- myRDBESData[['SA']]$SAid
+#DATA FIXES - these are fixes for my data - they probably aren't required for anybody else's data
+# - some are just temporary fixes whilst values get requested to be added to code list
 
-# If soem of the values for the total weight are large than the maximum value of xs:int
-# we wil have a problem during the upload - lets fix this
-# Need to check whether these values are due to mistake e.g. choosing units of kg
-# rather than boxes
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAtotalWeightLive) & myRDBESData[['SA']]$SAtotalWeightLive > 2147483647,'SAtotalWeightLive'] <- 2147483647
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAtotalWeightMeasured) & myRDBESData[['SA']]$SAtotalWeightMeasured > 2147483647,'SAtotalWeightMeasured'] <- 2147483647
+# Misc temp fixes
+#myRDBESData[['FO']][myRDBESData[['FO']]$FOgear == 'OTQ',"FOgear"] <- "OTB"
+#myRDBESData[['SA']][myRDBESData[['SA']]$sagear == 'OTQ',"SAgear"] <- "OTB"
+#myRDBESData[['FT']]$FTsequenceNumber <- myRDBESData[['FT']]$FTid
+#myRDBESData[['SA']]$SAsequenceNumber <- myRDBESData[['SA']]$SAid
+#myRDBESData[['OS']]$OSsequenceNumber <- myRDBESData[['OS']]$OSid
+
+# SA fixes
+# Get rid of any FAO species names that aren't in the code list
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  !myRDBESData[['SA']]$SAspeciesCodeFAO %in% allowedValues[allowedValues$listName == 'tSpecASFIS','Key'],'SAspeciesCodeFAO'] <- NA
+
+#BV fixes
+# Temp fix required due to dodgy constraint BV1 on RDBES uploader
+myRDBESData[['BV']]$BVnationalUniqueFishId <- myRDBESData[['BV']]$BVid
+
+
+# CE fixes
+# Get rid of NA areas
+myRDBESData[['CE']]<-myRDBESData[['CE']][!is.na(myRDBESData[['CE']]$CEarea),]
+# Get rid of 47.1.1, 47.1.3 areas 
+myRDBESData[['CE']] <- myRDBESData[['CE']][!myRDBESData[['CE']]$CEarea %in% c('47.1.1','47.1.3'),]
+# Get rid of zero fishing hours
+myRDBESData[['CE']] <- myRDBESData[['CE']][!is.na(myRDBESData[['CE']]$CEofficialVesselFishingHour) & myRDBESData[['CE']]$CEofficialVesselFishingHour > 0,]
+# Get rid of zero fishing days
+myRDBESData[['CE']] <- myRDBESData[['CE']][!is.na(myRDBESData[['CE']]$CEofficialFishingDays ) & myRDBESData[['CE']]$CEofficialFishingDays > 0,]
+
+# CL fixes
+# Get rid of NA areas
+myRDBESData[['CL']]<-myRDBESData[['CL']][!is.na(myRDBESData[['CL']]$CLarea),]
+# Get rid of 47.1.1, 47.1.3 areas 
+myRDBESData[['CL']] <- myRDBESData[['CL']][!myRDBESData[['CL']]$CLarea %in% c('47.1.1','47.1.3'),]
+# Get rid of NA landing country
+myRDBESData[['CL']]<-myRDBESData[['CL']][!is.na(myRDBESData[['CL']]$CLlandingCountry),]
+# Get rid of NA landing location
+myRDBESData[['CL']]<-myRDBESData[['CL']][!is.na(myRDBESData[['CL']]$CLlandingLocation),]
+# Get rid of NA species
+myRDBESData[['CL']]<-myRDBESData[['CL']][!is.na(myRDBESData[['CL']]$CLspeciesCode),]
+# Get rid of zero offical weight
+myRDBESData[['CL']] <- myRDBESData[['CL']][!is.na(myRDBESData[['CL']]$CLofficialWeight ) & myRDBESData[['CL']]$CLofficialWeight > 0,]
+# Set null landing value to them smallest value allowed
+myRDBESData[['CL']][is.na(myRDBESData[['CL']]$CLtotalOfficialLandingsValue),'CLtotalOfficialLandingsValue'] <- 0
+
 
 # Lets validate our data
 errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","TE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
 
-# Can check errros from individual tables using e.g.
-#View(errors[errors$tableName == 'SA',])
+# Can check errors from individual tables using e.g.
+View(errors[errors$tableName == 'SA',])
 
 ## STEP 3) GENERATE SIMPLE EXCHANGE FILES (CL,CE,SL,VD)
 
@@ -75,8 +106,8 @@ generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = 2019, country = 'IE', 
 
 
 # Create an H1 CS file
-generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=500,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
-#generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+#generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=500,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 # Create an H5 CS file
 #generateComplexExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)

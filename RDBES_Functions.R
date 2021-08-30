@@ -2096,7 +2096,8 @@ refreshReferenceDataFromICES <- function(codeListsToRefresh){
   # Get all the reference data we need
   for (i in target_codeTypes){
     print(i)
-    codeLists[[i]]<-getCodeList(i)
+    # Sometimes the icesVocab function breaks if there is a carriage return in a code
+    try(codeLists[[i]]<-getCodeList(i))
     codeLists[[i]]$listName <- paste("t", i, sep = "")
     codeLists[[i]]$fileName <- "icesVocab"
     codeLists[[i]]$allowedValues <- codeLists[[i]]$Key

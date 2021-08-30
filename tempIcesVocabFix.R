@@ -1,6 +1,7 @@
 library(xml2)
 
-# Temporary fix required for a function from icesVocab - otherwise the function breaks when it tries to download the METOA code list
+
+# Temporary fix required for a function from icesVocab - otherwise the function breaks if the code list has carriage returns in it
 
 getCodeList <- function(code_type, date = NULL) {
   # base url

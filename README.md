@@ -1,2 +1,3 @@
 # MI_RDBES_ExchangeFiles
-Generates exchange files for the RDBES database
+Generates exchange files for the RDBES database - please use CreateExchangeFiles.R as an example of how to use the functions.
+Other miscellaneous RDBES functions and scripts have been added to this repo in a slightly hap-hazard way...

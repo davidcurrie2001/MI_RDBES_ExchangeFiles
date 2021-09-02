@@ -4,7 +4,6 @@ source("RDBES_Functions.R")
 # Temporary fix required for a function from icesVocab - otherwise the function breaks when it tries to download the EDMO code list (or any list containing carriage returns)
 source("tempIcesVocabFix.R")
 
-
 # IMPORTANT: Hack to stop write.csv changing numbers to scientific notation
 options(scipen=500) # big number of digits
 
@@ -13,10 +12,6 @@ options(scipen=500) # big number of digits
 # Load the validation data
 validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = './tableDefs/BaseTypes.xsd')
 #validationData <- getValidationData(downloadFromGitHub = TRUE, fileLocation = './tableDefs/BaseTypes.xsd')
-
-
-# 30/8/2021 Temp fix because the validation fields aren't up to date :-(
-validationData[validationData$type == 'tRS_Sex','type'] <- 'tSEXCO'
 
 # Load the reference data: either refresh from ICES or just use a local copy
 allowedValues <- loadReferenceData(downloadFromICES = FALSE)
@@ -32,24 +27,19 @@ myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 
 ## STEP 2) VALIDATE OUR DATA AND CHECK ERRORS
 
+# 30/8/2021 Temp fix because the validation fields aren't up to date :-(
+validationData[validationData$type == 'tRS_Sex','type'] <- 'tSEXCO'
+
 #DATA FIXES - these are fixes for my data - they probably aren't required for anybody else's data
 # - some are just temporary fixes whilst values get requested to be added to code list
 
 # Misc temp fixes
 #myRDBESData[['FO']][myRDBESData[['FO']]$FOgear == 'OTQ',"FOgear"] <- "OTB"
 #myRDBESData[['SA']][myRDBESData[['SA']]$sagear == 'OTQ',"SAgear"] <- "OTB"
-#myRDBESData[['FT']]$FTsequenceNumber <- myRDBESData[['FT']]$FTid
-#myRDBESData[['SA']]$SAsequenceNumber <- myRDBESData[['SA']]$SAid
-#myRDBESData[['OS']]$OSsequenceNumber <- myRDBESData[['OS']]$OSid
 
 # SA fixes
 # Get rid of any FAO species names that aren't in the code list
 myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  !myRDBESData[['SA']]$SAspeciesCodeFAO %in% allowedValues[allowedValues$listName == 'tSpecASFIS','Key'],'SAspeciesCodeFAO'] <- NA
-
-#BV fixes
-# Temp fix required due to dodgy constraint BV1 on RDBES uploader
-myRDBESData[['BV']]$BVnationalUniqueFishId <- myRDBESData[['BV']]$BVid
-
 
 # CE fixes
 # Get rid of NA areas

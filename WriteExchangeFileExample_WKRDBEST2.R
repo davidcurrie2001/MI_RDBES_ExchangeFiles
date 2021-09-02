@@ -2,6 +2,8 @@
 
 # Load our functions
 source("RDBES_Functions.R")
+# Temporary fix required for a function from icesVocab - otherwise the function breaks when it tries to download the EDMO code list (or any list containing carriage returns)
+source("tempIcesVocabFix.R")
 
 # IMPORTANT: Hack to stop write.csv changing numbers to scientific notation
 options(scipen=500) # big number of digits
@@ -17,8 +19,8 @@ myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 #validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = './tableDefs/BaseTypes.xsd')
 validationData <- getValidationData(downloadFromGitHub = TRUE, fileLocation = './tableDefs/BaseTypes.xsd')
 
-# 11/9/2020 Temp fix because the validation fields aren't up to date :-(
-validationData[validationData$type == 'tRS_Stratification','type'] <- 'tYesNoFields'
+# 30/8/2021 Temp fix because the validation fields aren't up to date :-(
+validationData[validationData$type == 'tRS_Sex','type'] <- 'tSEXCO'
 
 # Load the reference data: either refresh from ICES or just use a local copy
 #allowedValues <- loadReferenceData(downloadFromICES = FALSE)

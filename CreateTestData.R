@@ -1,5 +1,7 @@
 # Load our functions
 source("RDBES_Functions.R")
+# Temporary fix required for a function from icesVocab - otherwise the function breaks when it tries to download the EDMO code list (or any list containing carriage returns)
+source("tempIcesVocabFix.R")
 
 # This file shows how to generate test data for the RDBES
 
@@ -12,8 +14,8 @@ options(scipen=500) # big number of digits
 validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = './tableDefs/BaseTypes.xsd')
 #validationData <- getValidationData(downloadFromGitHub = TRUE, fileLocation = './tableDefs/BaseTypes.xsd')
 
-# 11/9/2020 Temp fix because the validation fields aren't up to date :-(
-validationData[validationData$type == 'tRS_Stratification','type'] <- 'tYesNoFields'
+# 30/8/2021 Temp fix because the validation fields aren't up to date :-(
+validationData[validationData$type == 'tRS_Sex','type'] <- 'tSEXCO'
 
 # Load the reference data: either refresh from ICES or just use a local copy
 allowedValues <- loadReferenceData(downloadFromICES = FALSE)
@@ -26,21 +28,21 @@ allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLoca
 ## STEP 2) GENERATE TEST DATA
 
 # Can use a loop to generate test data for all hierarchies if you want to 
-for (i in 1:1){
+for (i in 1:13){
   myHierarchyToGenerate <- paste('H',i,sep="")
   
   # Define some parameters for our test data
   #myHierarchyToGenerate <- 'H1'
   print(myHierarchyToGenerate)
   myLowerHierarchyToGenerate <- 'A'
-  myYear <- 2015
-  myCountry <- 'VA'
+  myYear <- 2000
+  myCountry <- 'ZW'
   # Number of strata in different tables - if no value if given for a table then it is assumed to be unstratified
   myStrata <- list(DE = 2, VS = 2)
   # Number of things sampled in different tables - if no value is given for a table then it is assumed to be 1
-  mySampled <- list(VS=5,FO=3,SS=1,SA=3, FM=20,BV=2, VD=10, SL=20)
+  mySampled <- list(VS=3,FO=3,SS=1,SA=3, FM=10,BV=2, VD=10, SL=20)
   # Total number of things in different tables - if no value is given for a table then it is assumed to be equal to the number sampled + 1
-  myTotal <- list(VS=30,FO=10,SS=4, FM=20, BV=2)
+  myTotal <- list(VS=30,FO=10,SS=4,FM=10,BV=2)
   # Select methods used in different tables - if no value is given for a table then it is assumed to be simple random sampling SRSWR
   myMethods <- list()
   

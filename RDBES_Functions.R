@@ -2912,7 +2912,7 @@ createNewTestDataRow <- function(HierarchyToGenerate,LowerHierarchyToGenerate, T
     } else if (myColName == 'SAlowerHierarchy') {
       myNewValue <- LowerHierarchyToGenerate
       # SPECIAL COLUMN - BVfishID
-    } else if (myColName == 'BVfishId') {
+    } else if (myColName == 'BVnationalUniqueFishId') {
       myNewValue <- RowID
       # SPECIAL COLUMN - XXid
     } else if (myColName == paste(TableType,'id',sep="")) {
@@ -3253,6 +3253,10 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     myMetiersCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tMetier6_FishingActivity','Key']
     # Pick the maximum number of metiers for our list based on whatever is the biggest number from i) the number of SA records, ii) the number 1 (to cover the very rare case when we don't have any samples)
     numerOfMetiersToUse <- max(nrow(DataToUse[['SA']]), 1 )
+    myGearCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tGearType','Key']
+    # Only allow metiers where the first part is also in the allowed gear code list
+    myMetiersCodes <- myMetiersCodes[grepl(paste(myGearCodes,collapse="|"),myMetiersCodes)]
+    
     myMetiersCodes <- myMetiersCodes[1:numerOfMetiersToUse]
   }
   
@@ -3319,7 +3323,7 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     myJoin <- inner_join(DataToUse[['SA']],minLength, by ='SAspeciesCode')
     myJoin2 <- inner_join(DataToUse[['FM']],myJoin,by='SAid')
     # Set all the values of FMclass to be the minium length to start with - we'll change this in a bit
-    DataToUse[['FM']][,'FMclass'] <- myJoin2[,'minLength'] * 10
+    DataToUse[['FM']][,'FMclassMeasured'] <- myJoin2[,'minLength'] * 10
     
     # For each sample, create increasing values for FMclass, with a normal distribution of fish counts
     # TODO - shoudl be a better way to do this
@@ -3330,7 +3334,7 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
       
       # First we'll generate soem nromal data that we will use for the number of fish at each length
       myNumberOfLengthClasses <- nrow(myFMDataForASample)
-      myMinLengthClass <- min(myFMDataForASample[,'FMclass'])
+      myMinLengthClass <- min(myFMDataForASample[,'FMclassMeasured'])
       # Set a standard deviation
       mySD <- 5
       # Assume the mean is half way along the number of length classes
@@ -3348,12 +3352,12 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
       for (myFMid in myFMDataForASample[,'FMid']){
         FMCount <- FMCount + 1
         if (is.na(currentLength)){
-          currentLength <- myFMDataForASample[myFMDataForASample[,'FMid']==myFMid,'FMclass']
+          currentLength <- myFMDataForASample[myFMDataForASample[,'FMid']==myFMid,'FMclassMeasured']
         } else {
           # Add 10mm to previous length
           currentLength <- currentLength + 10
         }
-        myFMDataForASample[myFMDataForASample[,'FMid'] == myFMid,'FMclass'] <- currentLength
+        myFMDataForASample[myFMDataForASample[,'FMid'] == myFMid,'FMclassMeasured'] <- currentLength
         # Make a random number of fish at that length
         #myFMDataForASample[myFMDataForASample[,'FMid'] == myFMid,'FMnumberAtUnit'] <- sample(1:10,1)
         # Use our nomral distribution of fish counts
@@ -3368,27 +3372,27 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
   if ('BV' %in% names(DataToUse)){
     
     # Sort out BVfishId so that we don't have duplicates
-    DataToUse[['BV']][,'BVfishId'] <- DataToUse[['BV']][,'BVid']
+    DataToUse[['BV']][,'BVnationalUniqueFishId'] <- DataToUse[['BV']][,'BVid']
     
     # Ages
-    myBVages <- DataToUse[['BV']][DataToUse[['BV']][,'BVtype'] == 'Age',]
+    myBVages <- DataToUse[['BV']][DataToUse[['BV']][,'BVtypeMeasured'] == 'Age',]
     
     # If we have soem age data
     if (nrow(myBVages)>0){
       
       # Set the ages to NA to start with 
-      DataToUse[['BV']][DataToUse[['BV']][,'BVtype'] == 'Age','BVvalue'] <- NA
+      DataToUse[['BV']][DataToUse[['BV']][,'BVtypeMeasured'] == 'Age','BVvalueMeasured'] <- NA
       
       # If the BV is linked to a length class use that to generate an age
       if( 'FMid' %in% names(myBVages)){
-        myJoin <- inner_join(myBVages,DataToUse[['FM']][,c('FMid','FMclass')], by ='FMid')
+        myJoin <- inner_join(myBVages,DataToUse[['FM']][,c('FMid','FMclassMeasured')], by ='FMid')
         if (nrow(myJoin)>0){
           # Assume the age is length / 50
-          myJoin[,'BVvalue'] <- round(myJoin[,'FMclass']/50.0)
+          myJoin[,'BVvalueMeasured'] <- round(myJoin[,'FMclassMeasured']/50.0)
           # Update the age values in our data
           # TODO - this is not a good way of doing things in R
           for(myBV in myJoin[,'BVid'] ){
-            DataToUse[['BV']][DataToUse[['BV']][,'BVid'] == myBV,'BVvalue'] <- myJoin[myJoin[,'BVid']==myBV,'BVvalue']
+            DataToUse[['BV']][DataToUse[['BV']][,'BVid'] == myBV,'BVvalueMeasured'] <- myJoin[myJoin[,'BVid']==myBV,'BVvalueMeasured']
           }
           
         }
@@ -3396,10 +3400,10 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
       } 
       
       # For any remaining NAs we'll pick a random age
-      DataToUse[['BV']][DataToUse[['BV']][,'BVtype'] == 'Age' & is.na(DataToUse[['BV']][,'BVvalue']),'BVvalue'] <- as.character(sample(1:10, nrow(myBVages),replace = TRUE))
+      DataToUse[['BV']][DataToUse[['BV']][,'BVtypeMeasured'] == 'Age' & is.na(DataToUse[['BV']][,'BVvalueMeasured']),'BVvalueMeasured'] <- as.character(sample(1:10, nrow(myBVages),replace = TRUE))
     
       # Set the unit as Year
-      DataToUse[['BV']][DataToUse[['BV']][,'BVtype'] == 'Age','BVvalueType'] <- 'Year'
+      DataToUse[['BV']][DataToUse[['BV']][,'BVtypeMeasured'] == 'Age','BVvalueUnitOrScale'] <- 'Ageyear'
     }
   }
   

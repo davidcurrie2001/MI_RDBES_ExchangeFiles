@@ -2116,10 +2116,10 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
   # TODO - this function needs more testing
   
   # For testing
-  # typeOfFile <- 'H1'
-  # RDBESvalidationdata <- validationData
-  # RequiredTables <- requiredTables
-  # nameOfFile <- 'output/IE_2019_H1.csv'
+  #typeOfFile <- 'H1'
+  #RDBESvalidationdata <- validationData
+  #nameOfFile <- 'output/IE_2019_H1.csv'
+  #RequiredTables <- allRequiredTables
   
   testedCSfileTypes <- c('H1','H5')
   
@@ -2148,7 +2148,7 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
     # Create an empty list to hold our new data
     myNewDataList[[myTable]] <- list()
   }
-  
+
   # Read our csv file 
   myLines <- readLines(nameOfFile)
   currentRowType <- NA
@@ -2250,7 +2250,9 @@ readComplexExchangeFile <- function(typeOfFile,RDBESvalidationdata,nameOfFile,Re
     foreignKeyTrackingList[[i]] <- list(currentRowID = myNewRowID, currentRowType = currentRowType,previousRowID = myPreviousRowID, previousRowType = previousRowType ,foreignKeyID = myForeignKeyID, foreignKeyType = myForeignKeyName)
 
     # Our new data
-    myNewData <- myRowValues[2:length(myRowValues)]
+    #myNewData <- myRowValues[2:length(myRowValues)]
+    # 8/9/21 - keep the xxRecordType value
+    myNewData <- myRowValues[1:length(myRowValues)]
     
     # Save the names because rbind screws them up
     correctNames <- names(myDataList[[currentRowType]])
@@ -2392,14 +2394,17 @@ readSimpleExchangeFile <- function(nameOfTable,RDBESvalidationdata,nameOfFile){
   emptyDf <- createEmptyDataFrameFromValidationData(nameOfTable = nameOfTable,RDBESvalidationdata = RDBESvalidationdata)
   
   # These are the classes we want the data to read in to be mapped to
-  myColClasses <- c("character",unlist(lapply(emptyDf, class),use.names=F))
+  #myColClasses <- c("character",unlist(lapply(emptyDf, class),use.names=F))
+  # 8/9/21
+  myColClasses <- unlist(lapply(emptyDf, class),use.names=F)
   
   # Read our exchange file
   myFileContents <- fread(file=nameOfFile, header = FALSE, stringsAsFactors = FALSE, na.strings="", colClasses = myColClasses)
   # If this is a data table change it to a data frame
   myFileContents <- as.data.frame(myFileContents)
   # Get rid of the first column (this is just the record type)
-  myFileContents <- myFileContents[,2:length(names(myFileContents))]
+  # 8/9/21 Keep the first column now
+  #myFileContents <- myFileContents[,2:length(names(myFileContents))]
   # Set the correct column names
   names(myFileContents) <- names(emptyDf)
   
@@ -2424,7 +2429,7 @@ readSimpleExchangeFile <- function(nameOfTable,RDBESvalidationdata,nameOfFile){
 createEmptyDataFrameFromValidationData <- function(nameOfTable, RDBESvalidationdata){
   
   # For testing
-  #nameOfTable <- 'CE'
+  #nameOfTable <- 'VD'
   
   # Get all the fields withe correct prefix
   myRegExp <- paste('^',nameOfTable,'.*',sep = "")
@@ -2435,7 +2440,10 @@ createEmptyDataFrameFromValidationData <- function(nameOfTable, RDBESvalidationd
   # Work out what data types the columns shoudl be
   myColClasses <- ifelse(myReleventFields$type == 'xs:int','integer',ifelse(myReleventFields$type == 'xs:decimal' | myReleventFields$type == 'xs:float','numeric','character'))
   
-
+  # 8/9/21 - Add in the XXrecordType fields
+  myColNames <- c(paste0(nameOfTable,'recordType'),myColNames)
+  myColClasses <- c('character',myColClasses)
+  
   # Create our data frame (trick with read.csv taken from https://stackoverflow.com/questions/10689055/create-an-empty-data-frame)
   myNewDataFrame <- read.csv(text=paste(myColNames,collapse = ','), colClasses = myColClasses, stringsAsFactors = FALSE)
   ## If this is a data table change it to a data frame
@@ -3254,10 +3262,15 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     # Pick the maximum number of metiers for our list based on whatever is the biggest number from i) the number of SA records, ii) the number 1 (to cover the very rare case when we don't have any samples)
     numerOfMetiersToUse <- max(nrow(DataToUse[['SA']]), 1 )
     myGearCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tGearType','Key']
+    # Only consider gear codes that are 3 charcters long - makes life easier
+    myGearCodes <- myGearCodes[sapply(myGearCodes,FUN = nchar)==3]
     # Only allow metiers where the first part is also in the allowed gear code list
     myMetiersCodes <- myMetiersCodes[grepl(paste(myGearCodes,collapse="|"),myMetiersCodes)]
     
-    myMetiersCodes <- myMetiersCodes[1:numerOfMetiersToUse]
+    #myMetiersCodes <- myMetiersCodes[1:numerOfMetiersToUse]
+    # We can have more SA rows than the number of metiers - let's sample it instead
+    myMetiersCodes <-sample(myMetiersCodes, size=numerOfMetiersToUse, replace =TRUE)
+    
   }
   
   # If we have FO data pick a random metier and gear code

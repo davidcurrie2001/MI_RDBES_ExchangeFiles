@@ -2702,8 +2702,20 @@ compareSimpleData <- function(dataSet1, dataSet2, tableType){
 #' @examples
 createTestData <- function(HierarchyToGenerate,LowerHierarchyToGenerate, RDBESvalidationdata, RDBEScodeLists, RequiredTables, NumberOfStrata, NumberSampled, NumberTotal, SelectionMethods ){
   
+  # FOr testing
+  #HierarchyToGenerate <-  'H5'
+  #LowerHierarchyToGenerate <- 'A'
+  #RDBESvalidationdata <- validationData
+  #RDBEScodeLists <- allowedValues
+  #RequiredTables <- allRequiredTables
+  #NumberOfStrata <- list(DE = 3, VS = 3, FT = 3, OS = 3, LO = 1, TE = 1)
+  #NumberSampled <- list(VS=3,FO=3,SS=1,SA=2, FM=10,BV=2, VD=10, SL=20, OS = 3, TE = 3, LO = 3, FT=3, CE=100, CL = 500)
+  #NumberTotal <- list(VS=30,FO=10,SS=4,FM=10,BV=2, OS = 100, LO = 100, TE = 10, FT = 100)
+  #SelectionMethods <- list()
+  
   myRequiredTables <- RequiredTables[[HierarchyToGenerate]]
   myAuxTables <- c('VD','SL')
+  myPopTables <- c('CE','CL')
   
   # We might need to remove some tables, depending on the lower hierarchy
   if (LowerHierarchyToGenerate == 'A'){
@@ -2723,7 +2735,7 @@ createTestData <- function(HierarchyToGenerate,LowerHierarchyToGenerate, RDBESva
   # First create a list with all the empty tables we need in it (the CS hierarchy tables and VD, SL)
   myDataList <- list()
   
-  for (myTable in c(myRequiredTables,myAuxTables)){
+  for (myTable in c(myRequiredTables,myAuxTables,myPopTables)){
     myEmptyDf <- createEmptyDataFrameFromValidationData(nameOfTable = myTable, RDBESvalidationdata = RDBESvalidationdata)
     # Add our empty XXid column to the front of the data frame
     myID <- integer(0)
@@ -2816,6 +2828,11 @@ createTestData <- function(HierarchyToGenerate,LowerHierarchyToGenerate, RDBESva
   
   # Just add the auxillary tables into the output without doing anything to them
   for (myTable in myAuxTables){
+    myMultipliedTestData[[myTable]] <- myDataList[[myTable]]
+  }
+  
+  # Just add the population tables into the output without doing anything to them
+  for (myTable in myPopTables){
     myMultipliedTestData[[myTable]] <- myDataList[[myTable]]
   }
   
@@ -3133,6 +3150,22 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     }
     DataToUse[['LO']][,'LOlocode'] <- myRandomValues
   }
+  if ('CE' %in% names(DataToUse)){
+    if (length(myCountryLocodes) > 1){
+      myRandomValues <- sample(myCountryLocodes,nrow(DataToUse[['CE']]),replace = TRUE)
+    } else {
+      myRandomValues <- myCountryLocodes
+    }
+    DataToUse[['CE']][,'CElandingLocation'] <- myRandomValues
+  }
+  if ('CL' %in% names(DataToUse)){
+    if (length(myCountryLocodes) > 1){
+      myRandomValues <- sample(myCountryLocodes,nrow(DataToUse[['CL']]),replace = TRUE)
+    } else {
+      myRandomValues <- myCountryLocodes
+    }
+    DataToUse[['CL']][,'CLlandingLocation'] <- myRandomValues
+  }
   
   # YEAR
   DataToUse[['DE']][,'DEyear'] <- YearToUse
@@ -3155,6 +3188,7 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
   if ('OS' %in% names(DataToUse)){
     myRandomValues <- sample(seq(as.Date(paste(YearToUse,'/01/01',sep="")), as.Date(paste(YearToUse,'/12/01',sep="")), by="day"), nrow(DataToUse[['OS']]),replace = TRUE)
     DataToUse[['OS']][,'OSsamplingDate'] <- format(myRandomValues,'%Y-%m-%d')
+    DataToUse[['OS']][,'OSlocationName'] <- paste(DataToUse[['OS']][,'OSlocationName'],DataToUse[['OS']][,'OSid'],sep="")
   }
   if ('LE' %in% names(DataToUse)){
     myRandomValues <- sample(seq(as.Date(paste(YearToUse,'/01/01',sep="")), as.Date(paste(YearToUse,'/12/01',sep="")), by="day"), nrow(DataToUse[['LE']]),replace = TRUE)
@@ -3337,6 +3371,9 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     myJoin2 <- inner_join(DataToUse[['FM']],myJoin,by='SAid')
     # Set all the values of FMclass to be the minium length to start with - we'll change this in a bit
     DataToUse[['FM']][,'FMclassMeasured'] <- myJoin2[,'minLength'] * 10
+    DataToUse[['FM']][,'FMtypeMeasured'] <- 'LengthTotal'
+    DataToUse[['FM']][,'FMtypeAssessment'] <- 'LengthTotal'
+    
     
     # For each sample, create increasing values for FMclass, with a normal distribution of fish counts
     # TODO - shoudl be a better way to do this
@@ -3420,6 +3457,71 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     }
   }
   
+  
+  # CE
+  if ('CE' %in% names(DataToUse)){
+    DataToUse[['CE']][,'CEyear'] <- YearToUse
+    DataToUse[['CE']][,'CEvesselFlagCountry'] <- CountryToUse
+    DataToUse[['CE']][,'CEnumberOfUniqueVessels'] <- sample.int(20, size = nrow(DataToUse[['CE']]),  replace =TRUE ) + 3
+    DataToUse[['CE']][,'CEnumberOfDominantTrips'] <- sample.int(50, size = nrow(DataToUse[['CE']]),  replace =TRUE )
+    DataToUse[['CE']][,'CEnumberOfFractionTrips'] <-  DataToUse[['CE']][,'CEnumberOfDominantTrips']
+    DataToUse[['CE']][,'CEofficialFishingDays'] <- sample.int(50, size = nrow(DataToUse[['CE']]),  replace =TRUE )
+    DataToUse[['CE']][,'CEscientificFishingDays'] <- DataToUse[['CE']][,'CEofficialFishingDays']
+    DataToUse[['CE']][,'CEofficialDaysAtSea'] <- DataToUse[['CE']][,'CEofficialFishingDays']
+    DataToUse[['CE']][,'CEscientificDaysAtSea'] <- DataToUse[['CE']][,'CEofficialFishingDays']
+    
+    DataToUse[['CE']][,'CEofficialkWDaysAtSea'] <- DataToUse[['CE']][,'CEofficialDaysAtSea'] * 100.0
+    DataToUse[['CE']][,'CEscientifickWDaysAtSea'] <-  DataToUse[['CE']][,'CEofficialkWDaysAtSea']
+    
+    DataToUse[['CE']][,'CEofficialkWFishingDays'] <- DataToUse[['CE']][,'CEofficialFishingDays'] * 100.0
+    DataToUse[['CE']][,'CEscientifickWFishingDays'] <-  DataToUse[['CE']][,'CEofficialkWFishingDays']
+    
+    DataToUse[['CE']][,'CEgTDaysAtSea'] <- DataToUse[['CE']][,'CEofficialDaysAtSea'] * 20.0
+    DataToUse[['CE']][,'CEgTFishingDays'] <- DataToUse[['CE']][,'CEofficialFishingDays'] * 20.0
+    
+    
+    myAreas <- RDBEScodeLists[RDBEScodeLists$listName == 'tICES_Area' & grepl('^27.*',RDBEScodeLists$Key) ,'Key']
+    myRandomValues <- sample(myAreas,nrow(DataToUse[['CE']]),replace = TRUE)
+    DataToUse[['CE']][,'CEarea'] <- myRandomValues
+    
+    myMetiersCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tMetier6_FishingActivity','Key']
+    myRandomValues <-sample(myMetiersCodes, nrow(DataToUse[['CE']]), replace =TRUE)
+    DataToUse[['CE']][,'CEmetier6'] <- myRandomValues
+    
+    myLengthCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tRS_VesselLengthCategory','Key']
+    myRandomValues <-sample(myLengthCodes, nrow(DataToUse[['CE']]), replace =TRUE)
+    DataToUse[['CE']][,'CEvesselLengthCategory'] <- myRandomValues
+    
+  }
+  
+  # CL
+  if ('CL' %in% names(DataToUse)){
+    DataToUse[['CL']][,'CLyear'] <- YearToUse
+    DataToUse[['CL']][,'CLvesselFlagCountry'] <- CountryToUse
+    DataToUse[['CL']][,'CLlandingCountry'] <- CountryToUse
+    DataToUse[['CL']][,'CLnumberOfUniqueVessels'] <- sample.int(20, size = nrow(DataToUse[['CL']]), replace =TRUE ) + 3
+    DataToUse[['CL']][,'CLcatchCategory'] <- 'Lan'
+    DataToUse[['CL']][,'CLofficialWeight'] <- sample.int(50, size = nrow(DataToUse[['CL']]), replace =TRUE ) * 1000
+    DataToUse[['CL']][,'CLscientificWeight'] <- DataToUse[['CL']][,'CLofficialWeight']
+    DataToUse[['CL']][,'CLtotalOfficialLandingsValue'] <- DataToUse[['CL']][,'CLofficialWeight'] * 2
+    DataToUse[['CL']][,'CLexplainDifference'] <- 'NoDiff'
+    
+    myAreas <- RDBEScodeLists[RDBEScodeLists$listName == 'tICES_Area' & grepl('^27.*',RDBEScodeLists$Key),'Key']
+    myRandomValues <- sample(myAreas,nrow(DataToUse[['CL']]),replace = TRUE)
+    DataToUse[['CL']][,'CLarea'] <- myRandomValues
+    
+    mySpecies <- RDBEScodeLists[RDBEScodeLists$listName == 'tSpecWoRMS','Key']
+    myRandomValues <- sample(mySpecies,nrow(DataToUse[['CL']]),replace = TRUE)
+    DataToUse[['CL']][,'CLspeciesCode'] <- myRandomValues
+    
+    myMetiersCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tMetier6_FishingActivity','Key']
+    myRandomValues <-sample(myMetiersCodes, nrow(DataToUse[['CL']]), replace =TRUE)
+    DataToUse[['CL']][,'CLmetier6'] <- myRandomValues
+    
+    myLengthCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tRS_VesselLengthCategory','Key']
+    myRandomValues <-sample(myLengthCodes, nrow(DataToUse[['CL']]), replace =TRUE)
+    DataToUse[['CL']][,'CLvesselLengthCategory'] <- myRandomValues
+  }
   
   # Return our data
   DataToUse

@@ -21,6 +21,10 @@ allowedValues <- loadReferenceData(downloadFromICES = FALSE)
 allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLocation = './tableDefs/')
 #allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = TRUE, fileLocation = './tableDefs/')
 
+# 8/9/21 temp fix - need to check XSD files are up-to-date
+allRequiredTables[["H12"]]<- c("DE","SD","LO","TE","LE","SS","SA","FM","BV")
+allRequiredTables[["H13"]]<- c("DE","SD","FO","SS","SA","FM","BV")
+
 # Load the RDBES data from the database - you can either write your own database connection string in a format similar to this: 'driver=SQL Server;server=mysqlhost;database=mydbname;trusted_connection=true' or just manually create a named list of data fames in the correct format
 # IMPORTANT - if you are just going to use your own list of data frames make sure you don't have factors in them - my code assumes the data frames were created using stringsAsFactors = FALSE
 myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
@@ -96,7 +100,7 @@ generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = 2019, country = 'IE', 
 
 
 # Create an H1 CS file
-#generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=500,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+#generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 # Create an H5 CS file
@@ -139,18 +143,18 @@ errorsExchangeFiles <- validateTables(RDBESdata = myExchangeFileRDBESData, RDBES
 dataSet1 <- myRDBESData
 
 # When we created the Exchange file we probably cleaned and filtered the RDBES data - if so, we need to do that again for dataSet1 so that we have a fair comparison 
-dataSet1HierarchyToCheck <- 'H1'
+dataSet1HierarchyToCheck <- 'H5'
 dataSet1YearToCheck <- 2019
 dataSet1CountryToCheck <- 'IE'
 
 # Clean and filter DataSet1 so that we are comparing like-with-like (this is assuming we cleaned and filtered the data when we generated the exchange file - if not you don't need to do this)
 dataSet1 <- filterCSData(RDBESdata = dataSet1 , RequiredTables = allRequiredTables[[dataSet1HierarchyToCheck]], YearToFilterBy = dataSet1YearToCheck, CountryToFilterBy = dataSet1CountryToCheck, UpperHierarchyToFilterBy = substr(dataSet1HierarchyToCheck,2,nchar(dataSet1HierarchyToCheck)))
 dataSet1 <- cleanCSData(DataToClean = dataSet1,RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables[[dataSet1HierarchyToCheck]], YearToFilterBy = dataSet1YearToCheck, CountryToFilterBy = dataSet1CountryToCheck,UpperHierarchyToFilterBy = substr(dataSet1HierarchyToCheck,2,nchar(dataSet1HierarchyToCheck)))
-dataSet1 <- limitSamplesInCSData(DataToFilter = dataSet1, NumberOfSamples = 500, RequiredTables = allRequiredTables[[dataSet1HierarchyToCheck]])
+dataSet1 <- limitSamplesInCSData(DataToFilter = dataSet1, NumberOfSamples = 50, RequiredTables = allRequiredTables[[dataSet1HierarchyToCheck]])
 
 # This is the CS data we have read in from the Exchange file
-dataSet2 <- myExchangeFileH1
-#dataSet2 <- myExchangeFileH5
+#dataSet2 <- myExchangeFileH1
+dataSet2 <- myExchangeFileH5
 
 
 # Now we can compare our 2 CS data sets

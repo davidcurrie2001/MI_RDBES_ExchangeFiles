@@ -12,6 +12,7 @@ library(compare)
 outputFolder <- "./output/"
 print(paste("The default output folder for exchange files is '",outputFolder,"' Change the value of 'outputFolder' if you want to save them to a different place.",sep = ""))
 
+statRects <- readRDS("referenceData/ICESRectAreas.RDS")
 
 #' loadRDBESData
 #' This function loads data that is already in the RDBES format from a relational database.
@@ -3484,6 +3485,13 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     myRandomValues <- sample(myAreas,nrow(DataToUse[['CE']]),replace = TRUE)
     DataToUse[['CE']][,'CEarea'] <- myRandomValues
     
+    # Pick a random rectangle from the correct area ( using a for loop is 
+    # not a very R way of doing this through :-(  )
+    for (myRow in 1:nrow(DataToUse[['CE']])){
+      DataToUse[['CE']][myRow,'CEstatisticalRectangle'] <-   
+        sample(c('-9',statRects[statRects$Area == DataToUse[['CE']][myRow,'CEarea'],'ICESNAME']),1)
+    }
+    
     myMetiersCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tMetier6_FishingActivity','Key']
     myRandomValues <-sample(myMetiersCodes, nrow(DataToUse[['CE']]), replace =TRUE)
     DataToUse[['CE']][,'CEmetier6'] <- myRandomValues
@@ -3510,8 +3518,23 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     myRandomValues <- sample(myAreas,nrow(DataToUse[['CL']]),replace = TRUE)
     DataToUse[['CL']][,'CLarea'] <- myRandomValues
     
-    mySpecies <- RDBEScodeLists[RDBEScodeLists$listName == 'tSpecWoRMS','Key']
-    myRandomValues <- sample(mySpecies,nrow(DataToUse[['CL']]),replace = TRUE)
+    # Pick a random rectangle from the correct area ( using a for loop is 
+    # not a very R way of doing this through :-(  )
+    for (myRow in 1:nrow(DataToUse[['CL']])){
+      DataToUse[['CL']][myRow,'CLstatisticalRectangle'] <-   
+        sample(c('-9',statRects[statRects$Area == DataToUse[['CL']][myRow,'CLarea'],'ICESNAME']),1)
+    }
+
+    #mySpecies <- RDBEScodeLists[RDBEScodeLists$listName == 'tSpecWoRMS','Key']
+    #myRandomValues <- sample(mySpecies,nrow(DataToUse[['CL']]),replace = TRUE)
+    #DataToUse[['CL']][,'CLspeciesCode'] <- myRandomValues
+    
+    mySpeciesCodes <- DataToUse[['SL']][,'SLspeciesCode']
+    if (length(mySpeciesCodes) > 1){
+      myRandomValues <- sample(mySpeciesCodes,nrow(DataToUse[['CL']]),replace = TRUE)
+    } else {
+      myRandomValues <- mySpeciesCodes
+    }
     DataToUse[['CL']][,'CLspeciesCode'] <- myRandomValues
     
     myMetiersCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tMetier6_FishingActivity','Key']

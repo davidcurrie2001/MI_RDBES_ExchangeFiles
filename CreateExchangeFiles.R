@@ -13,6 +13,9 @@ options(scipen=500) # big number of digits
 validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = './tableDefs/BaseTypes.xsd')
 #validationData <- getValidationData(downloadFromGitHub = TRUE, fileLocation = './tableDefs/BaseTypes.xsd')
 
+# 30/8/2021 Temp fix because the validation fields aren't up to date :-(
+validationData[validationData$type == 'tRS_Sex','type'] <- 'tSEXCO'
+
 # Load the reference data: either refresh from ICES or just use a local copy
 allowedValues <- loadReferenceData(downloadFromICES = FALSE)
 #allowedValues <- loadReferenceData(downloadFromICES = TRUE, validationData=validationData)
@@ -31,8 +34,6 @@ myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 
 ## STEP 2) VALIDATE OUR DATA AND CHECK ERRORS
 
-# 30/8/2021 Temp fix because the validation fields aren't up to date :-(
-validationData[validationData$type == 'tRS_Sex','type'] <- 'tSEXCO'
 
 #DATA FIXES - these are fixes for my data - they probably aren't required for anybody else's data
 # - some are just temporary fixes whilst values get requested to be added to code list

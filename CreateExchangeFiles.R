@@ -1,8 +1,11 @@
 
 # Load our functions
 source("RDBES_Functions.R")
-# Temporary fix required for a function from icesVocab - otherwise the function breaks when it tries to download the EDMO code list (or any list containing carriage returns)
-source("tempIcesVocabFix.R")
+# Temporary fix required for a function from icesVocab - need to install it from GitHub
+# the current CRAN version breaks when it tries to download the EDMO code list (or any list containing carriage returns)
+#library(devtools)
+#install_github("ices-tools-prod/icesVocab")
+#library(icesVocab)
 
 # IMPORTANT: Hack to stop write.csv changing numbers to scientific notation
 options(scipen=500) # big number of digits

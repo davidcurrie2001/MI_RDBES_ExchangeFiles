@@ -693,7 +693,7 @@ generateSortOrder <- function(RDBESdataToSort, RequiredTables){
         # Need to handle DE differently because the SortOrder doesn't just use the primary key
         if (myRequiredTable == 'DE'){
           
-          RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste(RDBESdataToSort[[myRequiredTable]]$DEhierarchy,RDBESdataToSort[[myRequiredTable]]$DEyear,RDBESdataToSort[[myRequiredTable]]$DEstratum,sep="-")
+          RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste(RDBESdataToSort[[myRequiredTable]]$DEhierarchy,RDBESdataToSort[[myRequiredTable]]$DEyear,RDBESdataToSort[[myRequiredTable]]$DEsamplingScheme,RDBESdataToSort[[myRequiredTable]]$DEstratum,sep="-")
           
         } 
         # Need to handle SA differently because there can be sub-samples

@@ -640,6 +640,13 @@ filterCSData <- function(RDBESdata, RequiredTables, YearToFilterBy, CountryToFil
 #' @examples
 getTopLevelSequenceNumber <- function(SAdata,SAsequenceNumber ){
   #print(SAsequenceNumber)
+  
+  # Check if the sequence numbers are both numeric
+  if(!(is.numeric(SAdata$SAsequenceNumber) & 
+     is.numeric(SAdata$SAparentSequenceNumber))){
+    warning("SAsequenceNumber and SAparentSequenceNumber should both be numeric")
+  }
+  
   dataToCheck <- SAdata[SAdata$SAsequenceNumber == SAsequenceNumber,]
   
   # If we have mutiple matches we probably don't have unique SAsequenceNumber values
@@ -648,7 +655,7 @@ getTopLevelSequenceNumber <- function(SAdata,SAsequenceNumber ){
     # Just use the first match
     dataToCheck <- dataToCheck[1,]
   }
-  
+
   if (nrow(dataToCheck) == 0) {
     return (NA)
   } else if (is.na(dataToCheck$SAparentSequenceNumber)) {

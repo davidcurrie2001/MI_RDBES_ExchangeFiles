@@ -375,7 +375,7 @@ limitSamplesInCSData <- function(DataToFilter, NumberOfSamples, RequiredTables){
       SAidsToUse <- NotSubSamples[1:NumberOfSamples,"SAid"]
       
       # Need Sort out SA and FM first, then we'll deal with the other tables
-      
+      allSAData <- DataToFilter[['SA']]
       # SA : Top level samples not including sub-samplea
       DataToFilter[['SA']]<- DataToFilter[['SA']][DataToFilter[['SA']]$SAid %in% SAidsToUse,]
       # Now handle any sub-samples
@@ -384,7 +384,9 @@ limitSamplesInCSData <- function(DataToFilter, NumberOfSamples, RequiredTables){
       # If we have any sub-samples see if we need to include them
       if (nrow(mySubSampleData) > 0){
         # Use a recursive function to fetch the top level sequence number of our sub-samples
-        mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
+        #mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
+        mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = allSAData)
+        
         # Only include sub-samples if their top level sequence numebr is in our filtered sample data
         mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% DataToFilter[['SA']]$SAsequenceNumber,]
         # Remove the column we added
@@ -571,21 +573,26 @@ filterCSData <- function(RDBESdata, RequiredTables, YearToFilterBy, CountryToFil
         ## Assume the primary key is the first field
         previousPrimaryKey <- names(previousHierarchyTable)[1]
         mySampleData <- myData[myData[,previousPrimaryKey] %in% previousHierarchyTable[,previousPrimaryKey],]
+        # Samples which don't have a parent
+        myTopLevelSampleData <- mySampleData[is.na(mySampleData$SAparentSequenceNumber),]
         
         # Now handle any sub-samples
         mySubSampleData <- myData[!is.na(myData$SAparentSequenceNumber),]
         
         # Use a recursive function to fetch the top level sequence number of our sub-samples
-        mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
+        #mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySubSampleData)
+        mySubSampleData$topLevelSequenceNumber <- sapply(mySubSampleData$SAsequenceNumber,getTopLevelSequenceNumber,SAdata = mySampleData)
         
         # Only include sub-samples if their top level sequence numebr is in our filtered sample data
-        mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% mySampleData$SAsequenceNumber,]
+        #mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% mySampleData$SAsequenceNumber,]
+        mySubSampleData <- mySubSampleData[mySubSampleData$topLevelSequenceNumber %in% myTopLevelSampleData$SAsequenceNumber,]
         
         # Get rid of the column we added earlier
         mySubSampleData$topLevelSequenceNumber <- NULL
         
         # Stick our samples and sub-samples together
-        myData <- rbind(mySampleData, mySubSampleData)
+        #myData <- rbind(mySampleData, mySubSampleData)
+        myData <- rbind(myTopLevelSampleData, mySubSampleData)
         
         myCSData[[myRequiredTable]] = myData
         

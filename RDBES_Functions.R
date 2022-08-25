@@ -1998,7 +1998,7 @@ validateAgainstCodeList <- function(fieldToCheck,dataToCheck,fieldTypeToCheck,co
   myTypeToCheck <- fieldTypeToCheck$type
   
   # see if we can find the correct code list
-  myAllowedValues <- codeLists[codeLists$listName == myTypeToCheck,"allowedValues"]
+  myAllowedValues <- codeLists[codeLists$listName == myTypeToCheck & !(codeLists$Deprecated),"allowedValues"]
   # If we found which values are allowed then we can check our data against them
   if (length(myAllowedValues)>0){
     # Check if our values are in the allowed list of values
@@ -2120,6 +2120,10 @@ refreshReferenceDataFromICES <- function(codeListsToRefresh){
   
   # Put the list entries into a single data frame
   allowedValues <- do.call("rbind", codeLists)
+  
+  # If the value is the text "NA" it gets turned into an NA - change it back into the text "NA"
+  allowedValues[is.na(allowedValues$Key),'Key'] <- "NA"
+  allowedValues[is.na(allowedValues$allowedValues),'allowedValues'] <- "NA"
   
   allowedValues
   

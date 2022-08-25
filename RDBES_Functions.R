@@ -76,11 +76,64 @@ loadRDBESData <- function(connectionString){
   
 }
 
+
+#' Generate an exchange format file for the RDBES
+#'
+#' @param typeOfFile The file we want to create - allowed values are CL, CE, VD, SL, H1 - H13
+#' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
+#' @param yearToUse The year we want to generate the file for
+#' @param country The country to extract data for
+#' @param RDBESdata A named list containing our RDBES data
+#' @param numberOfRows (Optional) Limit the output to this number of rows (just used for testing CL,CE,VD,SL files)
+#' @param numberOfSamples (Optional) Limit the output to this number of samples (just used for testing H1 - H13 files)
+#' @param cleanData (Optional) if TRUE then remove any invalid rows from the data before generating the upload files - warning data will potentially be lost from your upload file if you do this!
+#' @param RDBESvalidationdata  (Optional) If you have selected to cleanData then you need to supply validation data (derived from BaseTypes.xsd)
+#' @param RDBEScodeLists (Optional) If you have selected to cleanData then you need to supply reference data (derived from ICES vocabulary server)
+#' @param RequiredTables (Optional) A list of the tables required for each hierachy - required for H1 - H13 files
+#'
+#' @return
+#' @export
+#'
+#' @examples
+#' generateExchangeFile(typeOfFile = 'CL', yearToUse = 2017, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateExchangeFile <- function(typeOfFile, outputFileName = "", yearToUse, country, RDBESdata, numberOfRows = NULL, numberOfSamples = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL, RequiredTables = NULL){
+  
+
+  simpleFiles <- c("CL","CE","VD","SL")
+  complexfiles <- c("H1","H2","H3","H4","H5","H6","H7","H8","H9","H10","H11","H12","H13")
+  
+  if(typeOfFile %in% simpleFiles) {
+    generateSimpleExchangeFile(typeOfFile = typeOfFile
+                               ,outputFileName = outputFileName
+                               ,yearToUse = yearToUse
+                               ,country = country
+                               ,RDBESdata = RDBESdata
+                               ,numberOfRows = numberOfRows
+                               ,cleanData = cleanData
+                               ,RDBESvalidationdata = RDBESvalidationdata
+                               ,RDBEScodeLists = RDBEScodeLists)
+  } else if(typeOfFile %in% complexfiles) {
+    generateComplexExchangeFile(typeOfFile = typeOfFile
+                               ,outputFileName = outputFileName
+                               ,yearToUse = yearToUse
+                               ,country = country
+                               ,RDBESdata = RDBESdata
+                               ,numberOfSamples = numberOfSamples
+                               ,cleanData = cleanData
+                               ,RDBESvalidationdata = RDBESvalidationdata
+                               ,RDBEScodeLists = RDBEScodeLists
+                               ,RequiredTables = RequiredTables)
+  } else {
+    stop(paste0("typeOfFile not recognised: ",typeOfFile))
+  }
+  
+}
+
 #' generateSimpleExchangeFile Generate either a CE, CL, VD, or SL exchange format file for the RDBES
 #'
 #' @param typeOfFile The file we want to create - allowed values are CL, CE, VD, or SL
 #' @param outputFileName (Optional) The name we wish to give the file we produce - if not supplied a standard pattern will be used
-#' @param yearToUse The year we want to generate the CE file for
+#' @param yearToUse The year we want to generate the file for
 #' @param country The country to extract data for
 #' @param RDBESdata A named list containing our RDBES data
 #' @param numberOfRows (Optional) Limit the output to this number of rows (just used for testing)

@@ -947,7 +947,8 @@ getFieldNameMapping <- function(downloadFromGitHub= TRUE, gitHubDirectory = "htt
       
     } 
     # CS
-    else if (myfile == "RDBES Data Model.xlsx"){
+    else if (grepl('^.*CS.xlsx$',myfile)){
+    #else if (myfile == "RDBES Data Model.xlsx"){
       
       for (aFileSheet in myFileSheets) {
         if (!grepl(".*Model.*",aFileSheet)){

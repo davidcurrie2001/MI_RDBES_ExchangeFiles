@@ -35,8 +35,7 @@ myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 
 # DE fixes
 myRDBESData[['DE']]$MI_Created_Date <- NULL
-# Temp fix until the new correct sampling schemes are in the vocab list
-#myRDBESData[['DE']]$DEsamplingScheme <- 'Ireland DCF Catch Sampling'
+
 
 # FO fixes
 # Get rid of any values in FOnationalFishingActivity - anything in here woudl need to be added to an ICES code list first
@@ -45,6 +44,8 @@ myRDBESData[['FO']]$FOnationalFishingActivity <- NA
 # LE fixes
 # Get rid of any values in SAnationalFishingActivity - anything in here woudl need to be added to an ICES code list first
 myRDBESData[['LE']]$LEnationalFishingActivity <- NA
+# PTM_SPF_40-54_0_0 is not allowed in 27.4.a -> change to PTM_SPF_32-69_0_0
+myRDBESData[['LE']][!is.na(myRDBESData[['LE']]$LEmetier6) &  myRDBESData[['LE']]$LEmetier6 == 'PTM_SPF_40-54_0_0' & !is.na(myRDBESData[['LE']]$LEarea) &  myRDBESData[['LE']]$LEarea == '27.4.a','LEmetier6'] <- 'PTM_SPF_32-69_0_0'
 
 # SA fixes
 # Get rid of any FAO species names that aren't in the code list
@@ -61,6 +62,8 @@ myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAsampleWeightMeasured) & myRDBES
 myRDBESData[['SA']]$SAnationalFishingActivity <- NA
 # SAtotalWeightLive should be an int
 myRDBESData[['SA']]$SAtotalWeightLive <- as.integer(myRDBESData[['SA']]$SAtotalWeightLive)
+# PTM_SPF_40-54_0_0 is not allowed in 27.4.a -> change to PTM_SPF_32-69_0_0
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAmetier6) & myRDBESData[['SA']]$SAmetier6 == 'PTM_SPF_40-54_0_0' & !is.na(myRDBESData[['SA']]$SAarea) & myRDBESData[['SA']]$SAarea == '27.4.a','SAmetier6'] <- 'PTM_SPF_32-69_0_0'
 
 
 # CE fixes
@@ -103,7 +106,7 @@ errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validati
 
 
 # Can check errors from individual tables using e.g.
-View(errors[errors$tableName == 'SA',])
+View(errors[errors$tableName == 'CL',])
 
 
 

@@ -14,6 +14,8 @@ print(paste("The default output folder for exchange files is '",outputFolder,"' 
 
 statRects <- readRDS("referenceData/ICESRectAreas.RDS")
 
+
+
 #' loadRDBESData
 #' This function loads data that is already in the RDBES format from a relational database.
 #' 
@@ -3036,6 +3038,10 @@ createNewTestDataRow <- function(HierarchyToGenerate,LowerHierarchyToGenerate, T
       # SPECIAL COLUMN - XXstratumName
     } else if (grepl('^..stratumName$',myColName)) {
       myNewValue <- StratumName
+      # Need to modify DEstratumName to stop overwrites
+      if (myColName == 'DEstratumName') {
+        myNewValue <- paste0(myNewValue,"_",HierarchyToGenerate)
+      }
       # SPECIAL COLUMN - XXnumberSampled
     } else if (grepl('^..numberSampled$',myColName)) {
       myNewValue <- NumberSampled
@@ -3059,7 +3065,10 @@ createNewTestDataRow <- function(HierarchyToGenerate,LowerHierarchyToGenerate, T
       myNewValue <- 'NotApplicable'
       # SPECIAL COLUMN - XXArea
     } else if (grepl('^..area$',myColName)) {
-      myNewValue <- '27'
+      #myNewValue <- '27'
+      myAreas <- c('27.7.a', '27.7.b', '27.7.d', '27.7.e', '27.7.f', '27.7.g', '27.7.h', '27.1', '27.2', '27.4', '27.6', '27.7', '27.7.c', '27.7.j', '27.7.k', '27.8', '27.9')
+      myNewValue <- sample(myAreas,1)
+      
       # NOT SPECIAL :-(
     } else {
       # Else this column is not special :-( - just put some random data in it....
@@ -3080,7 +3089,7 @@ createNewTestDataRow <- function(HierarchyToGenerate,LowerHierarchyToGenerate, T
             # if its a code list we'll get the first entry from the code list
             requiredCodeListName <- myValidationInfo$type
             #print(requiredCodeListName)
-            firstEntry <- RDBEScodeLists[RDBEScodeLists$listName == requiredCodeListName,'Key' ][1]
+            firstEntry <- RDBEScodeLists[RDBEScodeLists$listName == requiredCodeListName & RDBEScodeLists$Deprecated == FALSE  ,'Key' ][1]
             myNewValue <- firstEntry
             # SIMPLETYPECHECK
           } else if (!is.na(myValidationInfo$description) & myValidationInfo$description == 'simpleTypeCheck'){
@@ -3103,6 +3112,8 @@ createNewTestDataRow <- function(HierarchyToGenerate,LowerHierarchyToGenerate, T
               # simpleTypeCheck - specified max decimal places
             } else if (!is.na(myValidationInfo$fractionDigits)){
               myNewValue <- round(1.12345678912345678912345,as.integer(myValidationInfo$fractionDigits))
+            } else if (myValidationInfo$checkName == "tStringLength100"){
+              myNewValue <- "123456789"
             } else {
               print(paste("There was a simpleTypeCheck that I didn't deal with in column ", myColName, sep =""))
             }
@@ -3161,8 +3172,9 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
   DataToUse[['VD']][,'VDflagCountry'] <- CountryToUse
   DataToUse[['VD']][,'VDyear'] <- YearToUse
   # Lets pick some random vessel lengths
-  myVesselLengths <- RDBEScodeLists[RDBEScodeLists$listName == 'tRS_VesselLengthCategory','Key']
-  DataToUse[['VD']][,'VDlengthCategory'] <- sample(myVesselLengths,nrow(DataToUse[['VD']]),replace = TRUE)
+  #myVesselLengths <- RDBEScodeLists[RDBEScodeLists$listName == 'tVesselLengthClass' & RDBEScodeLists$Deprecated == FALSE ,'Key']
+  #DataToUse[['VD']][,'VDlengthCategory'] <- sample(myVesselLengths,nrow(DataToUse[['VD']]),replace = TRUE)
+  DataToUse[['VD']][,'VDlengthCategory'] <- 'VL1518'
   DataToUse[['VD']][,'VDencryptedVesselCode'] <- paste('VDcode_',DataToUse[['VD']][,'VDid'],sep="")
   
   # SPECIES LIST DETAILS
@@ -3179,12 +3191,20 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
   
   # CS TABLES
   
+  # Sampling scheme name 
+  DataToUse[['DE']]$DEsamplingScheme <- 'National Routine'
+  
   # COUNTRY
   # Sort out the country and location code fields
   DataToUse[['SD']][,'SDcountry'] <- CountryToUse
   if ('LE' %in% names(DataToUse)){
     DataToUse[['LE']][,'LEcountry'] <- CountryToUse
   }
+  
+  # INSTITUTE
+  DataToUse[['SD']][,'SDinstitution'] <- 1051
+  DataToUse[['SL']][,'SLinstitute'] <- 1051
+  
   
   # LOCODE
   # For fields that use locodes we'll pick a random locode from the country we are interested in
@@ -3271,6 +3291,7 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
   # SPECIES LIST NAME
   DataToUse[['SS']][,'SSspeciesListName'] <- paste(CountryToUse,'_',YearToUse,'_SpeciesList',sep="")
   DataToUse[['SS']][,'SScatchFraction'] <- catchFractionToUse
+  
   
   # VESSELS
   # Ensure we are only referring to vessel that appear in our Vessel Details - this gets a bit complex because we can have the encryptedVesselCode used in a few tables, which can be linked to each other
@@ -3365,10 +3386,10 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     myMetiersCodes <- unique(MetierList)
     # Otherwise we'll generate a list of metiers from the code list
   } else {
-    myMetiersCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tMetier6_FishingActivity','Key']
+    myMetiersCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tMetier6_FishingActivity' & RDBEScodeLists$Deprected == FALSE ,'Key']
     # Pick the maximum number of metiers for our list based on whatever is the biggest number from i) the number of SA records, ii) the number 1 (to cover the very rare case when we don't have any samples)
     numerOfMetiersToUse <- max(nrow(DataToUse[['SA']]), 1 )
-    myGearCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tGearType','Key']
+    myGearCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tGearType' & RDBEScodeLists$Deprecate == FALSE,'Key']
     # Only consider gear codes that are 3 charcters long - makes life easier
     myGearCodes <- myGearCodes[sapply(myGearCodes,FUN = nchar)==3]
     # Only allow metiers where the first part is also in the allowed gear code list
@@ -3551,26 +3572,38 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     
     DataToUse[['CE']][,'CEgTDaysAtSea'] <- DataToUse[['CE']][,'CEofficialDaysAtSea'] * 20.0
     DataToUse[['CE']][,'CEgTFishingDays'] <- DataToUse[['CE']][,'CEofficialFishingDays'] * 20.0
+    DataToUse[['CE']][,'CEfishingAreaCategory'] <- 'MO'
+    DataToUse[['CE']][,'CEfreshWaterName'] <- 'NA'
     
-    
-    myAreas <- RDBEScodeLists[RDBEScodeLists$listName == 'tICES_Area' & grepl('^27.*',RDBEScodeLists$Key) ,'Key']
+    #myAreas <- RDBEScodeLists[RDBEScodeLists$listName == 'tICES_Area' & grepl('^27.*',RDBEScodeLists$Key) & RDBEScodeLists$Deprecated == FALSE,'Key']
+    myAreas <- c('27.7.a', '27.7.b', '27.7.d', '27.7.e', '27.7.f', '27.7.g', '27.7.h', '27.1', '27.2', '27.4', '27.6', '27.7', '27.7.c', '27.7.j', '27.7.k', '27.8', '27.9')
     myRandomValues <- sample(myAreas,nrow(DataToUse[['CE']]),replace = TRUE)
     DataToUse[['CE']][,'CEarea'] <- myRandomValues
+    
+    # Find which stat rectangles are allowe din the RDBES
+    allowedStatRects <- statRects[statRects$ICESNAME %in% RDBEScodeLists[RDBEScodeLists$listName == "tStatRec" & RDBEScodeLists$Deprecated == FALSE, "allowedValues"],]
     
     # Pick a random rectangle from the correct area ( using a for loop is 
     # not a very R way of doing this through :-(  )
     for (myRow in 1:nrow(DataToUse[['CE']])){
+      #DataToUse[['CE']][myRow,'CEstatisticalRectangle'] <-   
+      #  sample(c('-9',statRects[statRects$Area == DataToUse[['CE']][myRow,'CEarea'],'ICESNAME']),1)
       DataToUse[['CE']][myRow,'CEstatisticalRectangle'] <-   
-        sample(c('-9',statRects[statRects$Area == DataToUse[['CE']][myRow,'CEarea'],'ICESNAME']),1)
+        sample(c('-9',allowedStatRects[allowedStatRects$Area == DataToUse[['CE']][myRow,'CEarea'],'ICESNAME']),1)
     }
     
-    myMetiersCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tMetier6_FishingActivity','Key']
+    #myMetiersCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tMetier6_FishingActivity' & RDBEScodeLists$Deprecated == FALSE,'Key']
+    myMetiersCodes <- c('DRB_MOL_>0_0_0', 'FPO_CRU_>0_0_0', 'FPO_MOL_>0_0_0', 'LHP_DEF_0_0_0', 'LHP_SPF_0_0_0', 'LLS_FIF_0_0_0', 'MIS_MIS_0_0_0', 'OTB_DEF_70-99_0_0', 'OTM_LPF_>0_0_0', 'PTM_SPF_>0_0_0')
     myRandomValues <-sample(myMetiersCodes, nrow(DataToUse[['CE']]), replace =TRUE)
     DataToUse[['CE']][,'CEmetier6'] <- myRandomValues
     
-    myLengthCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tRS_VesselLengthCategory','Key']
-    myRandomValues <-sample(myLengthCodes, nrow(DataToUse[['CE']]), replace =TRUE)
-    DataToUse[['CE']][,'CEvesselLengthCategory'] <- myRandomValues
+    #myLengthCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tVesselLengthClass' & RDBEScodeLists$Deprecated == FALSE,'Key']
+    #myRandomValues <-sample(myLengthCodes, nrow(DataToUse[['CE']]), replace =TRUE)
+    #DataToUse[['CE']][,'CEvesselLengthCategory'] <- myRandomValues
+    DataToUse[['CE']][,'CEvesselLengthCategory'] <- 'VL1518'
+    
+    #Dedupe CE 
+    DataToUse[['CE']] <- distinct(DataToUse[['CE']], CEdataTypeForScientificEffort, CEdataSourceForScientificEffort, CEsamplingScheme, CEvesselFlagCountry, CEyear, CEquarter, CEmonth, CEarea, CEstatisticalRectangle, CEdataSourceOfStatisticalRectangle, CEgsaSubarea, CEjurisdictionArea, CEfishingAreaCategory, CEfreshWaterName, CEexclusiveEconomicZone, CEnationalFishingActivity, CEmetier6, CEincidentalByCatchMitigationDevice, CElandingLocation, CEvesselLengthCategory, CEfishingTechnique, CEdeepSeaRegulation, .keep_all= TRUE)
     
   }
   
@@ -3585,16 +3618,22 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     DataToUse[['CL']][,'CLscientificWeight'] <- DataToUse[['CL']][,'CLofficialWeight']
     DataToUse[['CL']][,'CLtotalOfficialLandingsValue'] <- DataToUse[['CL']][,'CLofficialWeight'] * 2
     DataToUse[['CL']][,'CLexplainDifference'] <- 'NoDiff'
+    DataToUse[['CL']][,'CLfishingAreaCategory'] <- 'MO'
+    DataToUse[['CL']][,'CLfreshWaterName'] <- 'NA'
+
     
-    myAreas <- RDBEScodeLists[RDBEScodeLists$listName == 'tICES_Area' & grepl('^27.*',RDBEScodeLists$Key),'Key']
+    #myAreas <- RDBEScodeLists[RDBEScodeLists$listName == 'tICES_Area' & grepl('^27.*',RDBEScodeLists$Key) & RDBEScodeLists$Deprecated == FALSE,'Key']
+    myAreas <- c('27.7.a', '27.7.b', '27.7.d', '27.7.e', '27.7.f', '27.7.g', '27.7.h', '27.1', '27.2', '27.4', '27.6', '27.7', '27.7.c', '27.7.j', '27.7.k', '27.8', '27.9')
     myRandomValues <- sample(myAreas,nrow(DataToUse[['CL']]),replace = TRUE)
     DataToUse[['CL']][,'CLarea'] <- myRandomValues
     
     # Pick a random rectangle from the correct area ( using a for loop is 
     # not a very R way of doing this through :-(  )
     for (myRow in 1:nrow(DataToUse[['CL']])){
+      #DataToUse[['CL']][myRow,'CLstatisticalRectangle'] <-   
+        #sample(c('-9',statRects[statRects$Area == DataToUse[['CL']][myRow,'CLarea'],'ICESNAME']),1)
       DataToUse[['CL']][myRow,'CLstatisticalRectangle'] <-   
-        sample(c('-9',statRects[statRects$Area == DataToUse[['CL']][myRow,'CLarea'],'ICESNAME']),1)
+        sample(c('-9',allowedStatRects[allowedStatRects$Area == DataToUse[['CL']][myRow,'CLarea'],'ICESNAME']),1)
     }
 
     #mySpecies <- RDBEScodeLists[RDBEScodeLists$listName == 'tSpecWoRMS','Key']
@@ -3609,13 +3648,19 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     }
     DataToUse[['CL']][,'CLspeciesCode'] <- myRandomValues
     
-    myMetiersCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tMetier6_FishingActivity','Key']
+    #myMetiersCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tMetier6_FishingActivity' & RDBEScodeLists$Deprecated == FALSE,'Key']
+    myMetiersCodes <- c('DRB_MOL_>0_0_0', 'FPO_CRU_>0_0_0', 'FPO_MOL_>0_0_0', 'LHP_DEF_0_0_0', 'LHP_SPF_0_0_0', 'LLS_FIF_0_0_0', 'MIS_MIS_0_0_0', 'OTB_DEF_70-99_0_0', 'OTM_LPF_>0_0_0', 'PTM_SPF_>0_0_0')
     myRandomValues <-sample(myMetiersCodes, nrow(DataToUse[['CL']]), replace =TRUE)
     DataToUse[['CL']][,'CLmetier6'] <- myRandomValues
     
-    myLengthCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tRS_VesselLengthCategory','Key']
-    myRandomValues <-sample(myLengthCodes, nrow(DataToUse[['CL']]), replace =TRUE)
-    DataToUse[['CL']][,'CLvesselLengthCategory'] <- myRandomValues
+    #myLengthCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tVesselLengthClass' & RDBEScodeLists$Deprecated == FALSE,'Key']
+    #myRandomValues <-sample(myLengthCodes, nrow(DataToUse[['CL']]), replace =TRUE)
+    #DataToUse[['CL']][,'CLvesselLengthCategory'] <- myRandomValues
+    DataToUse[['CL']][,'CLvesselLengthCategory'] <- 'VL1518'
+    
+    #Dedupe CL 
+    DataToUse[['CL']] <- distinct(DataToUse[['CL']], CLdataTypeOfScientificWeight, CLdataSourceOfScientificWeight, CLsamplingScheme, CLdataSourceLandingsValue, CLlandingCountry, CLvesselFlagCountry, CLyear, CLquarter, CLmonth, CLarea, CLstatisticalRectangle, CLdataSourceOfStatisticalRectangle, CLgsaSubarea, CLjurisdictionArea, CLfishingAreaCategory, CLfreshWaterName, CLexclusiveEconomicZone, CLspeciesCode, CLspeciesFaoCode, CLlandingCategory, CLcatchCategory, CLregDisCategory, CLcommercialSizeCategoryScale, CLcommercialSizeCategory, CLnationalFishingActivity, CLmetier6, CLincidentalByCatchMitigationDevice, CLlandingLocation, CLvesselLengthCategory, CLfishingTechnique, CLdeepSeaRegulation, .keep_all= TRUE)
+    
   }
   
   # Return our data

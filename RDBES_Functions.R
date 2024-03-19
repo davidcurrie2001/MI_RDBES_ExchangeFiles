@@ -2533,7 +2533,8 @@ createEmptyDataFrameFromValidationData <- function(nameOfTable, RDBESvalidationd
   
   # Get all the fields withe correct prefix
   myRegExp <- paste('^',nameOfTable,'.*',sep = "")
-  myReleventFields <- validationData[grepl(myRegExp,validationData$name),]
+  #myReleventFields <- validationData[grepl(myRegExp,validationData$name),]
+  myReleventFields <- validationData[grepl(myRegExp,RDBESvalidationdata$name),]
   
   # Get our data frame column names
   myColNames <- myReleventFields$name

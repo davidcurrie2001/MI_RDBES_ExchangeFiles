@@ -1723,21 +1723,7 @@ validateLowerHierarchy <- function(RDBESdataToCheck){
   #FMdataToCheck <- RDBESdataToCheck[['FM']]
   #BVdataToCheck <- RDBESdataToCheck[['BV']]
   
-  # Get our FM data - create a dummy frame if it doesn't exist
-  if (!is.null(RDBESdataToCheck[['FM']])){
-    FMdataToCheck <- RDBESdataToCheck[['FM']]
-  } else {
-    FMdataToCheck <- data.frame('SAid'=NA, stringsAsFactors = FALSE)
-  }
-  
-  # Get our BV data - create a dummy frame if it doesn't exist
-  if (!is.null(RDBESdataToCheck[['BV']])){
-    BVdataToCheck <- RDBESdataToCheck[['BV']]
-  } else {
-    BVdataToCheck <- data.frame('SAid'=NA,'FMid'=NA, stringsAsFactors = FALSE)
-  }
-  
-  
+
   #if (is.null(SAdataToCheck) | is.null(FMdataToCheck) | is.null(BVdataToCheck)){
   #  print("Either SA, or FM, or BV don't exist in the data to validate - so we are not running the validateLowerHierarchy check")
   #} 
@@ -1747,6 +1733,23 @@ validateLowerHierarchy <- function(RDBESdataToCheck){
   # Check the lower hierarchy sample
   else {
   
+    # Get our FM data - create a dummy frame if it doesn't exist
+    if (!is.null(RDBESdataToCheck[['FM']])){
+      FMdataToCheck <- RDBESdataToCheck[['FM']]
+    } else {
+      FMdataToCheck <- data.frame('SAid'=NA, stringsAsFactors = FALSE)
+      print("FM doesn't exist in the data to validate - so the validateLowerHierarchy checks for lower hierarchy A and B might be misleading")
+    }
+    
+    # Get our BV data - create a dummy frame if it doesn't exist
+    if (!is.null(RDBESdataToCheck[['BV']])){
+      BVdataToCheck <- RDBESdataToCheck[['BV']]
+    } else {
+      BVdataToCheck <- data.frame('SAid'=NA,'FMid'=NA, stringsAsFactors = FALSE)
+      print("BV doesn't exist in the data to validate - so the validateLowerHierarchy checks for lower hierarchy A and C might be misleading")
+    }
+    
+    
     # Split data by lower hierarchy
     lowerA <- SAdataToCheck[SAdataToCheck$SAlowerHierarchy == 'A',]
     lowerB <- SAdataToCheck[SAdataToCheck$SAlowerHierarchy == 'B',]

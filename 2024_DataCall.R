@@ -14,7 +14,7 @@ validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = '
 allowedValues <- loadReferenceData(downloadFromICES = FALSE)
 #allowedValues <- loadReferenceData(downloadFromICES = TRUE, validationData=validationData)
 
-# Load the lists of tables required for each hierarchy: either refresh from ICES or just use a local copy
+# Load the lists of tables required for each hierarchy
 allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLocation = './tableDefs/')
 
 # Load the RDBES data from the database - you can either write your own database connection string in a format similar to this: 'driver=SQL Server;server=mysqlhost;database=mydbname;trusted_connection=true' or just manually create a named list of data fames in the correct format
@@ -38,12 +38,21 @@ myRDBESData[['FO']]$FOnationalFishingActivity <- NA
 # LE fixes
 # Get rid of any values in SAnationalFishingActivity - anything in here woudl need to be added to an ICES code list first
 myRDBESData[['LE']]$LEnationalFishingActivity <- NA
-# PTM_SPF_40-54_0_0 is not allowed in 27.2.a or 27.4.a -> change to PTM_SPF_32-69_0_0
-myRDBESData[['LE']][!is.na(myRDBESData[['LE']]$LEmetier6) &  myRDBESData[['LE']]$LEmetier6 == 'PTM_SPF_40-54_0_0' & !is.na(myRDBESData[['LE']]$LEarea) &  myRDBESData[['LE']]$LEarea %in% c('27.2.a','27.4.a'),'LEmetier6'] <- 'PTM_SPF_32-69_0_0'
 
 # SA fixes
 # Get rid of any FAO species names that aren't in the code list
 myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  !myRDBESData[['SA']]$SAspeciesCodeFAO %in% allowedValues[allowedValues$listName == 'tSpecASFIS','Key'],'SAspeciesCodeFAO'] <- NA
+# Soem of our FAO codes aren't being allowed for the species codes they are paired with - remove them for the moment
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 125802 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'MON' ,'SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 125743 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'ROL' ,'SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 126493 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'GAD' ,'SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 127419 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'BOR' ,'SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 127262 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'GUX' ,'SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 127151 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'LEF' ,'SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 105693 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'SCL' ,'SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 126473 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'NZA' ,'SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 126831 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'CEO' ,'SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 126751 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'SAN' ,'SAspeciesCodeFAO'] <- NA
 # If soem of the values for the total weight are larger than the maximum value of xs:int
 # we wil have a problem during the upload - lets fix this
 # Need to check whether these values are due to mistake e.g. choosing units of kg
@@ -56,19 +65,6 @@ myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAsampleWeightMeasured) & myRDBES
 myRDBESData[['SA']]$SAnationalFishingActivity <- NA
 # SAtotalWeightLive should be an int
 myRDBESData[['SA']]$SAtotalWeightLive <- as.integer(myRDBESData[['SA']]$SAtotalWeightLive)
-# PTM_SPF_40-54_0_0 is not allowed in 27.2.a or 27.4.a -> change to PTM_SPF_32-69_0_0
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAmetier6) & myRDBESData[['SA']]$SAmetier6 == 'PTM_SPF_40-54_0_0' & !is.na(myRDBESData[['SA']]$SAarea) & myRDBESData[['SA']]$SAarea %in% c('27.2.a','27.4.a'),'SAmetier6'] <- 'PTM_SPF_32-69_0_0'
-# Soem of our FAO codes aren't being allowed for the species codes they are paired with - remove them for the moment
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 125802 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'MON' ,'SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 125743 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'ROL' ,'SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 126493 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'GAD' ,'SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 127419 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'BOR' ,'SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 127262 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'GUX' ,'SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 127151 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'LEF' ,'SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 105693 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'SCL' ,'SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 126473 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'NZA' ,'SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 126831 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'CEO' ,'SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCode) & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  myRDBESData[['SA']]$SAspeciesCode == 126751 &  myRDBESData[['SA']]$SAspeciesCodeFAO == 'SAN' ,'SAspeciesCodeFAO'] <- NA
 
 
 
@@ -108,11 +104,15 @@ myRDBESData[['CL']][is.na(myRDBESData[['CL']]$CLfreshWaterName),"CLfreshWaterNam
 
 
 # Lets validate our data
-errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","TE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
+errors <- validateTables(RDBESdata = myRDBESData, 
+                         RDBESvalidationdata = validationData, 
+                         RDBEScodeLists = allowedValues, 
+                         shortOutput = TRUE,
+                         framestoValidate = c("BV","DE","FM","FO","FT","LE","TE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
 
 
 # Can check errors from individual tables using e.g.
-View(errors[errors$tableName == 'SA',])
+View(errors[errors$tableName == 'FO',])
 
 
 ## STEP 3) GENERATE SIMPLE EXCHANGE FILES (CL,CE,SL,VD)

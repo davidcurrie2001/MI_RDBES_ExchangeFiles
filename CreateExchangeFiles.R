@@ -19,10 +19,6 @@ allowedValues <- loadReferenceData(downloadFromICES = FALSE)
 allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLocation = './tableDefs/')
 #allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = TRUE, fileLocation = './tableDefs/')
 
-# 8/9/21 temp fix - need to check XSD files are up-to-date
-#allRequiredTables[["H12"]]<- c("DE","SD","LO","TE","LE","SS","SA","FM","BV")
-#allRequiredTables[["H13"]]<- c("DE","SD","FO","SS","SA","FM","BV")
-
 # Load the RDBES data from the database - you can either write your own database connection string in a format similar to this: 'driver=SQL Server;server=mysqlhost;database=mydbname;trusted_connection=true' or just manually create a named list of data fames in the correct format
 # IMPORTANT - if you are just going to use your own list of data frames make sure you don't have factors in them - my code assumes the data frames were created using stringsAsFactors = FALSE
 myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
@@ -95,8 +91,8 @@ myRDBESData[['CL']]<-myRDBESData[['CL']][!is.na(myRDBESData[['CL']]$CLspeciesCod
 # Get rid of zero offical weight
 myRDBESData[['CL']] <- myRDBESData[['CL']][!is.na(myRDBESData[['CL']]$CLofficialWeight ) & myRDBESData[['CL']]$CLofficialWeight > 0,]
 # Set null landing value to them smallest value allowed
-myRDBESData[['CL']][is.na(myRDBESData[['CL']]$CLtotalOfficialLandingsValue),'CLtotalOfficialLandingsValue'] <- 1
-myRDBESData[['CL']][myRDBESData[['CL']]$CLtotalOfficialLandingsValue < 1,'CLtotalOfficialLandingsValue'] <- 1
+myRDBESData[['CL']][is.na(myRDBESData[['CL']]$CLlandingsValue),'CLlandingsValue'] <- 1
+myRDBESData[['CL']][myRDBESData[['CL']]$CLlandingsValue < 1,'CLlandingsValue'] <- 1
 # The "NA" rows in CEfreshWaterName get changed to actual NAs when read in - let's change them back to "NA"
 myRDBESData[['CL']][is.na(myRDBESData[['CL']]$CLfreshWaterName),"CLfreshWaterName"] <- "NA"
 

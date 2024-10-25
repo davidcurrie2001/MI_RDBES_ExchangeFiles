@@ -1,5 +1,6 @@
 # Load our functions
 source("RDBES_Functions.R")
+source("RDBES_Test_Data_Functions.R")
 
 # This file shows how to generate test data for the RDBES
 
@@ -21,15 +22,15 @@ allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLoca
 #allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = TRUE, fileLocation = './tableDefs/')
 
 # 8/9/21 temp fix - need to check XSD files are up-to-date
-allRequiredTables[["H12"]]<- c("DE","SD","LO","TE","LE","SS","SA","FM","BV")
-allRequiredTables[["H13"]]<- c("DE","SD","FO","SS","SA","FM","BV")
+#allRequiredTables[["H12"]]<- c("DE","SD","LO","TE","LE","SS","SA","FM","BV")
+#allRequiredTables[["H13"]]<- c("DE","SD","FO","SS","SA","FM","BV")
 
 ## STEP 2) GENERATE TEST DATA
 
 # Can use a loop to generate test data for all hierarchies if you want to 
 for (i in 1:13){
 
-  #i <- 7
+  #i <- 1
   
   myHierarchyToGenerate <- paste('H',i,sep="")
   
@@ -63,7 +64,9 @@ for (i in 1:13){
   # Lets validate our data (Optional)
   #errorsTestData <- validateTables(RDBESdata = myNewTestData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","LO","OS","SA","SD","SL","SS","TE","VD","VS","CE","CL"))
   
-  #View(errorsTestData[errorsTestData$tableName == "FO",])
+  #View(errorsTestData[errorsTestData$tableName == "CL",])
+  
+  
   
   # Create a CE output file
   generateExchangeFile(typeOfFile = 'CE', yearToUse = myYear, country = myCountry, RDBESdata = myNewTestData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)

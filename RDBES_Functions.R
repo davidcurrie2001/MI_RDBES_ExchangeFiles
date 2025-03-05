@@ -47,7 +47,8 @@ loadRDBESData <- function(connectionString){
   myFM <- sqlQuery(channel,"select * from dbo.FrequencyMeasure", stringsAsFactors = FALSE)
   myBV <- sqlQuery(channel,"select * from dbo.BiologicalVariable", stringsAsFactors = FALSE)
   
-  mySL <- sqlQuery(channel,"select * from dbo.SpeciesListDetails", stringsAsFactors = FALSE)
+  mySL <- sqlQuery(channel,"select * from dbo.SpeciesList", stringsAsFactors = FALSE)
+  myIS <- sqlQuery(channel,"select * from dbo.IndividualSpecies", stringsAsFactors = FALSE)
   myVD <- sqlQuery(channel,"select * from dbo.VesselDetails", stringsAsFactors = FALSE)
   
   #myLocodes <- sqlQuery(channel,"select * from dbo.PortLocodes", stringsAsFactors = FALSE)
@@ -71,6 +72,7 @@ loadRDBESData <- function(connectionString){
                        ,FM = myFM
                        ,BV = myBV
                        ,SL = mySL
+                       ,IS = myIS
                        ,VD = myVD
   )
   
@@ -101,8 +103,8 @@ loadRDBESData <- function(connectionString){
 generateExchangeFile <- function(typeOfFile, outputFileName = "", yearToUse, country, RDBESdata, numberOfRows = NULL, numberOfSamples = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL, RequiredTables = NULL){
   
 
-  simpleFiles <- c("CL","CE","VD","SL")
-  complexfiles <- c("H1","H2","H3","H4","H5","H6","H7","H8","H9","H10","H11","H12","H13")
+  simpleFiles <- c("CL","CE","VD")
+  complexfiles <- c("H1","H2","H3","H4","H5","H6","H7","H8","H9","H10","H11","H12","H13","SL")
   
   if(typeOfFile %in% simpleFiles) {
     generateSimpleExchangeFile(typeOfFile = typeOfFile
@@ -155,7 +157,7 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
   }
   
   # Stop if we don't have a valid file type
-  if (!typeOfFile %in% c("CL","CE","VD","SL")){
+  if (!typeOfFile %in% c("CL","CE","VD")){
     stop(paste("Invalid value for 'typeOfFile': ",typeOfFile))
   }
   
@@ -181,9 +183,7 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
     myDataForFile <- myData[myData$CLyear == yearToUse & myData$CLvesselFlagCountry == country,]
   } else if (typeOfFile == 'VD') {
     myDataForFile <- myData[myData$VDyear == yearToUse & myData$VDcountry == country,]
-  } else if (typeOfFile == 'SL') {
-    myDataForFile <- myData[myData$SLyear == yearToUse & myData$SLcountry == country,]
-  }
+  } 
   
   RDBESdataForFile[[typeOfFile]]<-myDataForFile
 
@@ -278,19 +278,19 @@ generateSimpleExchangeFile <- function(typeOfFile, outputFileName = "", yearToUs
 generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdata, outputFileName="", numberOfSamples = NULL, cleanData = FALSE, RDBESvalidationdata = NULL, RDBEScodeLists = NULL, RequiredTables){
   
   # For testing
-   # typeOfFile <- 'H1'
-   # RDBESdata<-myRDBESData
-   # yearToUse <- 2019
-   # country <- 'IE'
-   # outputFileName <- ""
-   # numberOfSamples <- 10
-   # cleanData <- TRUE
-   # RDBESvalidationdata <- validationData
-   # RDBEScodeLists <- allowedValues
-   # RequiredTables <- allRequiredTables
+    #typeOfFile <- 'SL'
+    #RDBESdata<-myRDBESData
+    #yearToUse <- 2023
+    #country <- 'IE'
+    #outputFileName <- ""
+    #numberOfSamples <- NULL
+    #cleanData <- TRUE
+    #RDBESvalidationdata <- validationData
+    #RDBEScodeLists <- allowedValues
+    #RequiredTables <- allRequiredTables
   
   ## Step 0 - Check typeOfFile and generate a file name if we need to 
-  testedCSfileTypes <- c('H1','H5')
+  testedCSfileTypes <- c('H1','H5','SL')
   
   if (!typeOfFile %in% testedCSfileTypes){
     warning(paste("Method not tested for ",typeOfFile, " yet", sep =""))
@@ -304,9 +304,13 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   ifelse(!dir.exists(file.path(outputFolder)), dir.create(file.path(outputFolder)), FALSE)
 
   # Find which tables we need for this file type
-  upperHierarchy <- substr(typeOfFile,2,nchar(typeOfFile))
+  if (typeOfFile != 'SL'){
+    upperHierarchy <- substr(typeOfFile,2,nchar(typeOfFile))
+  } else {
+    upperHierarchy <- typeOfFile
+  }
   requiredTables <- RequiredTables[[typeOfFile]]
-  
+
   ## Step 1 - Filter the data
   myCSData <- filterCSData(RDBESdata = RDBESdata , RequiredTables = requiredTables, YearToFilterBy = yearToUse, CountryToFilterBy = country, UpperHierarchyToFilterBy = upperHierarchy)
     
@@ -340,7 +344,7 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   # Combine our SortOrder values
   # TODO Need to double-check this works correctly
   for (myRequiredTable in requiredTables){
-    if (myRequiredTable == 'DE'){
+    if (myRequiredTable %in% c('DE','SL')){
       FileSortOrder <- myCSData[[myRequiredTable]]$SortOrder
     } else {
       FileSortOrder <-c(FileSortOrder,myCSData[[myRequiredTable]]$SortOrder)
@@ -354,7 +358,7 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   csForChecking <- NULL
   for (myRequiredTable in requiredTables){
     if (!is.null(myCSData[[myRequiredTable]])){
-      if (myRequiredTable == 'DE'){
+      if (myRequiredTable %in% c('DE','SL')){
         csForChecking <- do.call('paste',c(myCSData[[myRequiredTable]],sep=','))
       } else {
         csForChecking <- c(csForChecking,do.call('paste',c(myCSData[[myRequiredTable]],sep=',')))
@@ -620,6 +624,11 @@ filterCSData <- function(RDBESdata, RequiredTables, YearToFilterBy, CountryToFil
         myData <- myData[myData$DEid %in% myCSData[[previousRequiredTable]]$DEid & myData$SDcountry == CountryToFilterBy,]
         myCSData[[myRequiredTable]] = myData
       }
+      # Need to filter SL by year and country
+      else if (myRequiredTable == 'SL'){
+        myData <- myData[myData$SLyear == YearToFilterBy & myData$SLcountry == CountryToFilterBy,]
+        myCSData[[myRequiredTable]] = myData
+      }
       # Need to handle samples and sub-samples for SA
       else if (myRequiredTable == 'SA'){
         
@@ -763,6 +772,12 @@ generateSortOrder <- function(RDBESdataToSort, RequiredTables){
         if (myRequiredTable == 'DE'){
           
           RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste(RDBESdataToSort[[myRequiredTable]]$DEhierarchy,RDBESdataToSort[[myRequiredTable]]$DEyear,RDBESdataToSort[[myRequiredTable]]$DEsamplingScheme,RDBESdataToSort[[myRequiredTable]]$DEstratum,sep="-")
+          
+        } 
+        # Need to handle SL because it is the first table in its hierarchy (DE already handled seperately for the Hx files)
+        else if (myRequiredTable == 'SL'){
+          
+          RDBESdataToSort[[myRequiredTable]]$SortOrder <- paste(RDBESdataToSort[[myRequiredTable]]$SLyear,RDBESdataToSort[[myRequiredTable]]$SLcatchFraction,RDBESdataToSort[[myRequiredTable]]$SLspeciesListName,sep="-")
           
         } 
         # Need to handle SA differently because there can be sub-samples
@@ -1208,94 +1223,16 @@ getValidationData <- function(downloadFromGitHub = TRUE,gitHubFileLocation = "ht
   
 }
 
-#' getTablesInHierarchies Used the H* xsd files to define which tables are required in the different hierachies
+#' getTablesInHierarchies List which tables are required in the different hierarchies
 #'
-#' @param downloadFromGitHub (Optional) Set to TRUE if you want to download the lastest xsd files from GitHub
-#' @param gitHubFileLocation (Optional) Default value is "https://api.github.com/repos/ices-tools-dev/RDBES/contents/XSD-files"
-#' @param fileLocation The folder to read the files from.  If you are downloading from GitHub a copy of the latest files will be saved here.
 #'
 #' @return
 #' @export
 #'
 #' @examples
-getTablesInHierarchies <- function(downloadFromGitHub = TRUE,gitHubFileLocation = "https://api.github.com/repos/ices-tools-dev/RDBES/contents/XSD-files", fileLocation){
+getTablesInHierarchies <- function(){
   
-  # For testing
-  #downloadFromGitHub = TRUE
-  #fileLocation <- './tableDefs/'
-  
-  # # STEP 1) Get the BaseTypes file (if required)
-  # if (downloadFromGitHub){
-  #   
-  #   myHierarchyFiles <- NULL
-  #   myResponse <- GET(gitHubFileLocation)
-  #   filesOnGitHub <- content(myResponse)
-  # 
-  #   for (myFile in filesOnGitHub){
-  #     myGitHubFile <- data.frame(fileName = myFile$name, downloadURL = myFile$download_url)
-  #     if (is.null(myHierarchyFiles)){
-  #       myHierarchyFiles <- myGitHubFile 
-  #     } else {
-  #       myHierarchyFiles <- rbind(myHierarchyFiles,myGitHubFile)
-  #     }
-  #   }
-  #   # Sub-set to the files we are interested in
-  #   myHierarchyFiles <- myHierarchyFiles[grepl('^H.*xsd$',myHierarchyFiles$fileName),]
-  # 
-  #   print(paste("Downloading ",nrow(myHierarchyFiles), " files from GitHub", sep =""))
-  #       
-  #   # Download our files
-  #   for (i in 1:nrow(myHierarchyFiles)){
-  #     #anHierarchyFile <- getURL(myHierarchyFiles[i,'downloadURL'])
-  #     anHierarchyFile <-httr::GET(myHierarchyFiles[i,'downloadURL'])
-  #     # stop if there was a problem accessing the file
-  #     httr::warn_for_status(anHierarchyFile$status_code)
-  #     # save the file locally
-  #     #writeLines(anHierarchyFile, paste(fileLocation,myHierarchyFiles[i,'fileName'], sep = ""))
-  #     writeLines(httr::content(anHierarchyFile, "text"), paste(fileLocation,myHierarchyFiles[i,'fileName'], sep = ""))
-  #   }
-  #   
-  # }
-  # 
-  # # Read all the H.*xsd files
-  # filesToRead <- list.files(path = fileLocation, pattern = "^H.*xsd$", recursive = FALSE, full.names = FALSE)  
-  # 
-  # 
-  # myHierarchyTables <- list()
-  # for(fileToParse in filesToRead){
-  #   
-  #   #fileToParse <-"H1.xsd"
-  #   fileToParse <- paste(fileLocation,fileToParse,sep="")
-  #   
-  #   # STEP 2) Parse the XML
-  #   doc <- xmlTreeParse(fileToParse,useInternal= TRUE)
-  #   myXML <- xmlToList(doc)
-  #   
-  #   myResults <- NULL
-  #   hierachyName <- NULL
-  #   
-  #   for (myElement in myXML[names(myXML) == "complexType"]){
-  #     myAttr <- myElement$.attrs
-  #     names(myAttr) <- NULL
-  #     
-  #     if (grepl('^H.*',myAttr)){
-  #       hierachyName <- myAttr
-  #     }
-  #     if (nchar(myAttr)==2 & !grepl('^H.*',myAttr)){
-  #       #print(myElement$.attrs)
-  #       if (is.null(myResults)){
-  #         myResults <- c(myAttr)
-  #       } else {
-  #         myResults <- c(myResults,myAttr)
-  #       }
-  #     }
-  #   }
-  #   
-  #   # Add to our list of results
-  #   myHierarchyTables[[hierachyName]] <- myResults
-  # }
-  
-  
+
   # 16/10/23 - Easier to hard-code the table order - it doesn't change much
   # and my code to read the xsd files wasn't interpreting them correctly.
   # This will need updating if the order of the tables in the hierarchies changes.
@@ -1319,6 +1256,7 @@ getTablesInHierarchies <- function(downloadFromGitHub = TRUE,gitHubFileLocation 
   myHierarchyTables[["H12"]] <- c("DE", "SD", "LO", "TE", "LE", "SS", "SA", "FM", "BV") # CHECK
   #myHierarchyTables[["H13"]] <- c("DE", "SD", "FT", "FO", "SS", "SA", "FM", "BV")
   myHierarchyTables[["H13"]] <- c("DE", "SD", "FO", "SS", "SA", "FM", "BV") # CHECK
+  myHierarchyTables[["SL"]] <- c("SL", "IS")
   
   myHierarchyTables
   

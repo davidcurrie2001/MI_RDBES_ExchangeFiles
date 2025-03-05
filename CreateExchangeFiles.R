@@ -15,9 +15,9 @@ validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = '
 allowedValues <- loadReferenceData(downloadFromICES = FALSE)
 #allowedValues <- loadReferenceData(downloadFromICES = TRUE, validationData=validationData)
 
-# Load the lists of tables required for each hierarchy: either refresh from ICES or just use a local copy
-allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLocation = './tableDefs/')
-#allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = TRUE, fileLocation = './tableDefs/')
+# Load the lists of tables required for each hierarchy
+allRequiredTables <- getTablesInHierarchies()
+
 
 # Load the RDBES data from the database - you can either write your own database connection string in a format similar to this: 'driver=SQL Server;server=mysqlhost;database=mydbname;trusted_connection=true' or just manually create a named list of data fames in the correct format
 # IMPORTANT - if you are just going to use your own list of data frames make sure you don't have factors in them - my code assumes the data frames were created using stringsAsFactors = FALSE
@@ -98,7 +98,11 @@ myRDBESData[['CL']][is.na(myRDBESData[['CL']]$CLfreshWaterName),"CLfreshWaterNam
 
 
 # Lets validate our data
-errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, shortOutput = TRUE,framestoValidate = c("BV","DE","FM","FO","FT","LE","TE","LO","OS","SA","SD","SL","SS","VD","VS","CL","CE" ))
+errors <- validateTables(RDBESdata = myRDBESData,
+                         RDBESvalidationdata = validationData, 
+                         RDBEScodeLists = allowedValues, 
+                         shortOutput = TRUE,
+                         framestoValidate = c("BV","DE","FM","FO","FT","LE","TE","LO","OS","SA","SD","SL","IS","SS","VD","VS","CL","CE" ))
 
 
 # Can check errors from individual tables using e.g.
@@ -106,33 +110,31 @@ View(errors[errors$tableName == 'CL',])
 
 
 
-## STEP 3) GENERATE SIMPLE EXCHANGE FILES (CL,CE,SL,VD)
+## STEP 3) GENERATE SIMPLE EXCHANGE FILES (CL,CE,VD)
 
 # Create a CE output file
 #generateExchangeFile(typeOfFile = 'CE', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-generateExchangeFile(typeOfFile = 'CE', yearToUse = 2021, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateExchangeFile(typeOfFile = 'CE', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 # Create a CL output file
 #generateExchangeFile(typeOfFile = 'CL', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-generateExchangeFile(typeOfFile = 'CL', yearToUse = 2021, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateExchangeFile(typeOfFile = 'CL', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 # Create a VD output file
-generateExchangeFile(typeOfFile = 'VD', yearToUse = 2021, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateExchangeFile(typeOfFile = 'VD', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
-# Create a SL output file
-generateExchangeFile(typeOfFile = 'SL', yearToUse = 2021, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-
-
-## STEP 4) GENERATE COMPLEX EXCHANGE FILES (CS)
+## STEP 4) GENERATE COMPLEX EXCHANGE FILES (CS, SL)
 
 # Create an H1 CS file
 #generateExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
-generateExchangeFile(typeOfFile = 'H1', yearToUse = 2021, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+generateExchangeFile(typeOfFile = 'H1', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 # Create an H5 CS file
 #generateExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
-generateExchangeFile(typeOfFile = 'H5', yearToUse = 2021, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+generateExchangeFile(typeOfFile = 'H5', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
+# Create a SL output file
+generateExchangeFile(typeOfFile = 'SL', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 
 

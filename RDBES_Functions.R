@@ -297,7 +297,12 @@ generateComplexExchangeFile <- function(typeOfFile, yearToUse, country, RDBESdat
   }
   
   if (outputFileName == ""){
-    outputFileName <- paste(country,yearToUse,paste(typeOfFile,".csv", sep = ""), sep ="_")
+    if (typeOfFile == 'SL') {
+      typeOfFile_toUse <- paste0('H',typeOfFile)
+    } else {
+      typeOfFile_toUse <- typeOfFile
+    }
+    outputFileName <- paste(country,yearToUse,paste(typeOfFile_toUse,".csv", sep = ""), sep ="_")
   }
   
   # Create the output directory if we need do 

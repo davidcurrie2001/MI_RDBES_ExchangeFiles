@@ -46,6 +46,17 @@ myRDBESData[['LE']][!is.na(myRDBESData[['LE']]$LEmetier6) &  myRDBESData[['LE']]
 # SA fixes
 # Get rid of any FAO species names that aren't in the code list
 myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  !myRDBESData[['SA']]$SAspeciesCodeFAO %in% allowedValues[allowedValues$listName == 'tSpecASFIS','Key'],'SAspeciesCodeFAO'] <- NA
+
+# 5/3/25 Fix some specific mismatches between FAO and aphia id species codes
+myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '127419' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'BOR','SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '125802' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'MON','SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '105711' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'SKK','SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '127262' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'GUX','SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '154462' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'GUS','SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '105693' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'SCL','SAspeciesCodeFAO'] <- NA
+myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '125915' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'BLE','SAspeciesCodeFAO'] <- NA
+
+
 # If soem of the values for the total weight are larger than the maximum value of xs:int
 # we wil have a problem during the upload - lets fix this
 # Need to check whether these values are due to mistake e.g. choosing units of kg
@@ -134,7 +145,7 @@ generateExchangeFile(typeOfFile = 'H1', yearToUse = 2023, country = 'IE', RDBESd
 generateExchangeFile(typeOfFile = 'H5', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 # Create a SL output file
-generateExchangeFile(typeOfFile = 'SL', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateExchangeFile(typeOfFile = 'SL', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 
 

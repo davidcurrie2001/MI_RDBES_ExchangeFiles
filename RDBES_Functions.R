@@ -2730,6 +2730,37 @@ compareSimpleData <- function(dataSet1, dataSet2, tableType){
 }
 
 
+#' removeInvalidFAOCodesFromSA.
+#' Remove any FAO codes that aren't compatiable with the Aphia id
+#'
+#' @param SAdata 
+#' @param RDBEScodeLists 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+removeInvalidFAOCodesFromSA <- function(SAdata, RDBEScodeLists){
+  
+  # Get rid of any FAO species names that aren't in the code list
+  SAdata[!is.na(SAdata$SAspeciesCodeFAO) & !SAdata$SAspeciesCodeFAO %in% RDBEScodeLists[RDBEScodeLists$listName == 'tSpecASFIS','Key'],'SAspeciesCodeFAO'] <- NA
+  
+  
+  # 5/3/25 Fix some specific mismatches between FAO and aphia id species codes
+  SAdata[SAdata$SAspeciesCode == '127419' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'BOR','SAspeciesCodeFAO'] <- NA
+  SAdata[SAdata$SAspeciesCode == '125802' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'MON','SAspeciesCodeFAO'] <- NA
+  SAdata[SAdata$SAspeciesCode == '105711' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'SKK','SAspeciesCodeFAO'] <- NA
+  SAdata[SAdata$SAspeciesCode == '127262' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'GUX','SAspeciesCodeFAO'] <- NA
+  SAdata[SAdata$SAspeciesCode == '154462' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'GUS','SAspeciesCodeFAO'] <- NA
+  SAdata[SAdata$SAspeciesCode == '105693' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'SCL','SAspeciesCodeFAO'] <- NA
+  SAdata[SAdata$SAspeciesCode == '125915' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'BLE','SAspeciesCodeFAO'] <- NA
+  SAdata[SAdata$SAspeciesCode == '127151' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'LEF','SAspeciesCodeFAO'] <- NA
+  SAdata[SAdata$SAspeciesCode == '126493' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'GAD','SAspeciesCodeFAO'] <- NA
+  SAdata[SAdata$SAspeciesCode == '126751' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'SAN','SAspeciesCodeFAO'] <- NA
+  
+  
+  SAdata
+}
 
 
 

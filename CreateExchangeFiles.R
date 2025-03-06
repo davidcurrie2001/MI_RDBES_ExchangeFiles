@@ -44,17 +44,9 @@ myRDBESData[['LE']]$LEnationalFishingActivity <- NA
 myRDBESData[['LE']][!is.na(myRDBESData[['LE']]$LEmetier6) &  myRDBESData[['LE']]$LEmetier6 == 'PTM_SPF_40-54_0_0' & !is.na(myRDBESData[['LE']]$LEarea) &  myRDBESData[['LE']]$LEarea == '27.4.a','LEmetier6'] <- 'PTM_SPF_32-69_0_0'
 
 # SA fixes
-# Get rid of any FAO species names that aren't in the code list
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) &  !myRDBESData[['SA']]$SAspeciesCodeFAO %in% allowedValues[allowedValues$listName == 'tSpecASFIS','Key'],'SAspeciesCodeFAO'] <- NA
 
-# 5/3/25 Fix some specific mismatches between FAO and aphia id species codes
-myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '127419' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'BOR','SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '125802' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'MON','SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '105711' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'SKK','SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '127262' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'GUX','SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '154462' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'GUS','SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '105693' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'SCL','SAspeciesCodeFAO'] <- NA
-myRDBESData[['SA']][myRDBESData[['SA']]$SAspeciesCode == '125915' & !is.na(myRDBESData[['SA']]$SAspeciesCodeFAO) & myRDBESData[['SA']]$SAspeciesCodeFAO == 'BLE','SAspeciesCodeFAO'] <- NA
+# Remove invalid FAO codes
+myRDBESData[['SA']] <- removeInvalidFAOCodesFromSA(myRDBESData[['SA']], allowedValues)
 
 
 # If soem of the values for the total weight are larger than the maximum value of xs:int
@@ -71,6 +63,10 @@ myRDBESData[['SA']]$SAnationalFishingActivity <- NA
 myRDBESData[['SA']]$SAtotalWeightLive <- as.integer(myRDBESData[['SA']]$SAtotalWeightLive)
 # PTM_SPF_40-54_0_0 is not allowed in 27.4.a -> change to PTM_SPF_32-69_0_0
 myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAmetier6) & myRDBESData[['SA']]$SAmetier6 == 'PTM_SPF_40-54_0_0' & !is.na(myRDBESData[['SA']]$SAarea) & myRDBESData[['SA']]$SAarea == '27.4.a','SAmetier6'] <- 'PTM_SPF_32-69_0_0'
+
+# VD fixes
+# If the power is below the minimum allowed then set it to NA
+myRDBESData[['VD']][!is.na(myRDBESData[['VD']]$VDpower) &  myRDBESData[['VD']]$VDpower < 4,'VDpower'] <- NA
 
 
 # CE fixes
@@ -117,7 +113,7 @@ errors <- validateTables(RDBESdata = myRDBESData,
 
 
 # Can check errors from individual tables using e.g.
-View(errors[errors$tableName == 'CL',])
+View(errors[errors$tableName == 'VD',])
 
 
 
@@ -125,27 +121,27 @@ View(errors[errors$tableName == 'CL',])
 
 # Create a CE output file
 #generateExchangeFile(typeOfFile = 'CE', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-generateExchangeFile(typeOfFile = 'CE', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateExchangeFile(typeOfFile = 'CE', yearToUse = 2024, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 # Create a CL output file
 #generateExchangeFile(typeOfFile = 'CL', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfRows=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-generateExchangeFile(typeOfFile = 'CL', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateExchangeFile(typeOfFile = 'CL', yearToUse = 2024, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 # Create a VD output file
-generateExchangeFile(typeOfFile = 'VD', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateExchangeFile(typeOfFile = 'VD', yearToUse = 2024, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 ## STEP 4) GENERATE COMPLEX EXCHANGE FILES (CS, SL)
 
 # Create an H1 CS file
 #generateExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
-generateExchangeFile(typeOfFile = 'H1', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+generateExchangeFile(typeOfFile = 'H1', yearToUse = 2024, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 # Create an H5 CS file
 #generateExchangeFile(typeOfFile = 'H5', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, numberOfSamples=50,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
-generateExchangeFile(typeOfFile = 'H5', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+generateExchangeFile(typeOfFile = 'H5', yearToUse = 2024, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 # Create a SL output file
-generateExchangeFile(typeOfFile = 'SL', yearToUse = 2023, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+generateExchangeFile(typeOfFile = 'SL', yearToUse = 2024, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 
 

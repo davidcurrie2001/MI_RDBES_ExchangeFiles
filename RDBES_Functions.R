@@ -1342,7 +1342,7 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
   newErrors <- validateLowerHierarchy(RDBESdataToCheck=RDBESdata)
   errorList <- rbind(errorList,newErrors)
   
-  # Now we'll check each data frame in our list
+  # CHECK 3) Now we'll check each data frame in our list
   for (dfToCheck in RDBESdata){
     
     # Validate the CS data frame
@@ -1350,6 +1350,10 @@ validateTables <- function(RDBESdata, RDBESvalidationdata, RDBEScodeLists, short
     errorList <- rbind(errorList,newErrors)
     
   } 
+  
+  # CHECK 4) Now validate area/metier combinations
+  metErrors <- validateMetiers(RDBESdataToCheck=RDBESdata)
+  errorList <- rbind(errorList,metErrors)
   
   # If we want shorter output we won't show every error  - just the first of each type
   # (only run if we actually have some errors)
@@ -2764,7 +2768,72 @@ removeInvalidFAOCodesFromSA <- function(SAdata, RDBEScodeLists){
 
 
 
+#' Check for combinatiosn of area and metier that aren't allowed
+#'
+#' @param RDBESdataToCheck The RDBES data to check
+#'
+#' @return
+#' @export
+#'
+#' @examples
+validateMetiers <- function(RDBESdataToCheck){
+  
+  #RDBESdataToCheck <- myRDBESData
+  
+  print("Validating area/metier combinations")
+  
+  allowedMets <- getAllowedMetiers()
+  allowedMets$rowID <- 1:nrow(allowedMets)
 
+  errorsToReturn <- NULL
+  
+  tablesToCheck <- c("CL", "CE", "FO", "LE", "SA")
+  for (tableToCheck in tablesToCheck) {
+
+    if(!is.null(nrow(RDBESdataToCheck[[tableToCheck]]))){
+      
+      dataToCheck <- RDBESdataToCheck[[tableToCheck]]
+      
+      # Get the correct columns for this table
+      colMatchUp <- c("area"="ICES_Area",
+                      "metier6"="Metier6_FishingActivity")
+      names(colMatchUp) <- paste(tableToCheck,names(colMatchUp), sep="")
+      #names(colMatchUp)[1]
+      compareData <- dplyr::left_join(dataToCheck,allowedMets,by=colMatchUp)
+      unmatchedRows <- compareData[is.na(compareData$rowID),]
+      # Remove first 2 characters from names
+      names(unmatchedRows) <- gsub("^.{0,2}", "", names(unmatchedRows))
+      # Only show the non-NA rows as problems
+      unmatchedRows <- unmatchedRows[!is.na(unmatchedRows$area) & !is.na(unmatchedRows$metier6),]
+      if (nrow(unmatchedRows) > 0){
+        
+        print(paste(nrow(unmatchedRows) ,"invalid area/metier combinations found in",tableToCheck))
+        
+        metErrors <- logValidationError(errorListToAppendTo = NULL
+                                        ,tableName = tableToCheck
+                                        ,rowID = unmatchedRows[,1]
+                                        ,fieldName = names(colMatchUp)[1]
+                                        ,problemType = "Allowed metier/area check"
+                                        ,problemDescription = paste('The combination of area ',
+                                                                    unmatchedRows$area, 
+                                                                    ' and metier ', 
+                                                                    unmatchedRows$metier6 ,
+                                                                    ' is not allowed', sep = ""))
+        errorsToReturn <- rbind(errorsToReturn,metErrors)
+      }
+    }
+  }
+
+  errorsToReturn
+  
+}
+
+getAllowedMetiers <- function(){
+  
+  allowedMets <- data.table::fread('./referenceData/AllowedMetiersInAreas.csv')
+  
+  
+}
 
 
 

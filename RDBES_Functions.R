@@ -2813,7 +2813,7 @@ validateMetiers <- function(RDBESdataToCheck){
                                         ,tableName = tableToCheck
                                         ,rowID = unmatchedRows[,1]
                                         ,fieldName = names(colMatchUp)[1]
-                                        ,problemType = "Allowed metier/area check"
+                                        ,problemType = "Allowed area/metier check"
                                         ,problemDescription = paste('The combination of area ',
                                                                     unmatchedRows$area, 
                                                                     ' and metier ', 

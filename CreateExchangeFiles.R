@@ -41,7 +41,7 @@ myRDBESData[['FO']]$FOnationalFishingActivity <- NA
 # Get rid of any values in SAnationalFishingActivity - anything in here woudl need to be added to an ICES code list first
 myRDBESData[['LE']]$LEnationalFishingActivity <- NA
 # PTM_SPF_40-54_0_0 is not allowed in 27.4.a -> change to PTM_SPF_32-69_0_0
-myRDBESData[['LE']][!is.na(myRDBESData[['LE']]$LEmetier6) &  myRDBESData[['LE']]$LEmetier6 == 'PTM_SPF_40-54_0_0' & !is.na(myRDBESData[['LE']]$LEarea) &  myRDBESData[['LE']]$LEarea == '27.4.a','LEmetier6'] <- 'PTM_SPF_32-69_0_0'
+#myRDBESData[['LE']][!is.na(myRDBESData[['LE']]$LEmetier6) &  myRDBESData[['LE']]$LEmetier6 == 'PTM_SPF_40-54_0_0' & !is.na(myRDBESData[['LE']]$LEarea) &  myRDBESData[['LE']]$LEarea == '27.4.a','LEmetier6'] <- 'PTM_SPF_32-69_0_0'
 
 # SA fixes
 
@@ -60,9 +60,9 @@ myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAsampleWeightMeasured) & myRDBES
 # Get rid of any values in SAnationalFishingActivity - anything in here woudl need to be added to an ICES code list first
 myRDBESData[['SA']]$SAnationalFishingActivity <- NA
 # SAtotalWeightLive should be an int
-myRDBESData[['SA']]$SAtotalWeightLive <- as.integer(myRDBESData[['SA']]$SAtotalWeightLive)
+#myRDBESData[['SA']]$SAtotalWeightLive <- as.integer(myRDBESData[['SA']]$SAtotalWeightLive)
 # PTM_SPF_40-54_0_0 is not allowed in 27.4.a -> change to PTM_SPF_32-69_0_0
-myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAmetier6) & myRDBESData[['SA']]$SAmetier6 == 'PTM_SPF_40-54_0_0' & !is.na(myRDBESData[['SA']]$SAarea) & myRDBESData[['SA']]$SAarea == '27.4.a','SAmetier6'] <- 'PTM_SPF_32-69_0_0'
+#myRDBESData[['SA']][!is.na(myRDBESData[['SA']]$SAmetier6) & myRDBESData[['SA']]$SAmetier6 == 'PTM_SPF_40-54_0_0' & !is.na(myRDBESData[['SA']]$SAarea) & myRDBESData[['SA']]$SAarea == '27.4.a','SAmetier6'] <- 'PTM_SPF_32-69_0_0'
 
 # VD fixes
 # If the power is below the minimum allowed then set it to NA
@@ -113,7 +113,7 @@ errors <- validateTables(RDBESdata = myRDBESData,
 
 
 # Can check errors from individual tables using e.g.
-View(errors[errors$tableName == 'VD',])
+View(errors[errors$tableName == 'SA',])
 
 
 

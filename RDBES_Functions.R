@@ -926,11 +926,13 @@ getFieldNameMapping <- function(downloadFromGitHub= TRUE, gitHubDirectory = "htt
         
     # Download our files
     for (i in 1:nrow(myDataModelFiles)){
-      aDataModelFile <- getBinaryURL(myDataModelFiles[i,'downloadURL'])
+      aDataModelFile <- httr::GET(myDataModelFiles[i,'downloadURL'])
+      aDataModelFileContent <- content(aDataModelFile, "raw")
       # save the file locally
       myFileConnection = file(paste(fileLocation,myDataModelFiles[i,'fileName'], sep = ""), "wb")
-      writeBin(aDataModelFile, myFileConnection)
+      writeBin(aDataModelFileContent, myFileConnection)
       aDataModelFile <- NA
+      aDataModelFileContent <- NA
       close(myFileConnection)
     }
     
@@ -965,7 +967,8 @@ getFieldNameMapping <- function(downloadFromGitHub= TRUE, gitHubDirectory = "htt
       print("Loading VD SL names")
       # Add the sheets to the dataModel list
       dataModel[['VD']] <- read_excel(myFileLocation,sheet = myFileSheets[grepl(".*Vessel.*",myFileSheets)])
-      dataModel[['SL']] <- read_excel(myFileLocation,sheet = myFileSheets[grepl(".*Species.*",myFileSheets)])
+      dataModel[['SL']] <- read_excel(myFileLocation,sheet = myFileSheets[grepl(".*Species List.*",myFileSheets)])
+      dataModel[['IS']] <- read_excel(myFileLocation,sheet = myFileSheets[grepl(".*Individual Species.*",myFileSheets)])
       
     } 
     # CS

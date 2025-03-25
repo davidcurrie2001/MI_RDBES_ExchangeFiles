@@ -2,8 +2,6 @@
 
 # Load our functions
 source("RDBES_Functions.R")
-# Temporary fix required for a function from icesVocab - otherwise the function breaks when it tries to download the EDMO code list (or any list containing carriage returns)
-source("tempIcesVocabFix.R")
 
 # IMPORTANT: Hack to stop write.csv changing numbers to scientific notation
 options(scipen=500) # big number of digits
@@ -15,20 +13,23 @@ options(scipen=500) # big number of digits
 # IMPORTANT - if you are just going to use your own list of data frames make sure you don't have factors in them - my code assumes the data frames were created using stringsAsFactors = FALSE
 myRDBESData <- loadRDBESData(readRDS("connectionString.RDS"))
 
-# Load the validation data
-#validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = './tableDefs/BaseTypes.xsd')
-validationData <- getValidationData(downloadFromGitHub = TRUE, fileLocation = './tableDefs/BaseTypes.xsd')
 
-# 30/8/2021 Temp fix because the validation fields aren't up to date :-(
-validationData[validationData$type == 'tRS_Sex','type'] <- 'tSEXCO'
+## (OPTIONAL) If you want to you can switch between using the database field names or the shorter R names for the different columns in our data 
+fieldNameMapping <- getFieldNameMapping(downloadFromGitHub= TRUE, fileLocation = './tableDefs/')
+#fieldNameMapping <- getFieldNameMapping(downloadFromGitHub= FALSE, fileLocation = './tableDefs/')
+#myChangedRDBESData <- changeFieldNames(RDBESdata = myRDBESData, fieldNameMap = fieldNameMapping, typeOfChange = "DBtoR")
+
+
+# Load the validation data
+validationData <- getValidationData(downloadFromGitHub = FALSE, fileLocation = './tableDefs/BaseTypes.xsd')
+#validationData <- getValidationData(downloadFromGitHub = TRUE, fileLocation = './tableDefs/BaseTypes.xsd')
 
 # Load the reference data: either refresh from ICES or just use a local copy
-#allowedValues <- loadReferenceData(downloadFromICES = FALSE)
-allowedValues <- loadReferenceData(downloadFromICES = TRUE, validationData=validationData)
+allowedValues <- loadReferenceData(downloadFromICES = FALSE)
+#allowedValues <- loadReferenceData(downloadFromICES = TRUE, validationData=validationData)
 
 # Load the lists of tables required for each hierarchy: either refresh from ICES or just use a local copy
-#allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = FALSE, fileLocation = './tableDefs/')
-allRequiredTables <- getTablesInHierarchies(downloadFromGitHub = TRUE, fileLocation = './tableDefs/')
+allRequiredTables <- getTablesInHierarchies()
 
 
 ## STEP 2) VALIDATE OUR DATA AND CHECK ERRORS
@@ -45,21 +46,21 @@ errors <- validateTables(RDBESdata = myRDBESData, RDBESvalidationdata = validati
 ## STEP 3) GENERATE SIMPLE EXCHANGE FILES (CL,CE,SL,VD) (change the year and country to what you want, change the value of cleanData to FALSE is you don't want to remove invalid rows)
 
 # Create a CE output file
-generateSimpleExchangeFile(typeOfFile = 'CE', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateExchangeFile(typeOfFile = 'CE', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 # Create a CL output file
-generateSimpleExchangeFile(typeOfFile = 'CL', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateExchangeFile(typeOfFile = 'CL', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
 
 # Create a VD output file
-generateSimpleExchangeFile(typeOfFile = 'VD', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+generateExchangeFile(typeOfFile = 'VD', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
+
+
+## STEP 4) GENERATE COMPLEX EXCHANGE FILES (CS and SL)  (change the hierarchy, year and country to what you want, change the value of cleanData to FALSE is you don't want to remove invalid rows)
 
 # Create a SL output file
-generateSimpleExchangeFile(typeOfFile = 'SL', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues)
-
-
-## STEP 4) GENERATE COMPLEX EXCHANGE FILES (CS)  (change the hierarchy, year and country to what you want, change the value of cleanData to FALSE is you don't want to remove invalid rows)
+generateExchangeFile(typeOfFile = 'SL', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData,cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 # Create an H1 CS file
-generateComplexExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
+generateExchangeFile(typeOfFile = 'H1', yearToUse = 2019, country = 'IE', RDBESdata = myRDBESData, cleanData = TRUE, RDBESvalidationdata = validationData, RDBEScodeLists = allowedValues, RequiredTables = allRequiredTables)
 
 

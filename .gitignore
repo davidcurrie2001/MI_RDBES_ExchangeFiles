@@ -40,12 +40,12 @@ rsconnect/
 connectionString.RDS
 
 # CSV files
-*.csv
-*.csv_debug
+#*.csv
+#*.csv_debug
 
 # Excel files
-*.xls
-*.xlsx
+#*.xls
+#*.xlsx
 
 # xsd files
 #*.xsd
@@ -55,3 +55,6 @@ connectionString.RDS
 readme.txt
 
 *.html
+
+# Output directory
+output/

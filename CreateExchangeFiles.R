@@ -74,8 +74,10 @@ myRDBESData[['VD']][!is.na(myRDBESData[['VD']]$VDpower) &  myRDBESData[['VD']]$V
 myRDBESData[['CE']]<-myRDBESData[['CE']][!is.na(myRDBESData[['CE']]$CEarea),]
 # Get rid of 47.1.1, 47.1.3 areas 
 myRDBESData[['CE']] <- myRDBESData[['CE']][!myRDBESData[['CE']]$CEarea %in% c('47.1.1','47.1.3'),]
-# Get rid of zero fishing hours
-myRDBESData[['CE']] <- myRDBESData[['CE']][!is.na(myRDBESData[['CE']]$CEofficialVesselFishingHour) & myRDBESData[['CE']]$CEofficialVesselFishingHour > 0,]
+# Change zero fishing hours to NA
+#myRDBESData[['CE']] <- myRDBESData[['CE']][!is.na(myRDBESData[['CE']]$CEofficialVesselFishingHour) & myRDBESData[['CE']]$CEofficialVesselFishingHour > 0,]
+myRDBESData[['CE']][!is.na(myRDBESData[['CE']]$CEofficialVesselFishingHour) & myRDBESData[['CE']]$CEofficialVesselFishingHour == 0,'CEofficialVesselFishingHour'] <- NA
+myRDBESData[['CE']][!is.na(myRDBESData[['CE']]$CEscientificVesselFishingHour) & myRDBESData[['CE']]$CEscientificVesselFishingHour == 0,'CEscientificVesselFishingHour'] <- NA
 # Get rid of zero fishing days
 myRDBESData[['CE']] <- myRDBESData[['CE']][!is.na(myRDBESData[['CE']]$CEofficialFishingDays ) & myRDBESData[['CE']]$CEofficialFishingDays > 0,]
 # The "NA" rows in CEfreshWaterName get changed to actual NAs when read in - let's change them back to "NA"
@@ -113,7 +115,7 @@ errors <- validateTables(RDBESdata = myRDBESData,
 
 
 # Can check errors from individual tables using e.g.
-View(errors[errors$tableName == 'SA',])
+View(errors[errors$tableName == 'CE',])
 
 
 

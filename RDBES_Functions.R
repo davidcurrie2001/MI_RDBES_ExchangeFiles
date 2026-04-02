@@ -2764,6 +2764,7 @@ removeInvalidFAOCodesFromSA <- function(SAdata, RDBEScodeLists){
   SAdata[SAdata$SAspeciesCode == '127151' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'LEF','SAspeciesCodeFAO'] <- NA
   SAdata[SAdata$SAspeciesCode == '126493' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'GAD','SAspeciesCodeFAO'] <- NA
   SAdata[SAdata$SAspeciesCode == '126751' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'SAN','SAspeciesCodeFAO'] <- NA
+  SAdata[SAdata$SAspeciesCode == '125700' & !is.na(SAdata$SAspeciesCodeFAO) & SAdata$SAspeciesCodeFAO == 'BER','SAspeciesCodeFAO'] <- NA
   
   
   SAdata

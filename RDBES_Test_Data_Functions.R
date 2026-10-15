@@ -419,8 +419,13 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
   DataToUse[['SL']][,'SLcountry'] <- CountryToUse
   DataToUse[['SL']][,'SLyear'] <- YearToUse
   DataToUse[['SL']][,'SLspeciesListName'] <- paste(CountryToUse,'_',YearToUse,'_SpeciesList',sep="")
-  mySpeciesCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tSpecWoRMS','Key']
-  mySpeciesCodes <- c(SpeciesList,mySpeciesCodes)
+  if (length(SpeciesList) == 0 && is.null(SpeciesList)){
+    mySpeciesCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tSpecWoRMS','Key']
+  } else {
+    mySpeciesCodes <- SpeciesList
+  }
+  #mySpeciesCodes <- RDBEScodeLists[RDBEScodeLists$listName == 'tSpecWoRMS','Key']
+  #mySpeciesCodes <- c(SpeciesList,mySpeciesCodes)
   mySpeciesCodes <- unique(mySpeciesCodes)
   mySpeciesCodes <- mySpeciesCodes[1:nrow(DataToUse[['SL']])]
   DataToUse[['SL']][,'SLcommercialTaxon'] <- mySpeciesCodes
@@ -430,7 +435,7 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
   # CS TABLES
   
   # Sampling scheme name 
-  DataToUse[['DE']]$DEsamplingScheme <- 'National Routine'
+  DataToUse[['DE']]$DEsamplingScheme <- 'WGRDBES-EST TEST 1'
   
   # COUNTRY
   # Sort out the country and location code fields
@@ -471,7 +476,7 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     } else {
       myRandomValues <- myCountryLocodes
     }
-    DataToUse[['LE']][,'LElocation'] <- myRandomValues
+    DataToUse[['LE']][,'LElocode'] <- myRandomValues
   }
   if ('LO' %in% names(DataToUse)){
     if (length(myCountryLocodes) > 1){
@@ -512,9 +517,12 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
   }
   # for FO we'll use the arrival date of the trip for all our fishing acitvity
   if ('FO' %in% names(DataToUse) & 'FT' %in% names(DataToUse)){
+    DataToUse[['FO']][,'FOaggregationLevel'] <- 'H'
     FTDates <- DataToUse[['FT']][,c('FTid','FTdepartureDate','FTarrivalDate')]
-    myJoin <- inner_join(DataToUse[['FO']],FTDates, by ='FTid')
-    DataToUse[['FO']][,'FOendDate'] <- myJoin[,'FTarrivalDate']
+    if ('FTid' %in% names(DataToUse[['FO']])) {
+      myJoin <- inner_join(DataToUse[['FO']],FTDates, by ='FTid')
+      DataToUse[['FO']][,'FOendDate'] <- myJoin[,'FTarrivalDate']
+    }
   }
   if ('OS' %in% names(DataToUse)){
     myRandomValues <- sample(seq(as.Date(paste(YearToUse,'/01/01',sep="")), as.Date(paste(YearToUse,'/12/01',sep="")), by="day"), nrow(DataToUse[['OS']]),replace = TRUE)
@@ -842,7 +850,7 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     DataToUse[['CE']][,'CEvesselLengthCategory'] <- 'VL1518'
     
     #Dedupe CE 
-    DataToUse[['CE']] <- distinct(DataToUse[['CE']], CEdataTypeOfScientificEffort, CEdataSourceOfScientificEffort, CEsamplingScheme, CEvesselFlagCountry, CEyear, CEquarter, CEmonth, CEarea, CEstatisticalRectangle, CEdataSourceOfStatisticalRectangle, CEgsaSubarea, CEjurisdictionArea, CEfishingAreaCategory, CEfreshWaterName, CEexclusiveEconomicZone, CEnationalFishingActivity, CEmetier6, CEincidentalByCatchMitigationDevice, CElandingLocation, CEvesselLengthCategory, CEfishingTechnique, CEdeepSeaRegulation, .keep_all= TRUE)
+    DataToUse[['CE']] <- distinct(DataToUse[['CE']], CEdataBasisOfScientificEffort, CEdataSourceOfScientificEffort, CEsamplingScheme, CEvesselFlagCountry, CEyear, CEquarter, CEmonth, CEarea, CEstatisticalRectangle, CEdataSourceOfStatisticalRectangle, CEgsaSubarea, CEjurisdictionArea, CEfishingAreaCategory, CEfreshWaterName, CEexclusiveEconomicZone, CEnationalFishingActivity, CEmetier6, CEincidentalByCatchMitigationDevice, CElandingLocation, CEvesselLengthCategory, CEfishingTechnique, CEdeepSeaRegulation, .keep_all= TRUE)
     
   }
   
@@ -899,7 +907,7 @@ makeTestDataMoreRealistic <- function(DataToUse,CountryToUse,YearToUse,MetierLis
     DataToUse[['CL']][,'CLvesselLengthCategory'] <- 'VL1518'
     
     #Dedupe CL 
-    DataToUse[['CL']] <- distinct(DataToUse[['CL']], CLdataTypeOfScientificWeight, CLdataSourceOfScientificWeight, CLsamplingScheme, CLdataSourceLandingsValue, CLlandingCountry, CLvesselFlagCountry, CLyear, CLquarter, CLmonth, CLarea, CLstatisticalRectangle, CLdataSourceOfStatisticalRectangle, CLgsaSubarea, CLjurisdictionArea, CLfishingAreaCategory, CLfreshWaterName, CLexclusiveEconomicZone, CLspeciesCode, CLspeciesFaoCode, CLlandingCategory, CLcatchCategory, CLregDisCategory, CLcommercialSizeCategoryScale, CLcommercialSizeCategory, CLnationalFishingActivity, CLmetier6, CLincidentalByCatchMitigationDevice, CLlandingLocation, CLvesselLengthCategory, CLfishingTechnique, CLdeepSeaRegulation, .keep_all= TRUE)
+    DataToUse[['CL']] <- distinct(DataToUse[['CL']], CLdataBasisOfScientificWeight, CLdataSourceOfScientificWeight, CLsamplingScheme, CLdataSourceLandingsValue, CLlandingCountry, CLvesselFlagCountry, CLyear, CLquarter, CLmonth, CLarea, CLstatisticalRectangle, CLdataSourceOfStatisticalRectangle, CLgsaSubarea, CLjurisdictionArea, CLfishingAreaCategory, CLfreshWaterName, CLexclusiveEconomicZone, CLspeciesCode, CLspeciesFaoCode, CLlandingCategory, CLcatchCategory, CLregDisCategory, CLcommercialSizeCategoryScale, CLcommercialSizeCategory, CLnationalFishingActivity, CLmetier6, CLincidentalByCatchMitigationDevice, CLlandingLocation, CLvesselLengthCategory, CLfishingTechnique, CLdeepSeaRegulation, .keep_all= TRUE)
     
   }
   
